@@ -8,6 +8,11 @@
   <strong>The open sharing protocol for the agentic era.</strong>
   <br><br>
   <a href="https://lfaidata.foundation">A Linux Foundation AI &amp; Data Project</a>
+  <br><br>
+  <a href="https://www.apache.org/licenses/LICENSE-2.0"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache_2.0-blue.svg"></a>
+  <a href="https://securityscorecards.dev/viewer/?uri=github.com/OpenSharing-IO/OpenSharing"><img alt="OpenSSF Scorecard" src="https://api.securityscorecards.dev/projects/github.com/OpenSharing-IO/OpenSharing/badge"></a>
+  <!-- After registering at https://www.bestpractices.dev, add the Best Practices badge (replace NNNN with the project id): -->
+  <!-- <a href="https://www.bestpractices.dev/projects/NNNN"><img alt="OpenSSF Best Practices" src="https://www.bestpractices.dev/projects/NNNN/badge"></a> -->
 </div>
 
 ---
