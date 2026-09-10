@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  server-test:
+    name: Server tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # No working-directory default: this runs before anything establishes that server/ even
+      # exists, and a step whose working directory doesn't exist fails to start at all, before its
+      # own script gets a chance to say so gracefully.
+      - name: Check for server module
+        id: server
+        run: |
+          if [ -f server/pom.xml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Java 21
+        if: steps.server.outputs.present == 'true'
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: server/**/pom.xml
+
+      - name: Run tests
+        if: steps.server.outputs.present == 'true'
+        working-directory: server
+        run: mvn -B -ntp verify
+
+      - name: Skip Maven tests
+        if: steps.server.outputs.present != 'true'
+        run: echo "No server/pom.xml in this revision; skipping Maven tests."
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: surefire-reports
+          path: server/*/target/surefire-reports/
+          if-no-files-found: ignore
