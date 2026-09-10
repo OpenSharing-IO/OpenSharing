@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<!--
+  Hadoop reads this file wherever it finds it on the classpath, which is how a deployment tells the
+  storage drivers about its own environment. Here it does one thing: keep a test from reaching a real
+  cloud. Tables in the test catalog live on S3, so an S3 read is pointed at a port nothing listens on
+  and told to give up at once, which exercises the server's own failure path in milliseconds.
+-->
+<configuration>
+  <property>
+    <name>fs.s3a.endpoint</name>
+    <value>http://localhost:1</value>
+  </property>
+  <property>
+    <name>fs.s3a.path.style.access</name>
+    <value>true</value>
+  </property>
+  <property>
+    <name>fs.s3a.attempts.maximum</name>
+    <value>1</value>
+  </property>
+  <property>
+    <name>fs.s3a.retry.limit</name>
+    <value>1</value>
+  </property>
+  <property>
+    <name>fs.s3a.connection.establish.timeout</name>
+    <value>500ms</value>
+  </property>
+  <property>
+    <name>fs.s3a.connection.timeout</name>
+    <value>500ms</value>
+  </property>
+</configuration>
