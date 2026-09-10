@@ -1,0 +1,86 @@
+# Defaults for a local run. Any key here can be overridden per environment without editing the file:
+# pass --the.key.path=value as an argument, or set the upper-case underscored form of the path.
+spring:
+  application:
+    name: opensharing-server
+  datasource:
+    # The driver is derived from the URL, so pointing this at Postgres or MySQL is the only change
+    # needed to move the metadata store there.
+    url: jdbc:h2:file:./data/opensharing;AUTO_SERVER=TRUE
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  jackson:
+    default-property-inclusion: non_null
+    mapper:
+      accept-case-insensitive-enums: true
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+  error:
+    whitelabel:
+      enabled: false
+
+opensharing:
+  # Prefix the protocol-serving endpoints are mounted under; this is what goes in a profile file.
+  protocol-prefix: /api/2.1/opensharing
+  hosting:
+    # standalone: run as its own Spring Boot process with opensharing.catalog.* and admin principals.
+    # embedded: host registers a CatalogConnector bean (see io.opensharing.runtime.OpenSharing).
+    mode: standalone
+  admin:
+    # Provider principals provisioned at startup. Each bearer token is also the credential the
+    # catalog is asked with as that principal.
+    principals: []
+  provider:
+    base-path: /api/2.1/opensharing/provider
+  activation:
+    base-path: /api/2.1/opensharing/activation
+    ttl: 72h
+    external-base-url: http://localhost:8080
+  recipient-tokens:
+    default-ttl: 90d
+    rotation-grace: 24h
+  asset-credentials:
+    ttl: 1h
+  pagination:
+    default-max-results: 500
+    max-max-results: 1000
+  storage:
+    # Region used to sign S3 urls when the catalog's credentials do not name one.
+    s3-region: us-east-1
+    # A Google service account key file, whose private key signs urls for gs paths. Google signs with
+    # RSA, so a key is the only thing that can, and the OAuth token a catalog vends cannot go in a
+    # url. Blank leaves GOOGLE_APPLICATION_CREDENTIALS to name the file, as the reference sharing
+    # server does; with neither, Google storage is served in dir access mode only.
+    gcs-service-account-key-file: ""
+  delta:
+    # Reading Delta logs to serve version/metadata/query, and signing per-file urls from the
+    # credentials the catalog minted. Turning this off leaves dir access mode alone.
+    url-access-enabled: true
+    url-ttl: 1h
+  catalog:
+    # 'local' reads every asset from a declarative file; 'unity' asks an open-source Unity Catalog
+    # over its REST API, as whichever principal the request is for.
+    type: local
+    local:
+      file: classpath:local-catalog.yml
+    unity:
+      # Base url of the Unity Catalog API, the path it is served under included. Required when the
+      # type above is 'unity'. Nothing authenticates to the catalog on the server's own behalf, so no
+      # credential belongs here. Note that Unity Catalog also listens on 8080 by default, so one
+      # running beside this server will have been moved off it.
+      uri: ""
+      connect-timeout: 5s
+      request-timeout: 30s
+
+logging:
+  level:
+    io.opensharing: INFO
+    # Delta Kernel narrates every log segment it loads, which is a line per request.
+    io.delta: WARN
