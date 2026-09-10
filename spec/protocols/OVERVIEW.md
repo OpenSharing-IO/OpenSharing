@@ -23,8 +23,8 @@ Example:
 ```json
 {
   "shareCredentialsVersion": 1,
-  "endpoint": "https://sharing.opensharing.io/open-sharing/",
-  "icebergEndpoint": "https://sharing.opensharing.io/open-sharing/iceberg/",
+  "endpoint": "https://sharing.opensharing.io/opensharing/",
+  "icebergEndpoint": "https://sharing.opensharing.io/opensharing/iceberg/",
   "bearerToken": "<token>",
   "expirationTime": "2021-11-12T00:12:29.0Z"
 }
