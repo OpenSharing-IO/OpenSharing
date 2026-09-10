@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Machine-local workaround, not a project requirement.
+
+  This developer machine resolves repo.maven.apache.org and repo1.maven.org to 127.0.0.1 through
+  /etc/hosts, so Maven cannot reach Central. This settings file points Maven at Google's official
+  read-only mirror of Maven Central instead.
+
+  Use it explicitly:  mvn -s .mvn/local-mirror-settings.xml <goals>
+
+  On a machine with normal access to Central, ignore this file entirely.
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <mirrors>
+    <mirror>
+      <id>google-maven-central</id>
+      <name>Google mirror of Maven Central</name>
+      <url>https://maven-central-eu.storage-download.googleapis.com/maven2</url>
+      <mirrorOf>central</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>
