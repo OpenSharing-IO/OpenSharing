@@ -3,12 +3,7 @@ package io.opensharing.catalog;
 import java.time.Instant;
 import java.util.Map;
 
-/**
- * Scoped, TTL-bounded storage credentials minted by the catalog.
- *
- * @param prefix the storage prefix the credentials are scoped to
- * @param credentials provider-specific values keyed by {@link StorageCredentialKeys}
- */
+/** Time-bounded credentials for one storage prefix. */
 public record StorageCredentials(
     String prefix, CloudProvider provider, Map<String, String> credentials, Instant expiration) {
 

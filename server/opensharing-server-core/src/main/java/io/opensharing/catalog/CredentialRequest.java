@@ -2,7 +2,7 @@ package io.opensharing.catalog;
 
 import java.time.Duration;
 
-/** Request for storage credentials scoped to a single asset location. */
+/** Request for credentials scoped to one asset location. */
 public record CredentialRequest(
     AssetType assetType,
     String identifier,
