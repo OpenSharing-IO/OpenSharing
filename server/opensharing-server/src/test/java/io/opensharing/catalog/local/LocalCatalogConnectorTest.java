@@ -14,7 +14,6 @@ import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
-import io.opensharing.catalog.StorageCredentialKeys;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
 import io.opensharing.catalog.TableFormat;
@@ -155,8 +154,8 @@ class LocalCatalogConnectorTest {
     assertEquals(CloudProvider.AWS, credentials.provider());
     assertEquals("s3://lake/sales/orders/", credentials.prefix());
     assertTrue(credentials.expiration().isAfter(java.time.Instant.now()));
-    assertTrue(credentials.require(StorageCredentialKeys.ACCESS_KEY_ID).startsWith("ASIA"));
-    assertTrue(!credentials.require(StorageCredentialKeys.SESSION_TOKEN).isBlank());
+    assertTrue(credentials.require(StorageCredentials.ACCESS_KEY_ID).startsWith("ASIA"));
+    assertTrue(!credentials.require(StorageCredentials.SESSION_TOKEN).isBlank());
   }
 
   @Test
@@ -189,7 +188,7 @@ class LocalCatalogConnectorTest {
 
     assertEquals(CloudProvider.AZURE, credentials.provider());
     assertEquals(
-        "sv=2024-11-04&sig=configured", credentials.require(StorageCredentialKeys.SAS_TOKEN));
+        "sv=2024-11-04&sig=configured", credentials.require(StorageCredentials.SAS_TOKEN));
   }
 
   @Test
