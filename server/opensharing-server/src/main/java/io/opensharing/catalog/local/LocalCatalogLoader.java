@@ -3,7 +3,7 @@ package io.opensharing.catalog.local;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import io.opensharing.catalog.exception.CatalogException;
+import io.opensharing.exception.CatalogException;
 import java.io.IOException;
 import java.io.InputStream;
 
