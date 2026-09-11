@@ -1,0 +1,15 @@
+# Sample catalog for opensharing.catalog.type=local.
+# FAKE credentials are placeholders. Use STATIC with credentials.values for real keys.
+credentials:
+  provider: AWS
+  mode: FAKE
+  ttlSeconds: 3600
+
+assets:
+  - identifier: main.sales
+    type: SCHEMA
+
+  - identifier: main.sales.table1
+    subtype: MANAGED
+    storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+    format: delta
