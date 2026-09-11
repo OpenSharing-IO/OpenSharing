@@ -1,0 +1,34 @@
+# Sample catalog for opensharing.catalog.type=local.
+# FAKE credentials are placeholders. Use STATIC with credentials.values for real keys.
+# Omit sharableBy to allow any principal; a SCHEMA shares child tables one level below it.
+credentials:
+  provider: AWS
+  mode: FAKE
+  ttlSeconds: 3600
+
+assets:
+  - identifier: main.sales.orders
+    subtype: MANAGED
+    storageLocation: s3://acme-lake/sales/orders/
+    format: delta
+
+  - identifier: main.sales.forecast
+    subtype: MATERIALIZED_VIEW
+    storageLocation: s3://acme-lake/sales/forecast/
+    metadataLocation: s3://acme-lake/sales/forecast/metadata/00003-forecast.metadata.json
+    format: iceberg
+
+  - identifier: main.research.trial_results
+    storageLocation: s3://acme-lake/research/trial-results/
+    format: parquet
+
+  - identifier: main.hr
+    type: SCHEMA
+
+  - identifier: main.hr.employees
+    storageLocation: s3://acme-lake/hr/employees/
+    format: delta
+
+  - identifier: main.hr.salaries
+    storageLocation: s3://acme-lake/hr/salaries/
+    format: delta
