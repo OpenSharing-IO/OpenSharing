@@ -1,4 +1,7 @@
-package io.opensharing.catalog;
+package io.opensharing.catalog.exception;
+
+import io.opensharing.catalog.AssetLookup;
+import io.opensharing.catalog.CatalogCaller;
 
 /** The catalog has the asset but this caller may not share it. */
 public class AssetAccessDeniedException extends CatalogException {
