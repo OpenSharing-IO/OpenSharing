@@ -1,6 +1,6 @@
 package io.opensharing.catalog;
 
-/** The sharing server's own service-principal credentials were rejected by the catalog. */
+/** The catalog rejected the connector's credentials. */
 public class CatalogAuthenticationException extends CatalogException {
 
   public CatalogAuthenticationException(String message) {

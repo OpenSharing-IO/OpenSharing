@@ -36,8 +36,6 @@
         <configuration>
           <mainClass>io.opensharing.OpenSharingServer</mainClass>
           <classifier>exec</classifier>
-          <!-- Entry point is added in a later slice; skip fat-jar packaging until then. -->
-          <skip>true</skip>
         </configuration>
         <executions>
           <execution>

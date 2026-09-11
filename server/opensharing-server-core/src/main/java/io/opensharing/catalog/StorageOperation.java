@@ -1,6 +1,6 @@
 package io.opensharing.catalog;
 
-/** Access level requested when vending storage credentials. Sharing only ever needs reads. */
+/** Access requested when vending credentials. Sharing only needs reads. */
 public enum StorageOperation {
   READ
 }
