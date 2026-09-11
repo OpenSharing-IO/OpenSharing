@@ -1,4 +1,4 @@
-package io.opensharing.catalog.exception;
+package io.opensharing.exception;
 
 import io.opensharing.catalog.AssetLookup;
 import io.opensharing.catalog.CatalogCaller;
