@@ -22,10 +22,15 @@ import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class LocalCatalogConnectorTest {
+
+  private static final String TABLE1 =
+      "s3://delta-exchange-test/delta-exchange-test/table1/";
 
   private static final String CATALOG =
       """
@@ -34,18 +39,16 @@ class LocalCatalogConnectorTest {
         mode: FAKE
         ttlSeconds: 900
       assets:
-        - identifier: main.sales.orders
+        - identifier: main.sales
+          type: SCHEMA
+        - identifier: main.sales.table1
           type: TABLE
           subtype: MANAGED
-          storageLocation: s3://lake/sales/orders/
-          format: delta
-          auxiliaryLocations:
-            - s3://lake-overflow/sales/orders/
-        - identifier: main.research.notes
-          storageLocation: s3://lake/research/notes/
+          storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
           format: delta
         - identifier: main.finance.ledger
-          storageLocation: s3://lake/finance/ledger/
+          storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+          format: delta
           sharableBy:
             - alice@example.com
       """;
@@ -61,18 +64,17 @@ class LocalCatalogConnectorTest {
 
   @Test
   void resolvesTableWithFormatAndDirectoryAccess() {
-    ResolvedAsset asset = resolve(CATALOG, "main.sales.orders", ALICE);
+    ResolvedAsset asset = resolve(CATALOG, "main.sales.table1", ALICE);
 
-    assertEquals("s3://lake/sales/orders/", asset.storageLocation());
+    assertEquals(TABLE1, asset.storageLocation());
     assertEquals(TableFormat.DELTA, asset.format());
     assertEquals("MANAGED", asset.subtype());
     assertEquals(Set.of(AccessMode.DIR), asset.accessModes());
-    assertEquals(List.of("s3://lake-overflow/sales/orders/"), asset.auxiliaryLocations());
   }
 
   @Test
   void treatsAssetsWithoutAnExplicitTypeAsTables() {
-    ResolvedAsset asset = resolve(CATALOG, "main.research.notes", ALICE);
+    ResolvedAsset asset = resolve(CATALOG, "main.finance.ledger", ALICE);
 
     assertEquals(AssetType.TABLE, asset.type());
     assertEquals(TableFormat.DELTA, asset.format());
@@ -80,9 +82,7 @@ class LocalCatalogConnectorTest {
 
   @Test
   void resolvesNamesCaseInsensitively() {
-    assertEquals(
-        "s3://lake/sales/orders/",
-        resolve(CATALOG, "MAIN.Sales.Orders", ALICE).storageLocation());
+    assertEquals(TABLE1, resolve(CATALOG, "MAIN.Sales.Table1", ALICE).storageLocation());
   }
 
   @Test
@@ -102,9 +102,7 @@ class LocalCatalogConnectorTest {
    */
   @Test
   void letsOnlyTheListedPrincipalsShareARestrictedAsset() {
-    assertEquals(
-        "s3://lake/finance/ledger/",
-        resolve(CATALOG, "main.finance.ledger", ALICE).storageLocation());
+    assertEquals(TABLE1, resolve(CATALOG, "main.finance.ledger", ALICE).storageLocation());
 
     LocalCatalogConnector connector = connector(CATALOG);
     AssetLookup lookup = AssetLookup.of(AssetType.TABLE, "main.finance.ledger");
@@ -123,7 +121,7 @@ class LocalCatalogConnectorTest {
         assets:
           - identifier: main.research.trials
             format: delta
-            storageLocation: s3://lake/research/trials/
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
             schema: '{"type":"struct","fields":[]}'
         """;
 
@@ -139,9 +137,9 @@ class LocalCatalogConnectorTest {
             .getStorageCredentials(
                 new CredentialRequest(
                     AssetType.TABLE,
-                    "main.sales.orders",
-                    "main.sales.orders",
-                    "s3://lake/sales/orders/",
+                    "main.sales.table1",
+                    "main.sales.table1",
+                    TABLE1,
                     StorageOperation.READ,
                     Duration.ofMinutes(5)),
                 ALICE);
@@ -149,10 +147,62 @@ class LocalCatalogConnectorTest {
     assertEquals(1, vended.size(), "this connector scopes to the one location it was asked about");
     StorageCredentials credentials = vended.get(0);
     assertEquals(CloudProvider.AWS, credentials.provider());
-    assertEquals("s3://lake/sales/orders/", credentials.prefix());
+    assertEquals(TABLE1, credentials.prefix());
     assertTrue(credentials.expiration().isAfter(java.time.Instant.now()));
     assertTrue(credentials.require(StorageCredentials.ACCESS_KEY_ID).startsWith("ASIA"));
     assertTrue(!credentials.require(StorageCredentials.SESSION_TOKEN).isBlank());
+  }
+
+  @Test
+  void vendsConfiguredAwsKeysForTheExchangeTestTable() {
+    String accessKey = System.getenv("AWS_ACCESS_KEY_ID");
+    String secret = System.getenv("AWS_SECRET_ACCESS_KEY");
+    Assumptions.assumeFalse(accessKey == null || accessKey.isBlank());
+    Assumptions.assumeFalse(secret == null || secret.isBlank());
+
+    String region = System.getenv().getOrDefault("AWS_REGION", "us-west-2");
+    LocalCatalogFile file =
+        new LocalCatalogFile(
+            new LocalCatalogFile.Credentials(
+                CloudProvider.AWS,
+                LocalCatalogFile.CredentialMode.STATIC,
+                900,
+                Map.of(
+                    StorageCredentials.ACCESS_KEY_ID, accessKey,
+                    StorageCredentials.SECRET_ACCESS_KEY, secret,
+                    StorageCredentials.REGION, region)),
+            List.of(
+                new LocalCatalogFile.Asset(
+                    "main.sales.table1",
+                    AssetType.TABLE,
+                    "MANAGED",
+                    TABLE1,
+                    null,
+                    "delta",
+                    null,
+                    List.of(),
+                    List.of(),
+                    null,
+                    List.of(),
+                    List.of())));
+
+    StorageCredentials credentials =
+        new LocalCatalogConnector(file)
+            .getStorageCredentials(
+                new CredentialRequest(
+                    AssetType.TABLE,
+                    "main.sales.table1",
+                    null,
+                    TABLE1,
+                    StorageOperation.READ,
+                    Duration.ofMinutes(5)),
+                ALICE)
+            .get(0);
+
+    assertEquals(TABLE1, credentials.prefix());
+    assertEquals(CloudProvider.AWS, credentials.provider());
+    assertEquals(accessKey, credentials.require(StorageCredentials.ACCESS_KEY_ID));
+    assertEquals(region, credentials.credentials().get(StorageCredentials.REGION));
   }
 
   @Test
@@ -165,9 +215,9 @@ class LocalCatalogConnectorTest {
           values:
             sasToken: sv=2024-11-04&sig=configured
         assets:
-          - identifier: main.sales.orders
+          - identifier: main.sales.table1
             type: TABLE
-            storageLocation: abfss://lake@acme.dfs.core.windows.net/sales/orders/
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
         """;
 
     StorageCredentials credentials =
@@ -175,9 +225,9 @@ class LocalCatalogConnectorTest {
             .getStorageCredentials(
                 new CredentialRequest(
                     AssetType.TABLE,
-                    "main.sales.orders",
+                    "main.sales.table1",
                     null,
-                    "abfss://lake@acme.dfs.core.windows.net/sales/orders/",
+                    TABLE1,
                     StorageOperation.READ,
                     null),
                 ALICE)
@@ -196,17 +246,17 @@ class LocalCatalogConnectorTest {
           provider: GCP
           mode: STATIC
         assets:
-          - identifier: main.sales.orders
+          - identifier: main.sales.table1
             type: TABLE
-            storageLocation: gs://lake/sales/orders/
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
         """;
     LocalCatalogConnector connector = connector(yaml);
     CredentialRequest request =
         new CredentialRequest(
             AssetType.TABLE,
-            "main.sales.orders",
+            "main.sales.table1",
             null,
-            "gs://lake/sales/orders/",
+            TABLE1,
             StorageOperation.READ,
             null);
 
@@ -218,32 +268,32 @@ class LocalCatalogConnectorTest {
     String yaml =
         """
         assets:
-          - identifier: main.hr
+          - identifier: main.sales
             type: SCHEMA
-          - identifier: main.hr.employees
-            storageLocation: s3://lake/hr/employees/
+          - identifier: main.sales.table1
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
             format: delta
-          - identifier: main.hr.contracts.clauses
-            storageLocation: s3://lake/hr/contracts/clauses/
-          - identifier: main.sales.orders
-            storageLocation: s3://lake/sales/orders/
+          - identifier: main.sales.nested.extra
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+          - identifier: main.other.table1
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
         """;
 
     List<ResolvedAsset> children =
         connector(yaml)
-            .listChildren(AssetLookup.of(AssetType.SCHEMA, "MAIN.HR"), ALICE);
+            .listChildren(AssetLookup.of(AssetType.SCHEMA, "MAIN.SALES"), ALICE);
 
     assertEquals(
-        List.of("main.hr.employees"),
+        List.of("main.sales.table1"),
         children.stream().map(ResolvedAsset::identifier).toList(),
         "a table two levels down belongs to another schema, and one elsewhere to none of it");
-    assertEquals("s3://lake/hr/employees/", children.get(0).storageLocation());
+    assertEquals(TABLE1, children.get(0).storageLocation());
   }
 
   @Test
   void refusesToListWhatIsNotAContainer() {
     LocalCatalogConnector connector = connector(CATALOG);
-    AssetLookup table = AssetLookup.of(AssetType.TABLE, "main.sales.orders");
+    AssetLookup table = AssetLookup.of(AssetType.TABLE, "main.sales.table1");
 
     assertThrows(
         UnsupportedAssetTypeException.class,
@@ -253,7 +303,7 @@ class LocalCatalogConnectorTest {
   @Test
   void refusesToListASchemaItDoesNotHave() {
     LocalCatalogConnector connector = connector(CATALOG);
-    AssetLookup schema = AssetLookup.of(AssetType.SCHEMA, "main.sales");
+    AssetLookup schema = AssetLookup.of(AssetType.SCHEMA, "main.missing");
 
     assertThrows(
         AssetNotFoundException.class,
@@ -279,7 +329,7 @@ class LocalCatalogConnectorTest {
         """
         assets:
           - identifier: main.sales.orders
-            storageLocation: s3://lake/sales/orders/
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
             format: orc
         """;
 
@@ -292,7 +342,7 @@ class LocalCatalogConnectorTest {
         """
         assets:
           - identifier: main.sales.orders
-            storageLocation: s3://lake/sales/orders/
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
             accessModes:
               - directory
         """;

@@ -162,7 +162,18 @@ public final class LocalCatalogConnector implements CatalogConnector {
       }
       values.put(key, value);
     }
+    if (provider == CloudProvider.AWS || provider == CloudProvider.R2) {
+      copyIfPresent(values, StorageCredentials.SESSION_TOKEN);
+      copyIfPresent(values, StorageCredentials.REGION);
+    }
     return values;
+  }
+
+  private void copyIfPresent(Map<String, String> values, String key) {
+    String value = credentials.values().get(key);
+    if (value != null && !value.isBlank()) {
+      values.put(key, value);
+    }
   }
 
   private Map<String, String> fakeValues(CloudProvider provider, Instant expiration) {
@@ -188,10 +199,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
   private static List<String> requiredKeys(CloudProvider provider) {
     return switch (provider) {
       case AWS, R2 ->
-          List.of(
-              StorageCredentials.ACCESS_KEY_ID,
-              StorageCredentials.SECRET_ACCESS_KEY,
-              StorageCredentials.SESSION_TOKEN);
+          List.of(StorageCredentials.ACCESS_KEY_ID, StorageCredentials.SECRET_ACCESS_KEY);
       case AZURE -> List.of(StorageCredentials.SAS_TOKEN);
       case GCP -> List.of(StorageCredentials.OAUTH_TOKEN);
     };
