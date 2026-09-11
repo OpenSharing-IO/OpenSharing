@@ -24,8 +24,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 class LocalCatalogConnectorTest {
 
@@ -154,12 +154,11 @@ class LocalCatalogConnectorTest {
   }
 
   @Test
+  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
+  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
   void vendsConfiguredAwsKeysForTheExchangeTestTable() {
     String accessKey = System.getenv("AWS_ACCESS_KEY_ID");
     String secret = System.getenv("AWS_SECRET_ACCESS_KEY");
-    Assumptions.assumeFalse(accessKey == null || accessKey.isBlank());
-    Assumptions.assumeFalse(secret == null || secret.isBlank());
-
     String region = System.getenv().getOrDefault("AWS_REGION", "us-west-2");
     LocalCatalogFile file =
         new LocalCatalogFile(
