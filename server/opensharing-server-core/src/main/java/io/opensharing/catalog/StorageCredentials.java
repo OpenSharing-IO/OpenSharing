@@ -1,6 +1,6 @@
 package io.opensharing.catalog;
 
-import io.opensharing.catalog.exception.CatalogException;
+import io.opensharing.exception.CatalogException;
 import java.time.Instant;
 import java.util.Map;
 
