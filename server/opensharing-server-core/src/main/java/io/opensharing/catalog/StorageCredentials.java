@@ -8,6 +8,13 @@ import java.util.Map;
 public record StorageCredentials(
     String prefix, CloudProvider provider, Map<String, String> credentials, Instant expiration) {
 
+  public static final String ACCESS_KEY_ID = "accessKeyId";
+  public static final String SECRET_ACCESS_KEY = "secretAccessKey";
+  public static final String SESSION_TOKEN = "sessionToken";
+  public static final String SAS_TOKEN = "sasToken";
+  public static final String OAUTH_TOKEN = "oauthToken";
+  public static final String REGION = "region";
+
   public StorageCredentials {
     credentials = credentials == null ? Map.of() : Map.copyOf(credentials);
   }
