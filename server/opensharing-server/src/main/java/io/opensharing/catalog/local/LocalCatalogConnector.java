@@ -1,20 +1,20 @@
 package io.opensharing.catalog.local;
 
 import io.opensharing.catalog.AccessMode;
-import io.opensharing.catalog.AssetAccessDeniedException;
+import io.opensharing.catalog.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.AssetLookup;
-import io.opensharing.catalog.AssetNotFoundException;
+import io.opensharing.catalog.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogCaller;
 import io.opensharing.catalog.CatalogConnector;
-import io.opensharing.catalog.CatalogException;
+import io.opensharing.catalog.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentialKeys;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.TableFormat;
-import io.opensharing.catalog.UnsupportedAssetTypeException;
+import io.opensharing.catalog.exception.UnsupportedAssetTypeException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
