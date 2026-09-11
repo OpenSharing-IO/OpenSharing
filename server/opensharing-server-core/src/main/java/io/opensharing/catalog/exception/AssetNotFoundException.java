@@ -1,4 +1,6 @@
-package io.opensharing.catalog;
+package io.opensharing.catalog.exception;
+
+import io.opensharing.catalog.AssetLookup;
 
 /** No catalog asset matches the lookup. */
 public class AssetNotFoundException extends CatalogException {

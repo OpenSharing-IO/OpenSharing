@@ -1,4 +1,4 @@
-package io.opensharing.catalog;
+package io.opensharing.catalog.exception;
 
 /** The catalog rejected the connector's credentials. */
 public class CatalogAuthenticationException extends CatalogException {

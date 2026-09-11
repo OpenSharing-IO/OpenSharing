@@ -1,4 +1,4 @@
-package io.opensharing.catalog;
+package io.opensharing.catalog.exception;
 
 /** The catalog could not satisfy the request. */
 public class CatalogException extends RuntimeException {
