@@ -11,7 +11,6 @@ import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
-import io.opensharing.catalog.StorageCredentialKeys;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.TableFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
@@ -171,17 +170,17 @@ public final class LocalCatalogConnector implements CatalogConnector {
     switch (provider) {
       case AWS, R2 -> {
         values.put(
-            StorageCredentialKeys.ACCESS_KEY_ID,
+            StorageCredentials.ACCESS_KEY_ID,
             "ASIA" + randomString(16).toUpperCase(Locale.ROOT));
-        values.put(StorageCredentialKeys.SECRET_ACCESS_KEY, randomString(40));
-        values.put(StorageCredentialKeys.SESSION_TOKEN, "local-fake-session-" + randomString(48));
+        values.put(StorageCredentials.SECRET_ACCESS_KEY, randomString(40));
+        values.put(StorageCredentials.SESSION_TOKEN, "local-fake-session-" + randomString(48));
       }
       case AZURE ->
           values.put(
-              StorageCredentialKeys.SAS_TOKEN,
+              StorageCredentials.SAS_TOKEN,
               "sv=2024-11-04&se=" + expiration + "&sp=rl&sig=" + randomString(32));
       case GCP ->
-          values.put(StorageCredentialKeys.OAUTH_TOKEN, "ya29.local-fake-" + randomString(32));
+          values.put(StorageCredentials.OAUTH_TOKEN, "ya29.local-fake-" + randomString(32));
     }
     return values;
   }
@@ -190,11 +189,11 @@ public final class LocalCatalogConnector implements CatalogConnector {
     return switch (provider) {
       case AWS, R2 ->
           List.of(
-              StorageCredentialKeys.ACCESS_KEY_ID,
-              StorageCredentialKeys.SECRET_ACCESS_KEY,
-              StorageCredentialKeys.SESSION_TOKEN);
-      case AZURE -> List.of(StorageCredentialKeys.SAS_TOKEN);
-      case GCP -> List.of(StorageCredentialKeys.OAUTH_TOKEN);
+              StorageCredentials.ACCESS_KEY_ID,
+              StorageCredentials.SECRET_ACCESS_KEY,
+              StorageCredentials.SESSION_TOKEN);
+      case AZURE -> List.of(StorageCredentials.SAS_TOKEN);
+      case GCP -> List.of(StorageCredentials.OAUTH_TOKEN);
     };
   }
 
