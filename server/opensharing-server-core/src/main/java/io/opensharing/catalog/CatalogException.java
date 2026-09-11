@@ -1,6 +1,6 @@
 package io.opensharing.catalog;
 
-/** Raised when the catalog cannot satisfy a request. */
+/** The catalog could not satisfy the request. */
 public class CatalogException extends RuntimeException {
 
   public CatalogException(String message) {

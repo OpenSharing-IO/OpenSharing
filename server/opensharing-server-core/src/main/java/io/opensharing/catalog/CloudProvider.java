@@ -1,6 +1,6 @@
 package io.opensharing.catalog;
 
-/** Storage backend a vended credential belongs to. */
+/** Cloud the vended credentials belong to. */
 public enum CloudProvider {
   AWS,
   AZURE,
