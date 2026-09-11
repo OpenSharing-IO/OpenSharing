@@ -69,14 +69,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
 
   @Override
   public ResolvedAsset resolveAsset(AssetLookup lookup, CatalogCaller caller) {
-    LocalCatalogFile.Asset asset = assetsByIdentifier.get(key(lookup.type(), lookup.identifier()));
-    if (asset == null) {
-      throw new AssetNotFoundException(lookup);
-    }
-    if (!allows(asset, caller)) {
-      throw new AssetAccessDeniedException(lookup, caller);
-    }
-    return resolved(asset);
+    return resolved(requireAsset(lookup, caller));
   }
 
   /** Tables whose identifier is this schema plus one more dotted segment. */
@@ -86,13 +79,12 @@ public final class LocalCatalogConnector implements CatalogConnector {
       throw new UnsupportedAssetTypeException(
           "the " + NAME + " catalog only lists the contents of a SCHEMA, not a " + parent.type());
     }
-    if (!assetsByIdentifier.containsKey(key(parent.type(), parent.identifier()))) {
-      throw new AssetNotFoundException(parent);
-    }
+    requireAsset(parent, caller);
     String prefix = parent.identifier().toLowerCase(Locale.ROOT) + ".";
     return assetsByIdentifier.values().stream()
         .filter(asset -> asset.type() == AssetType.TABLE)
         .filter(asset -> isChildOf(asset.identifier(), prefix))
+        .filter(asset -> allows(asset, caller))
         .sorted(Comparator.comparing(asset -> asset.identifier().toLowerCase(Locale.ROOT)))
         .map(LocalCatalogConnector::resolved)
         .toList();
@@ -125,13 +117,37 @@ public final class LocalCatalogConnector implements CatalogConnector {
     return asset.sharableBy().stream().anyMatch(name -> name.equalsIgnoreCase(caller.name()));
   }
 
-  /** One credential prefix: the requested storage location. */
+  private LocalCatalogFile.Asset requireAsset(AssetLookup lookup, CatalogCaller caller) {
+    LocalCatalogFile.Asset asset = assetsByIdentifier.get(key(lookup.type(), lookup.identifier()));
+    if (asset == null) {
+      throw new AssetNotFoundException(lookup);
+    }
+    if (!allows(asset, caller)) {
+      throw new AssetAccessDeniedException(lookup, caller);
+    }
+    return asset;
+  }
+
   @Override
   public List<StorageCredentials> getStorageCredentials(
       CredentialRequest request, CatalogCaller caller) {
-    if (request.storageLocation() == null || request.storageLocation().isBlank()) {
+    LocalCatalogFile.Asset asset =
+        requireAsset(AssetLookup.of(request.assetType(), request.identifier()), caller);
+    String location = request.storageLocation();
+    if (location == null || location.isBlank()) {
+      location = asset.storageLocation();
+    }
+    if (location == null || location.isBlank()) {
       throw new CatalogException(
           "asset '" + request.identifier() + "' has no storage location to scope credentials to");
+    }
+    if (!covers(asset, location)) {
+      throw new CatalogException(
+          "storage location '"
+              + location
+              + "' is not part of asset '"
+              + request.identifier()
+              + "'");
     }
     Duration ttl = request.ttl() != null ? request.ttl() : configuredTtl();
     Instant expiration = Instant.now().plus(ttl);
@@ -140,8 +156,14 @@ public final class LocalCatalogConnector implements CatalogConnector {
         credentials.mode() == LocalCatalogFile.CredentialMode.STATIC
             ? staticValues(provider)
             : fakeValues(provider, expiration);
-    return List.of(
-        new StorageCredentials(request.storageLocation(), provider, values, expiration));
+    return List.of(new StorageCredentials(location, provider, values, expiration));
+  }
+
+  private static boolean covers(LocalCatalogFile.Asset asset, String location) {
+    if (location.equals(asset.storageLocation())) {
+      return true;
+    }
+    return asset.auxiliaryLocations().contains(location);
   }
 
   private Duration configuredTtl() {
