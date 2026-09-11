@@ -1,5 +1,7 @@
 package io.opensharing.catalog;
 
+import io.opensharing.catalog.exception.AssetNotFoundException;
+import io.opensharing.catalog.exception.UnsupportedAssetTypeException;
 import java.util.List;
 
 /**
