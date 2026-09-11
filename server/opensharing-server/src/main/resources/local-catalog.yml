@@ -12,16 +12,6 @@ assets:
     storageLocation: s3://acme-lake/sales/orders/
     format: delta
 
-  - identifier: main.sales.forecast
-    subtype: MATERIALIZED_VIEW
-    storageLocation: s3://acme-lake/sales/forecast/
-    metadataLocation: s3://acme-lake/sales/forecast/metadata/00003-forecast.metadata.json
-    format: iceberg
-
-  - identifier: main.research.trial_results
-    storageLocation: s3://acme-lake/research/trial-results/
-    format: parquet
-
   - identifier: main.hr
     type: SCHEMA
 
