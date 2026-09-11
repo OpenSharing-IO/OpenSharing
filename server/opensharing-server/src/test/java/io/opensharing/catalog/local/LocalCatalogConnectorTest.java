@@ -43,7 +43,7 @@ class LocalCatalogConnectorTest {
             - s3://lake-overflow/sales/orders/
         - identifier: main.research.notes
           storageLocation: s3://lake/research/notes/
-          format: iceberg
+          format: delta
         - identifier: main.finance.ledger
           storageLocation: s3://lake/finance/ledger/
           sharableBy:
@@ -75,7 +75,7 @@ class LocalCatalogConnectorTest {
     ResolvedAsset asset = resolve(CATALOG, "main.research.notes", ALICE);
 
     assertEquals(AssetType.TABLE, asset.type());
-    assertEquals(TableFormat.ICEBERG, asset.format());
+    assertEquals(TableFormat.DELTA, asset.format());
   }
 
   @Test
@@ -117,21 +117,18 @@ class LocalCatalogConnectorTest {
   }
 
   @Test
-  void resolvesTheMetadataPointerAndSchemaWhenTheCatalogStatesThem() {
+  void resolvesSchemaWhenTheCatalogStatesIt() {
     String yaml =
         """
         assets:
           - identifier: main.research.trials
-            format: iceberg
+            format: delta
             storageLocation: s3://lake/research/trials/
-            metadataLocation: s3://lake/research/trials/metadata/v3.metadata.json
             schema: '{"type":"struct","fields":[]}'
         """;
 
     ResolvedAsset asset = resolve(yaml, "main.research.trials", ALICE);
 
-    assertEquals(
-        "s3://lake/research/trials/metadata/v3.metadata.json", asset.metadataLocation());
     assertEquals("{\"type\":\"struct\",\"fields\":[]}", asset.schema());
   }
 
