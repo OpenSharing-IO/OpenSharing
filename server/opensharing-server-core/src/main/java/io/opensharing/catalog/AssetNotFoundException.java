@@ -1,6 +1,6 @@
 package io.opensharing.catalog;
 
-/** The catalog has no asset with the requested identifier and type. */
+/** No catalog asset matches the lookup. */
 public class AssetNotFoundException extends CatalogException {
 
   public AssetNotFoundException(AssetLookup lookup) {
