@@ -1,24 +1,15 @@
 # Sample catalog for opensharing.catalog.type=local.
 # FAKE credentials are placeholders. Use STATIC with credentials.values for real keys.
-# Omit sharableBy to allow any principal; a SCHEMA shares child tables one level below it.
 credentials:
   provider: AWS
   mode: FAKE
   ttlSeconds: 3600
 
 assets:
-  - identifier: main.sales.orders
-    subtype: MANAGED
-    storageLocation: s3://acme-lake/sales/orders/
-    format: delta
-
-  - identifier: main.hr
+  - identifier: main.sales
     type: SCHEMA
 
-  - identifier: main.hr.employees
-    storageLocation: s3://acme-lake/hr/employees/
-    format: delta
-
-  - identifier: main.hr.salaries
-    storageLocation: s3://acme-lake/hr/salaries/
+  - identifier: main.sales.table1
+    subtype: MANAGED
+    storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
     format: delta
