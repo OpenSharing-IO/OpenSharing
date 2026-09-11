@@ -2,7 +2,7 @@ package io.opensharing.catalog;
 
 import java.util.Locale;
 
-/** Physical format of a shared table, surfaced as the protocol's {@code format} field. */
+/** Physical format of a shared table. */
 public enum TableFormat {
   DELTA,
   ICEBERG,
@@ -12,10 +12,7 @@ public enum TableFormat {
     return name().toLowerCase(Locale.ROOT);
   }
 
-  /**
-   * @return {@code null} when no format is stated, since the protocol treats it as optional; an
-   *     unrecognised format is a configuration error rather than an absent one
-   */
+  /** {@code null} when the format is omitted; unknown values are rejected. */
   public static TableFormat fromWireName(String value) {
     if (value == null || value.isBlank()) {
       return null;
