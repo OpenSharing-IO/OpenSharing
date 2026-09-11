@@ -110,6 +110,53 @@ class LocalCatalogConnectorTest {
     assertThrows(AssetAccessDeniedException.class, () -> connector.resolveAsset(lookup, bob));
   }
 
+  @Test
+  void refusesToVendWhenCallerIsNotOnSharableBy() {
+    LocalCatalogConnector connector = connector(CATALOG);
+    CatalogCaller bob = CatalogCaller.withBearerToken("bob@example.com", "bob-catalog-credential");
+    CredentialRequest request =
+        new CredentialRequest(
+            AssetType.TABLE,
+            "main.finance.ledger",
+            null,
+            TABLE1,
+            StorageOperation.READ,
+            null);
+
+    assertThrows(
+        AssetAccessDeniedException.class, () -> connector.getStorageCredentials(request, bob));
+  }
+
+  @Test
+  void refusesToVendUnknownAsset() {
+    LocalCatalogConnector connector = connector(CATALOG);
+    CredentialRequest request =
+        new CredentialRequest(
+            AssetType.TABLE,
+            "main.sales.missing",
+            null,
+            TABLE1,
+            StorageOperation.READ,
+            null);
+
+    assertThrows(AssetNotFoundException.class, () -> connector.getStorageCredentials(request, ALICE));
+  }
+
+  @Test
+  void refusesToVendALocationOutsideTheAsset() {
+    LocalCatalogConnector connector = connector(CATALOG);
+    CredentialRequest request =
+        new CredentialRequest(
+            AssetType.TABLE,
+            "main.sales.table1",
+            null,
+            "s3://someone-elses-bucket/secret/",
+            StorageOperation.READ,
+            null);
+
+    assertThrows(CatalogException.class, () -> connector.getStorageCredentials(request, ALICE));
+  }
+
   private static ResolvedAsset resolve(String yaml, String identifier, CatalogCaller caller) {
     return connector(yaml).resolveAsset(AssetLookup.of(AssetType.TABLE, identifier), caller);
   }
@@ -287,6 +334,36 @@ class LocalCatalogConnectorTest {
         children.stream().map(ResolvedAsset::identifier).toList(),
         "a table two levels down belongs to another schema, and one elsewhere to none of it");
     assertEquals(TABLE1, children.get(0).storageLocation());
+  }
+
+  @Test
+  void listChildrenOmitsTablesTheCallerMayNotShare() {
+    String yaml =
+        """
+        assets:
+          - identifier: main.sales
+            type: SCHEMA
+          - identifier: main.sales.table1
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+            format: delta
+          - identifier: main.sales.ledger
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+            format: delta
+            sharableBy:
+              - alice@example.com
+        """;
+    CatalogCaller bob = CatalogCaller.withBearerToken("bob@example.com", "bob-catalog-credential");
+
+    assertEquals(
+        List.of("main.sales.ledger", "main.sales.table1"),
+        connector(yaml).listChildren(AssetLookup.of(AssetType.SCHEMA, "main.sales"), ALICE).stream()
+            .map(ResolvedAsset::identifier)
+            .toList());
+    assertEquals(
+        List.of("main.sales.table1"),
+        connector(yaml).listChildren(AssetLookup.of(AssetType.SCHEMA, "main.sales"), bob).stream()
+            .map(ResolvedAsset::identifier)
+            .toList());
   }
 
   @Test
