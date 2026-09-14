@@ -14,7 +14,7 @@ public class OpenSharingProperties {
 
   public static class Catalog {
 
-    private String type = "local";
+    private String type;
     private final Local local = new Local();
 
     public String getType() {
