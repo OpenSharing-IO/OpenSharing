@@ -15,8 +15,7 @@ package io.opensharing.catalog;
  *       nobody the catalog knows, and the owner is whose access they read by — but the owner is
  *       not the one asking and never will be for this request, so there is no token of theirs to
  *       present. {@link Credential.OnBehalfOf} carries their catalog user id instead, for a
- *       connector that can ask the catalog as them without their token — see {@code
- *       UnityCatalogConnector}, which authenticates itself to the catalog and names the id.
+ *       connector embedded in a trusted host that can act as that user locally.
  * </ul>
  *
  * <p>{@link Credential.None} is for a catalog that reads no credential at all ({@code

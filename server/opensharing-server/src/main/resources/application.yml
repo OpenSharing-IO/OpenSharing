@@ -65,19 +65,11 @@ opensharing:
     url-access-enabled: true
     url-ttl: 1h
   catalog:
-    # 'local' reads every asset from a declarative file; 'unity' asks an open-source Unity Catalog
-    # over its REST API, as whichever principal the request is for.
+    # The standalone distribution reads assets from a declarative local file. Embedded hosts
+    # provide their CatalogConnector directly.
     type: local
     local:
       file: classpath:local-catalog.yml
-    unity:
-      # Base url of the Unity Catalog API, the path it is served under included. Required when the
-      # type above is 'unity'. Nothing authenticates to the catalog on the server's own behalf, so no
-      # credential belongs here. Note that Unity Catalog also listens on 8080 by default, so one
-      # running beside this server will have been moved off it.
-      uri: ""
-      connect-timeout: 5s
-      request-timeout: 30s
 
 logging:
   level:

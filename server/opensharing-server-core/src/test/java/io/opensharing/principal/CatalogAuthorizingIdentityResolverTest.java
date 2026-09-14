@@ -20,9 +20,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 /**
  * Against a fake {@link CatalogConnector} that only ever implements {@link
  * CatalogConnector#authorize}, so that what is under test is this resolver's own request handling —
- * extracting the bearer token, picking a privilege from the method and path — and not any one real
- * connector's HTTP client. {@link io.opensharing.catalog.unity.UnityCatalogConnectorTest} covers
- * Unity Catalog's own implementation of {@link CatalogConnector#authorize}.
+ * extracting the bearer token, picking a privilege from the method and path — and not any host's
+ * implementation of {@link CatalogConnector#authorize}.
  */
 class CatalogAuthorizingIdentityResolverTest {
 

@@ -339,14 +339,13 @@ public class OpenSharingProperties {
     }
   }
 
-  /** Which {@code CatalogConnector} to run with, and what it needs to reach its catalog. */
+  /** Standalone catalog configuration. Embedded hosts provide the connector directly. */
   public static class Catalog {
 
-    /** Connector id: {@code local} or {@code unity}. */
+    /** Connector id; the standalone distribution ships {@code local}. */
     private String type = "local";
 
     private final Local local = new Local();
-    private final Unity unity = new Unity();
 
     public String getType() {
       return type;
@@ -358,10 +357,6 @@ public class OpenSharingProperties {
 
     public Local getLocal() {
       return local;
-    }
-
-    public Unity getUnity() {
-      return unity;
     }
 
     /** File-backed connector for local development. */
@@ -376,67 +371,6 @@ public class OpenSharingProperties {
 
       public void setFile(String file) {
         this.file = file;
-      }
-    }
-
-    /** Open-source Unity Catalog, over its REST API. */
-    public static class Unity {
-
-      /**
-       * Base url of the Unity Catalog API, including the path it is served under, such as {@code
-       * http://localhost:8081/api/2.1/unity-catalog}. Required to run with this connector.
-       *
-       * <p>No credential goes with it. Each request is made as the principal it concerns, with the
-       * credential held for them, so what this server can see in the catalog is never more than what
-       * the provider asking could see themselves.
-       */
-      private String uri;
-
-      /** How long to wait for the catalog to accept a connection. */
-      private Duration connectTimeout = Duration.ofSeconds(5);
-
-      /** How long to wait for a response, once connected. */
-      private Duration requestTimeout = Duration.ofSeconds(30);
-
-      /**
-       * This server's own identity, presented instead of a bearer token when it has to ask the
-       * catalog on behalf of a share's owner (a recipient's read, made long after the owner's own
-       * request is over) rather than as a live caller. Must match the secret Unity Catalog itself
-       * is configured with ({@code server.opensharing.server-secret}). Only required if a recipient
-       * is ever actually served against this catalog; blank otherwise.
-       */
-      private String serverSecret;
-
-      public String getUri() {
-        return uri;
-      }
-
-      public void setUri(String uri) {
-        this.uri = uri;
-      }
-
-      public Duration getConnectTimeout() {
-        return connectTimeout;
-      }
-
-      public void setConnectTimeout(Duration connectTimeout) {
-        this.connectTimeout = connectTimeout;
-      }
-
-      public Duration getRequestTimeout() {
-        return requestTimeout;
-      }
-
-      public void setRequestTimeout(Duration requestTimeout) {
-        this.requestTimeout = requestTimeout;
-      }
-
-      public String getServerSecret() {
-        return serverSecret;
-      }
-
-      public void setServerSecret(String serverSecret) {
-        this.serverSecret = serverSecret;
       }
     }
   }
