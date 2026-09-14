@@ -7,6 +7,7 @@ import io.opensharing.catalog.local.LocalCatalogLoader;
 import io.opensharing.exception.CatalogException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,16 +23,22 @@ public class CatalogConfiguration {
   public CatalogConnector catalogConnector(
       OpenSharingProperties properties, ResourceLoader resourceLoader) {
     OpenSharingProperties.Catalog catalog = properties.getCatalog();
-    if (!LocalCatalogConnector.NAME.equalsIgnoreCase(catalog.getType())) {
-      throw new IllegalStateException(
-          "unknown opensharing.catalog.type '"
-              + catalog.getType()
-              + "'; this build ships '"
-              + LocalCatalogConnector.NAME
-              + "'");
-    }
+    String type = catalog.getType() == null ? "" : catalog.getType().trim().toLowerCase(Locale.ROOT);
+    return switch (type) {
+      case LocalCatalogConnector.NAME -> localConnector(catalog.getLocal(), resourceLoader);
+      default ->
+          throw new IllegalStateException(
+              "unknown opensharing.catalog.type '"
+                  + catalog.getType()
+                  + "'; this build ships '"
+                  + LocalCatalogConnector.NAME
+                  + "'");
+    };
+  }
 
-    String location = catalog.getLocal().getFile();
+  private CatalogConnector localConnector(
+      OpenSharingProperties.Catalog.Local config, ResourceLoader resourceLoader) {
+    String location = config.getFile();
     Resource resource = resourceLoader.getResource(location);
     if (!resource.exists()) {
       throw new IllegalStateException("local catalog file '" + location + "' does not exist");
