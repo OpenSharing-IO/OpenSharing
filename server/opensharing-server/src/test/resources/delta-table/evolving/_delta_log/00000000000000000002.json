@@ -1,0 +1,2 @@
+{"protocol":{"minReaderVersion":3,"minWriterVersion":7,"readerFeatures":["deletionVectors"],"writerFeatures":["deletionVectors"]}}
+{"add":{"path":"part-00002-cccccccc-0000-0000-0000-000000000000.c000.snappy.parquet","partitionValues":{},"size":300,"modificationTime":1700000120000,"dataChange":true,"stats":"{\"numRecords\":3}"}}

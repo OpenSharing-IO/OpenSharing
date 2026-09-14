@@ -1,0 +1,58 @@
+credentials:
+  provider: AWS
+  mode: FAKE
+  ttlSeconds: 900
+
+assets:
+  - identifier: main.sales.orders
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: s3://acme-lake/sales/orders/
+    format: delta
+    auxiliaryLocations:
+      - s3://acme-overflow/sales/orders/
+
+  - identifier: main.sales.forecast
+    type: TABLE
+    subtype: MATERIALIZED_VIEW
+    storageLocation: s3://acme-lake/sales/forecast/
+    format: iceberg
+
+  - identifier: main.research.trial_results
+    storageLocation: s3://acme-lake/research/trial-results/
+    format: parquet
+
+  # A table the catalog knows about but cannot point at storage.
+  - identifier: main.sales.no_location
+    type: TABLE
+
+  # A table only Bob may share, so a request from anyone else is refused by the catalog.
+  - identifier: main.finance.ledger
+    type: TABLE
+    storageLocation: s3://acme-lake/finance/ledger/
+    format: delta
+    sharableBy:
+      - bob@example.com
+
+  # A schema and the tables it holds. Sharing the schema shares these without naming them.
+  - identifier: main.hr
+    type: SCHEMA
+
+  - identifier: main.hr.employees
+    type: TABLE
+    storageLocation: s3://acme-lake/hr/employees/
+    format: delta
+
+  - identifier: main.hr.salaries
+    type: TABLE
+    storageLocation: s3://acme-lake/hr/salaries/
+    format: delta
+
+  # A second schema, so sharing two of them under one alias can be refused.
+  - identifier: main.people
+    type: SCHEMA
+
+  - identifier: main.people.contractors
+    type: TABLE
+    storageLocation: s3://acme-lake/people/contractors/
+    format: delta

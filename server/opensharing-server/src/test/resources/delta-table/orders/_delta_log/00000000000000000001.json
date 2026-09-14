@@ -1,0 +1,1 @@
+{"add":{"path":"country=DE/part-00001-22222222-2222-2222-2222-222222222222.c000.snappy.parquet","partitionValues":{"country":"DE"},"size":2345,"modificationTime":1700000060000,"dataChange":true,"stats":"{\"numRecords\":5,\"minValues\":{\"order_id\":4},\"maxValues\":{\"order_id\":8},\"nullCount\":{\"order_id\":0}}"}}
