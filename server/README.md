@@ -54,8 +54,8 @@ PROVIDER ADMIN (a principal)            RECIPIENT
    recipients + tokens,               getStorageCredentials(req, caller)
    shared data objects                listChildren() (shared schemas only)
                                               |
-             |                       UnityCatalogConnector (REST)
-   H2 / Postgres / MySQL             LocalCatalogConnector (file)
+             |                       Host connector (embedded)
+   H2 / Postgres / MySQL             LocalCatalogConnector (standalone)
                                                |
                                        cloud object storage
                                        (recipient reads directly)
@@ -77,12 +77,12 @@ own.
 
 | Package | What it holds |
 |---|---|
-| `principal` | `Caller`, `Ownership`, `ConfiguredPrincipalsIdentityResolver`, and `CatalogAuthorizingIdentityResolver` — the identity the admin filter resolves and controllers ask for when a write needs an owner. No principal table: `local` reads a fixed, in-memory configured list; `unity` asks the catalog itself, fresh, on every request, through `CatalogConnector#authorize` (`catalog.unity.UnityCatalogConnector`'s own implementation of it). |
+| `principal` | `Caller`, `Ownership`, `ConfiguredPrincipalsIdentityResolver`, and `CatalogAuthorizingIdentityResolver` — the identity the admin filter resolves and controllers ask for when a write needs an owner. Standalone local mode reads a fixed in-memory list; embedded hosts may delegate identity to their connector. |
 | `share` | `ShareEntity`, `SharePermissionEntity` and `SharePrivilege`, `ShareStore`, the provider-admin share and permission endpoints, `ShareAccessService` (may this recipient read this share?) and `ShareMapper`. |
 | `asset` | Everything about a shared asset that does not depend on its format: `SharedDataObjectEntity` and its status, `SharedDataObjectStore` and `SharedDataObjectService`, `SharedAliases` (the alias rules), `SharedTableService` (which tables a share holds, expanding a shared schema), `AssetResolutionService` (the server's use of the catalog trait, and so where the access modes an object offers are decided), `CredentialVendingService` and `TableMapper`. `asset.storage` holds reaching the storage a table lives in, whatever its format: the `UrlSigner` per scheme, the `StorageReader` that fetches a file the server itself has to look at, `StoragePaths` (whether a path is one of a shared table's own — asked by every format, so answered once), and `HadoopStorage`, which is how a read that goes through Hadoop gets the catalog's credentials and the path spelling a driver wants, `VendedGcsToken` included. Then one subpackage per format: `asset.delta` is url access mode — `DeltaLogReader` over Delta Kernel, `DeltaSharingCapabilities` (which response format a request settles on, and how much of the table's protocol the client is told) and a `DeltaLines` writer per format — and `asset.iceberg` is the Iceberg catalog's `loadTable`, plus the refusal that sends the Delta read operations there. |
 | `serving` | The recipient-facing protocol: `RecipientApi` (every route it serves), the share, schema and table discovery endpoints, credential vending, the four table read operations, the Iceberg REST catalog with the error shape its clients read, and the `TableOperations` seam those read operations dispatch across. |
 | `recipient` | `RecipientEntity`, `RecipientTokenEntity` and `AuthType`, `RecipientStore`, the provider-admin recipient and rotation endpoints, token minting, rotation and one-time activation, `IpAccessList`, and the filter and principal that authenticate a recipient request. |
-| `catalog` | The `CatalogConnector` trait a new catalog implements and the types it exchanges, including `CatalogCaller`. Standalone connectors live in the `opensharing-server` module: `catalog.local` is the file-backed one, `catalog.unity` is Unity Catalog over HTTP. |
+| `catalog` | The generic `CatalogConnector` SPI and the types it exchanges, including `CatalogCaller`. The reference server includes only the file-backed local connector; embedded catalog hosts provide their own implementation. |
 | `protocol` | Every wire shape the spec defines, inbound and outbound, and nothing else: `Share`, `Schema`, `Table`, `TemporaryCredentials` and its request body, the profile file, the read-response actions in both formats — `TableAction` is the one line of a response, and each of its slots takes either the parquet shape or the delta one — and the Iceberg REST shapes, whose spelling is Iceberg's rather than this protocol's. No behaviour, no dependencies. |
 | `auth` | Admin authentication, bearer-token extraction and the token hashing every side shares. |
 | `config` | Properties and bean wiring: which catalog, which filters, which argument resolvers, hosting mode, and how the two APIs are published as OpenAPI. |
@@ -129,22 +129,16 @@ inside it. Those two cascades are the only cross-package writes.
   principal, so an admin can see what a colleague shares; every write goes through `requireOwned` and is
   refused with `PERMISSION_DENIED` for anyone else. `Ownership` states the rule once, which is where
   group membership will widen it — until then a `GROUP` owns only in its own right.
-- **Provider identity is never stored.** For `catalog.type=local`, `opensharing.admin.principals`
-  lists the usernames and bearer tokens the server recognizes, held in memory only — no database row,
-  and rotating a credential means changing the configuration and restarting. For `catalog.type=unity`,
-  there is nothing to configure at all: identity is resolved fresh from the catalog on every
-  provider-admin request.
+- **Provider identity is never stored.** Standalone local mode reads
+  `opensharing.admin.principals` in memory. Embedded hosts can resolve provider identity through the
+  connector without adding a principal table here.
 - **The catalog is asked as a provider, never as a recipient.** Adding an object is asked as the admin
   making the request, whose token is in hand while it is in flight. Serving — both re-resolving the
   table and minting the credentials that open it — is asked as the owner of
   the share being read through, because a recipient is nobody the catalog knows and the owner is whose
   access they read by — so an owner who loses access takes their recipients' with them, which is what
-  Databricks does too. That means holding something the catalog accepts as the owner, which is why a
-  principal's `bearer_token` is their catalog credential and their login here both: it is stored hashed
-  to recognize them and sealed to replay, one secret in two forms rather than two secrets that would
-  have to match. Nothing stored can be asked with means the read stops rather than falling back to the
-  server's own catalog identity, which would answer on an access no provider was granted and outlive
-  the access it was meant to follow.
+  Databricks does too. `CatalogCaller.OnBehalfOf` lets a trusted embedded host evaluate that stored
+  owner ID without retaining or replaying the owner's bearer token.
 - **A recipient sees an alias, not a catalog name.** An object stores the canonical `main.sales.orders`
   and the two-level `shared_as` alias, defaulting to the last two levels of the source name. Splitting
   that alias is what gives the protocol its schema level, so the two halves are stored normalized for
@@ -176,11 +170,9 @@ inside it. Those two cascades are the only cross-package writes.
   activation link. The bearer token is minted when the recipient opens that link, returned once inside
   `config.share`, and stored only as a SHA-256 hash — the server only ever needs to recognize it again,
   never present it anywhere. A provider's token is not stored at all, hashed or otherwise: for the
-  `unity` catalog connector, every provider-admin request resolves identity fresh by asking the catalog
-  itself (`GET .../opensharing/authorize`), and a recipient's read reaches the catalog through
-  on-behalf-of access — this server's own configured identity plus the share owner's catalog user id,
-  never a token nobody has. There is no principal table, so there is nothing for a database dump to
-  expose in the first place.
+  embedded connector, every provider-admin request resolves identity through the host's local identity
+  service, and a recipient's read uses the share owner's stored catalog user ID across the trusted
+  object boundary. There is no principal table here for a database dump to expose.
 - **A token comes with the recipient, and only rotation replaces it.** There is no issue endpoint, so
   credentials cannot pile up by accident and a recipient can never exist without a way in. Tokens are
   still rows of their own keyed by recipient, which is what makes rotation safe: the superseded token
@@ -219,11 +211,6 @@ The server listens on `http://localhost:8080` with an H2 file database under `se
 sample catalog in `src/main/resources/local-catalog.yml`. Configure `opensharing.admin.principals`
 with at least one username and bearer token, held in memory only — the local file catalog has no
 identity provider to delegate to. With none configured, every admin call is rejected.
-
-(For `opensharing.catalog.type=unity` there is no `admin.principals` to configure at all: a
-provider-admin request just presents whatever bearer token their catalog already issued them, and
-this server asks the catalog itself whose it is, fresh, on every request — see "Catalog integration"
-above.)
 
 Then walk through the whole provider-to-recipient flow (requires `jq`):
 
@@ -550,7 +537,7 @@ command line or as the upper-case underscored form of the same path in the envir
 |---|---|---|
 | `protocol-prefix` | `/api/2.1/opensharing` | Prefix for protocol endpoints; also what goes in the profile file. |
 | `provider.base-path` | `/api/2.1/opensharing/provider` | Prefix for the provider-admin API. |
-| `admin.principals` | `[]` | Usernames and bearer tokens, held in memory only — `catalog.type=local` only; `unity` asks the catalog itself instead. Each token is both the admin login and the catalog credential. |
+| `admin.principals` | `[]` | Usernames and bearer tokens for standalone local mode, held in memory only. Embedded hosts may provide an identity resolver. |
 | `activation.base-path` | `/api/2.1/opensharing/activation` | Prefix the single-use activation endpoint is served under. |
 | `activation.external-base-url` | `http://localhost:8080` | Public base URL used to build activation URLs and the profile endpoint. |
 | `activation.ttl` | `72h` | How long an unused activation link stays valid. |
@@ -562,11 +549,8 @@ command line or as the upper-case underscored form of the same path in the envir
 | `delta.url-ttl` | `1h` | Lifetime of a signed file url, capped by the credentials it was signed with. |
 | `storage.s3-region` | `us-east-1` | Region used to read and to sign S3 urls when the catalog's credentials do not name one. |
 | `storage.gcs-service-account-key-file` | blank | Service account key whose private key signs urls for `gs` paths. Blank falls back to `GOOGLE_APPLICATION_CREDENTIALS`; with neither, Google storage is offered in `dir` mode only. |
-| `catalog.type` | `local` | Which connector to run: `local` or `unity`. |
+| `catalog.type` | `local` | Standalone connector type; the reference server ships `local`. |
 | `catalog.local.file` | `classpath:local-catalog.yml` | Spring resource location of the catalog file. |
-| `catalog.unity.uri` | blank | Base url of the Unity Catalog API, including the path it is served under, e.g. `http://localhost:8081/api/2.1/unity-catalog`. Required when the type is `unity`. |
-| `catalog.unity.connect-timeout` / `request-timeout` | `5s` / `30s` | How long to wait for the catalog to accept a connection, and for it to answer. |
-| `catalog.unity.server-secret` | blank | This server's own identity, presented instead of a bearer token for on-behalf-of access on a recipient's read (no owner token is available to present for it). Must match the catalog's own configured secret. Only required if a recipient is ever actually served. |
 
 ### Reaching storage
 
@@ -766,104 +750,17 @@ open nothing.
 
 ### Unity Catalog
 
-`UnityCatalogConnector` implements the same trait against an open-source Unity Catalog, over its REST
-API. Point it at one:
+Unity Catalog integration is supplied by OSS Unity Catalog in embedded mode. Its UC-owned connector
+calls repositories, token validation, authorization evaluation, and credential vending directly in
+the host process. This repository deliberately contains no Unity HTTP client, Unity URI/timeouts, or
+server-secret configuration.
 
-```yaml
-opensharing:
-  catalog:
-    type: unity
-    unity:
-      uri: http://localhost:8081/api/2.1/unity-catalog
-```
-
-No credential sits beside that url, and that is the point: every request is made as the principal it
-concerns, presenting the token stored for them, so what this server can see in the catalog is never
-more than what the provider asking could see themselves. Adding a table is asked as the admin adding
-it; a recipient's read is asked as the owner of the share, whose token is unsealed for the call. Turn
-Unity Catalog's own authorization on and it decides both.
-
-Three calls carry the integration:
-
-| What the server needs | Unity Catalog call |
-|---|---|
-| Where a table lives, and in what format | `GET /tables/{catalog.schema.table}` |
-| That a schema exists, and what is in it right now | `GET /schemas/{catalog.schema}`, then `GET /tables?catalog_name=&schema_name=` a page at a time |
-| Credentials for that storage | `POST /temporary-table-credentials` with the table's id and `READ` |
-
-With Unity Catalog's authorization turned on, the principal a call is made as needs `USE CATALOG` on
-the catalog, `USE SCHEMA` on the schema and `SELECT` on the table — the same three Databricks asks for.
-The vend is authorized separately from the lookup and wants all three, so a principal holding only
-`SELECT` is told where a table lives and then refused the credentials to read it; even a metastore
-admin is refused until the grants exist. A provider hits this while adding the table, which is the
-intended moment, and a share owner who loses one of the three afterwards stops their recipients with
-them.
-
-`table_id` is what the vend takes rather than a path, so it is kept as the object's `source_asset_id`
-and refreshed on every resolution. `storage_location` becomes what credentials are scoped to,
-`table_type` is recorded as `source_subtype`, and the `partition_index` on each column becomes the
-ordered partition columns. The columns themselves are not translated: nothing here reads a
-catalog-stated schema, since a Delta table's own log is the authority on its shape. `dir` mode is
-offered for a table Unity Catalog will mint for, which is any table on a cloud, and withheld from one
-on this machine's own filesystem, where it holds no grant to hand out — a recipient picks a mode from
-what a table offers, so offering one nothing can be minted for would be an invitation to a dead end.
-`url` mode is not the catalog's to offer either way: it depends on the format and on what this build
-can serve.
-
-An external table on the filesystem the server runs on is vended for like any other, and Unity Catalog
-answers it with every credential block empty — its own reader takes that answer and opens the file. So
-does this server: an empty vend from a `file:` or bare path means nothing is needed, the log is replayed
-on the deployment's own filesystem access, and the recipient is handed urls to the parquet. The same
-empty answer about a bucket stays a failure, since there it means a catalog that was never told about
-the storage, and calling that "nothing needed" would turn a misconfiguration into a read that dies
-further down. Such a table is offered in `url` mode only, so a recipient is never invited to ask for
-credentials that do not exist; one that asks anyway, without reading what the table offers, is told
-which mode does work.
-
-Url mode carries a local table because the server replays its log through the same filesystem — but
-that is the whole of what a credential-free table gets, and a Parquet one has no log to replay. A
-local Parquet table therefore has no route to a recipient at all: nothing to vend for `dir`, nothing
-to sign for `url`. Adding one is refused outright, naming both halves of the reason, and inside a
-shared schema it is passed over like any other table this server could not serve.
-
-`data_source_format` decides the format, and Unity Catalog's list of them has no Iceberg member, so a
-table shared this way is Delta or Parquet; Iceberg tables in a Unity Catalog are reached through its
-own Iceberg REST endpoint, which is a different connector's job. A table in any other format, and a
-view, which has no storage to point a recipient at, are refused as a bad request naming which it was —
-while the provider is still on the phone. Inside a shared schema they are passed over instead: sharing
-a schema is an offer of whatever is in it, and one unreadable table among a hundred should not take the
-other ninety-nine down with it. One that becomes either after it was shared is withdrawn on the next
-read, as `SOURCE_NOT_SHAREABLE`.
-
-A `404` is read as the asset being gone, and both a `403` and a `401` as the caller no longer being
-allowed to read it: a `401` is their stored token expired or revoked, not this server failing to
-authenticate, since it holds no credential of its own and asks only as them. Both therefore withdraw
-the object rather than leave it listed and failing on every read, and the log says which it was and
-that the principal needs a new bearer token. Anything else is a bad gateway saying only which status
-came back — which request it was, and the catalog's own message, go to the log, because the same code
-serves a recipient, who knows the table by the alias it is shared under and has no business learning
-its internal name or reading text written upstream of here. Where one of these lands on a recipient's
-read, whether the catalog was refusing to resolve the table or to mint for it, the object is marked
-unservable and the recipient is told only that the server may no longer read it: the owner it was asked
-as is named in the log, not on the wire. The same
-line divides the one failure that is the server's own — an owner with no stored credential to ask as —
-where the log names the principal and says how to fix it, and the recipient hears only that the
-provider it is shared by has none.
-
-Databricks' Unity Catalog answers the same endpoints and would mostly work, but its two extra
-credential shapes (`r2_temp_credentials`, `azure_aad`) are not read, so a table backed by either is
-refused rather than served with credentials this build guessed at. Dir mode is therefore offered only
-for the storage whose grant this can read — `s3`, `abfss`, `gs` and their spellings — which keeps a
-table on Cloudflare R2 out of a share rather than letting it in and failing every vend. An Azure AAD
-token is the one that cannot be told apart in advance, since it arrives for the same `abfss` location a
-delegation SAS would; a catalog minting those fails at the vend.
+See [Embedding OpenSharing](docs/EMBEDDING.md) for the host-facing SPI.
 
 ### Another catalog
 
-Add a subpackage under `catalog` — as `catalog.unity` and `catalog.local` are — implement
-`CatalogConnector` there and either add a branch to `CatalogConfiguration` or contribute your own
-`@Bean`. That default is `@ConditionalOnMissingBean`, so yours takes over with no other change to the
-server, and that class is the only one outside `catalog` that ever names an implementation.
+Implement `CatalogConnector` in the catalog host and pass it to `OpenSharing.embedded()`. The
+standalone reference server intentionally wires only `LocalCatalogConnector`.
 
 ### Databases
 

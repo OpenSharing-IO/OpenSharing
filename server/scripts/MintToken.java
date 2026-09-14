@@ -11,10 +11,8 @@ import java.util.UUID;
 
 /**
  * Mints a Unity Catalog access token for a subject, signed with the key the catalog generated for
- * itself, and prints it. Used by demo-unity-up.sh to hand the demo a second provider without an
- * identity provider behind it, and by demo-embedded-up.sh to mint the one provider token that
- * demo runs with — in a real deployment each provider brings the token their catalog already
- * issued them, and nothing signs on the catalog's behalf but the catalog.
+ * itself, and prints it. Used by demo-embedded-up.sh to mint the provider token for the local demo;
+ * in a real deployment each provider brings the token their catalog issued.
  *
  * <p>Run in source-file mode against the catalog's own classpath, which carries the JWT library:
  *

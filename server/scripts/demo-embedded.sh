@@ -139,4 +139,4 @@ recipient "$ICEBERG/namespaces/sales/tables" | jq -c .
 maybe_pause
 
 step "Done — embedded UC + OpenSharing end-to-end"
-note "Two-process alternative: demo-unity-up.sh + standalone OpenSharing on :8099"
+note "Unity Catalog integration is embedded-only; catalog operations stayed in this process"
