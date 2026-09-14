@@ -31,7 +31,7 @@ public class OpenSharingProperties {
 
     public static class Local {
 
-      private String file = "classpath:local-catalog.yml";
+      private String file;
 
       public String getFile() {
         return file;
