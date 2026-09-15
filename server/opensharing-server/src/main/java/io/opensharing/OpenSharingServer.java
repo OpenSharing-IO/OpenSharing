@@ -1,6 +1,6 @@
 package io.opensharing;
 
-import io.opensharing.runtime.OpenSharing;
+import org.springframework.boot.SpringApplication;
 
 /** Runnable standalone OpenSharing server. */
 public final class OpenSharingServer {
@@ -8,6 +8,6 @@ public final class OpenSharingServer {
   private OpenSharingServer() {}
 
   public static void main(String[] args) {
-    OpenSharing.runStandalone(args);
+    SpringApplication.run(OpenSharingApplication.class, args);
   }
 }
