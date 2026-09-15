@@ -33,7 +33,7 @@ class OpenSharingEmbeddedBuilderTest {
     try {
       OpenSharingProperties properties = context.getBean(OpenSharingProperties.class);
       CatalogConnector catalog = context.getBean(CatalogConnector.class);
-      assertEquals(HostingMode.EMBEDDED, properties.getHosting().getMode());
+      assertEquals(OpenSharingProperties.Hosting.Mode.EMBEDDED, properties.getHosting().getMode());
       assertEquals(LocalCatalogConnector.NAME, catalog.name());
     } finally {
       context.close();

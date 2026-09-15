@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogLoader;
-import io.opensharing.runtime.HostingMode;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -32,7 +31,7 @@ class CatalogConfigurationEmbeddedTest {
 
   @Test
   void skipsStandaloneCatalogWiringWhenEmbedded() {
-    assertEquals(HostingMode.EMBEDDED, properties.getHosting().getMode());
+    assertEquals(OpenSharingProperties.Hosting.Mode.EMBEDDED, properties.getHosting().getMode());
     assertEquals(LocalCatalogConnector.NAME, catalog.name());
     assertFalse(context.containsBean("catalogConfiguration"));
   }

@@ -23,7 +23,7 @@ class HostingModeTest {
 
   @Test
   void defaultsToStandaloneHosting() {
-    assertEquals(HostingMode.STANDALONE, properties.getHosting().getMode());
+    assertEquals(OpenSharingProperties.Hosting.Mode.STANDALONE, properties.getHosting().getMode());
     assertEquals(LocalCatalogConnector.NAME, catalog.name());
   }
 }

@@ -1,6 +1,5 @@
 package io.opensharing.config;
 
-import io.opensharing.runtime.HostingMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** OpenSharing server configuration. */
@@ -20,13 +19,18 @@ public class OpenSharingProperties {
 
   public static class Hosting {
 
-    private HostingMode mode = HostingMode.STANDALONE;
+    public enum Mode {
+      STANDALONE,
+      EMBEDDED
+    }
 
-    public HostingMode getMode() {
+    private Mode mode = Mode.STANDALONE;
+
+    public Mode getMode() {
       return mode;
     }
 
-    public void setMode(HostingMode mode) {
+    public void setMode(Mode mode) {
       this.mode = mode;
     }
   }
