@@ -1,5 +1,6 @@
 package io.opensharing.runtime;
 
+import io.opensharing.catalog.CatalogConnector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -13,16 +14,15 @@ class EmbeddedStartupValidator implements ApplicationRunner {
 
   private static final Logger log = LoggerFactory.getLogger(EmbeddedStartupValidator.class);
 
-  private final SharingRuntime runtime;
+  private final CatalogConnector catalog;
 
-  EmbeddedStartupValidator(SharingRuntime runtime) {
-    this.runtime = runtime;
+  EmbeddedStartupValidator(CatalogConnector catalog) {
+    this.catalog = catalog;
   }
 
   @Override
   public void run(ApplicationArguments args) {
     log.info(
-        "OpenSharing is embedded; using '{}' catalog connector from the host",
-        runtime.catalogConnector().name());
+        "OpenSharing is embedded; using '{}' catalog connector from the host", catalog.name());
   }
 }

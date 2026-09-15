@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogLoader;
+import io.opensharing.config.OpenSharingProperties;
 import java.io.IOException;
 import java.io.InputStream;
 import org.junit.jupiter.api.Test;
@@ -30,9 +31,10 @@ class OpenSharingEmbeddedBuilderTest {
             .property("spring.main.web-application-type", "none")
             .run();
     try {
-      SharingRuntime runtime = context.getBean(SharingRuntime.class);
-      assertEquals(HostingMode.EMBEDDED, runtime.hostingMode());
-      assertEquals(LocalCatalogConnector.NAME, runtime.catalogConnector().name());
+      OpenSharingProperties properties = context.getBean(OpenSharingProperties.class);
+      CatalogConnector catalog = context.getBean(CatalogConnector.class);
+      assertEquals(HostingMode.EMBEDDED, properties.getHosting().getMode());
+      assertEquals(LocalCatalogConnector.NAME, catalog.name());
     } finally {
       context.close();
     }
