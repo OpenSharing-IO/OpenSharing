@@ -1,6 +1,7 @@
 package io.opensharing.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.opensharing.catalog.CatalogConnector;
@@ -35,6 +36,7 @@ class OpenSharingEmbeddedBuilderTest {
       CatalogConnector catalog = context.getBean(CatalogConnector.class);
       assertEquals(OpenSharingProperties.Hosting.Mode.EMBEDDED, properties.getHosting().getMode());
       assertEquals(LocalCatalogConnector.NAME, catalog.name());
+      assertFalse(context.containsBean("catalogConfiguration"));
     } finally {
       context.close();
     }
