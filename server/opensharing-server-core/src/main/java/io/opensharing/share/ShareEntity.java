@@ -15,7 +15,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** A named, access-controlled collection of assets. */
+/** Persisted share row. */
 @Entity
 @Table(
     name = "os_shares",
@@ -23,7 +23,7 @@ import java.util.Map;
         @UniqueConstraint(name = "uk_shares_name_lower", columnNames = "name_lower"))
 public class ShareEntity extends BaseEntity {
 
-  @Column(name = "name", nullable = false, length = 255)
+  @Column(nullable = false, length = 255)
   private String name;
 
   @Column(name = "name_lower", nullable = false, length = 255)
@@ -32,21 +32,18 @@ public class ShareEntity extends BaseEntity {
   @Column(name = "display_name", length = 255)
   private String displayName;
 
-  @Column(name = "comment", length = 8192)
+  @Column(length = 8192)
   private String comment;
 
   /**
    * Identity of whoever created this share. Not a foreign key: there is no principal table. See
-   * {@code AdminAuthenticationFilter}.
+   * {@code ProviderAuthenticationFilter}.
    */
   @Column(name = "owner_id", nullable = false, length = 255)
   private String ownerId;
 
   @Column(name = "created_by", nullable = false, length = 255)
   private String createdBy;
-
-  @Column(name = "updated_by", nullable = false, length = 255)
-  private String updatedBy;
 
   @ElementCollection(fetch = FetchType.EAGER)
   @CollectionTable(
@@ -107,13 +104,5 @@ public class ShareEntity extends BaseEntity {
 
   public void setCreatedBy(String createdBy) {
     this.createdBy = createdBy;
-  }
-
-  public String getUpdatedBy() {
-    return updatedBy;
-  }
-
-  public void setUpdatedBy(String updatedBy) {
-    this.updatedBy = updatedBy;
   }
 }

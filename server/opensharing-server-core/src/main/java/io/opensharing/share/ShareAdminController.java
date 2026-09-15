@@ -1,7 +1,7 @@
 package io.opensharing.share;
 
 import io.opensharing.http.ListResponse;
-import io.opensharing.principal.Caller;
+import io.opensharing.auth.Caller;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Provider-admin API for shares. Shared objects and recipient grants come later. */
+/** Provider HTTP API for share CRUD. */
 @RestController
 @RequestMapping("${opensharing.provider.base-path}/shares")
 public class ShareAdminController {
@@ -52,9 +52,9 @@ public class ShareAdminController {
   @PatchMapping("/{share}")
   public ShareResponse update(
       Caller caller, @PathVariable String share, @Valid @RequestBody UpdateShareRequest request) {
-    ShareEntity entity = shares.requireOwned(share, caller);
     return ShareResponse.from(
-        shares.update(caller, entity, request.displayName(), request.comment(), request.properties()));
+        shares.update(
+            caller, share, request.displayName(), request.comment(), request.properties()));
   }
 
   @DeleteMapping("/{share}")
