@@ -1,7 +1,5 @@
 package io.opensharing.config;
 
-import java.util.ArrayList;
-import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** OpenSharing server configuration. */
@@ -10,7 +8,6 @@ public class OpenSharingProperties {
 
   private final Hosting hosting = new Hosting();
   private final Provider provider = new Provider();
-  private final Admin admin = new Admin();
   private final Catalog catalog = new Catalog();
 
   public Hosting getHosting() {
@@ -19,10 +16,6 @@ public class OpenSharingProperties {
 
   public Provider getProvider() {
     return provider;
-  }
-
-  public Admin getAdmin() {
-    return admin;
   }
 
   public Catalog getCatalog() {
@@ -69,41 +62,6 @@ public class OpenSharingProperties {
 
     public void setBasePath(String basePath) {
       this.basePath = prefix(basePath);
-    }
-  }
-
-  /**
-   * Standalone identity for provider-admin calls when the catalog has no {@code authorize}
-   * implementation. Embedded hosts register their own {@code ProviderIdentityResolver} instead.
-   */
-  public static class Admin {
-
-    private final List<Principal> principals = new ArrayList<>();
-
-    public List<Principal> getPrincipals() {
-      return principals;
-    }
-
-    public static class Principal {
-
-      private String name;
-      private String bearerToken;
-
-      public String getName() {
-        return name;
-      }
-
-      public void setName(String name) {
-        this.name = name;
-      }
-
-      public String getBearerToken() {
-        return bearerToken;
-      }
-
-      public void setBearerToken(String bearerToken) {
-        this.bearerToken = bearerToken;
-      }
     }
   }
 
