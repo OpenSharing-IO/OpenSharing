@@ -1,29 +1,29 @@
 package io.opensharing.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.CatalogPrincipal;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.http.ErrorCodes;
 import io.opensharing.http.ErrorResponse;
 import io.opensharing.principal.Caller;
-import io.opensharing.principal.ProviderIdentityResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** Authenticates a provider-admin request as the {@link Caller} its identity resolver names. */
+/** Authenticates a provider-admin request through the configured catalog. */
 public class AdminAuthenticationFilter extends OncePerRequestFilter {
 
-  private final ProviderIdentityResolver identityResolver;
+  private final CatalogConnector catalog;
   private final ObjectMapper objectMapper;
 
-  public AdminAuthenticationFilter(
-      ProviderIdentityResolver identityResolver, ObjectMapper objectMapper) {
-    this.identityResolver = identityResolver;
+  public AdminAuthenticationFilter(CatalogConnector catalog, ObjectMapper objectMapper) {
+    this.catalog = catalog;
     this.objectMapper = objectMapper;
   }
 
@@ -31,13 +31,28 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
-    Optional<Caller> resolved = identityResolver.resolve(request);
-    if (resolved.isEmpty()) {
+    String token = BearerTokens.from(request).orElse(null);
+    if (token == null) {
       reject(response);
       return;
     }
-    request.setAttribute(Caller.REQUEST_ATTRIBUTE, resolved.get());
+    CatalogPrincipal principal;
+    try {
+      principal = catalog.authorize(token, privilegeFor(request));
+    } catch (CatalogAuthorizationException rejected) {
+      reject(response);
+      return;
+    }
+    request.setAttribute(
+        Caller.REQUEST_ATTRIBUTE, new Caller(principal.id(), principal.name(), token));
     chain.doFilter(request, response);
+  }
+
+  private static String privilegeFor(HttpServletRequest request) {
+    return "POST".equalsIgnoreCase(request.getMethod())
+            && request.getRequestURI().replaceFirst("/$", "").endsWith("/shares")
+        ? "CREATE_SHARE"
+        : null;
   }
 
   private void reject(HttpServletResponse response) throws IOException {
