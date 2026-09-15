@@ -2,8 +2,8 @@ package io.opensharing.share;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.http.ApiException;
-import io.opensharing.principal.Caller;
-import io.opensharing.principal.Ownership;
+import io.opensharing.auth.Caller;
+import io.opensharing.auth.Ownership;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -37,19 +37,19 @@ public class ShareStore {
     share.setDisplayName(displayName);
     share.setComment(comment);
     share.setProperties(properties);
-    share.setOwnerId(author.principalId());
-    share.setCreatedBy(author.principalId());
-    share.setUpdatedBy(author.principalId());
+    share.setOwnerId(author.id());
+    share.setCreatedBy(author.id());
     return shares.save(share);
   }
 
-  /** Only non-null fields are applied. */
+  /** Only non-null fields are applied. Only the owner may update the share. */
   public ShareEntity update(
-      Caller author,
-      ShareEntity share,
+      Caller caller,
+      String name,
       String displayName,
       String comment,
       Map<String, String> properties) {
+    ShareEntity share = requireOwned(name, caller);
     if (displayName != null) {
       share.setDisplayName(displayName);
     }
@@ -59,7 +59,6 @@ public class ShareStore {
     if (properties != null) {
       share.setProperties(properties);
     }
-    share.setUpdatedBy(author.principalId());
     return shares.save(share);
   }
 

@@ -1,4 +1,4 @@
-package io.opensharing.principal;
+package io.opensharing.auth;
 
 import io.opensharing.http.ApiException;
 import org.springframework.core.MethodParameter;
@@ -7,7 +7,7 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
-/** Hands controllers the principal established by the admin authentication filter. */
+/** Injects the {@link Caller} set by {@link ProviderAuthenticationFilter} into controller methods. */
 public class CallerArgumentResolver implements HandlerMethodArgumentResolver {
 
   @Override
