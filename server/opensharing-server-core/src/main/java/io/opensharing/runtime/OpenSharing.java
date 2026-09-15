@@ -7,20 +7,14 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
-import org.springframework.boot.SpringApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContextInitializer;
 import org.springframework.context.ConfigurableApplicationContext;
 
-/** Library entry point for running OpenSharing standalone or embedding it in a host process. */
+/** Starts OpenSharing inside a host process. */
 public final class OpenSharing {
 
   private OpenSharing() {}
-
-  /** Starts the reference server in standalone mode (default deployment). */
-  public static ConfigurableApplicationContext runStandalone(String... args) {
-    return SpringApplication.run(OpenSharingApplication.class, args);
-  }
 
   /** Configures an embedded assembly the host starts inside its own process. */
   public static EmbeddedBuilder embedded() {
