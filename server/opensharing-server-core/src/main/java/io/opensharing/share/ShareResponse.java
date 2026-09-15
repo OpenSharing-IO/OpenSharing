@@ -1,12 +1,10 @@
 package io.opensharing.share;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import io.opensharing.http.AdminJson;
 import java.time.Instant;
 import java.util.Map;
 
-/** A share as the admin API reports it. */
-@AdminJson
+/** A share as the provider API reports it. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ShareResponse(
     String shareId,
@@ -17,8 +15,7 @@ public record ShareResponse(
     String ownerId,
     Instant createdAt,
     String createdBy,
-    Instant updatedAt,
-    String updatedBy) {
+    Instant updatedAt) {
 
   public static ShareResponse from(ShareEntity share) {
     return new ShareResponse(
@@ -30,7 +27,6 @@ public record ShareResponse(
         share.getOwnerId(),
         share.getCreatedAt(),
         share.getCreatedBy(),
-        share.getUpdatedAt(),
-        share.getUpdatedBy());
+        share.getUpdatedAt());
   }
 }

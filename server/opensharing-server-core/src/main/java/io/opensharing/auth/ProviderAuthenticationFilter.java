@@ -6,7 +6,6 @@ import io.opensharing.catalog.CatalogPrincipal;
 import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.http.ErrorCodes;
 import io.opensharing.http.ErrorResponse;
-import io.opensharing.principal.Caller;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,13 +15,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** Authenticates a provider-admin request through the configured catalog. */
-public class AdminAuthenticationFilter extends OncePerRequestFilter {
+/** Authenticates a provider request through the configured catalog. */
+public class ProviderAuthenticationFilter extends OncePerRequestFilter {
 
   private final CatalogConnector catalog;
   private final ObjectMapper objectMapper;
 
-  public AdminAuthenticationFilter(CatalogConnector catalog, ObjectMapper objectMapper) {
+  public ProviderAuthenticationFilter(CatalogConnector catalog, ObjectMapper objectMapper) {
     this.catalog = catalog;
     this.objectMapper = objectMapper;
   }
@@ -33,14 +32,14 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
       throws ServletException, IOException {
     String token = BearerTokens.from(request).orElse(null);
     if (token == null) {
-      reject(response);
+      reject(response, "bearer token is required");
       return;
     }
     CatalogPrincipal principal;
     try {
       principal = catalog.authorize(token, privilegeFor(request));
     } catch (CatalogAuthorizationException rejected) {
-      reject(response);
+      reject(response, "bearer token is invalid or unauthorized");
       return;
     }
     request.setAttribute(
@@ -55,14 +54,11 @@ public class AdminAuthenticationFilter extends OncePerRequestFilter {
         : null;
   }
 
-  private void reject(HttpServletResponse response) throws IOException {
+  private void reject(HttpServletResponse response, String message) throws IOException {
     response.setHeader("WWW-Authenticate", "Bearer");
     response.setStatus(HttpStatus.UNAUTHORIZED.value());
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
     objectMapper.writeValue(
-        response.getOutputStream(),
-        new ErrorResponse(
-            ErrorCodes.UNAUTHENTICATED,
-            "a provider-admin bearer token naming a known, authorized principal is required"));
+        response.getOutputStream(), new ErrorResponse(ErrorCodes.UNAUTHENTICATED, message));
   }
 }
