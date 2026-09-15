@@ -33,6 +33,7 @@ public class OpenSharingProperties {
         : value;
   }
 
+  /** Standalone process vs embedded in a host. */
   public static class Hosting {
 
     public enum Mode {
@@ -65,6 +66,7 @@ public class OpenSharingProperties {
     }
   }
 
+  /** Which catalog implementation backs asset resolution and provider identity. */
   public static class Catalog {
 
     private String type;
@@ -82,6 +84,7 @@ public class OpenSharingProperties {
       return local;
     }
 
+    /** YAML catalog used when {@code opensharing.catalog.type=local}. */
     public static class Local {
 
       private String file;

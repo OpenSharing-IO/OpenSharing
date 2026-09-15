@@ -56,7 +56,7 @@ class ShareAdminControllerTest {
                 .content("{\"name\":\"sales\",\"comment\":\"orders\"}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.name").value("sales"))
-        .andExpect(jsonPath("$.owner_id").value("catalog-alice-id"));
+        .andExpect(jsonPath("$.ownerId").value("catalog-alice-id"));
 
     mvc.perform(get(SHARES).header("Authorization", "Bearer alice-token"))
         .andExpect(status().isOk())

@@ -1,17 +1,14 @@
-package io.opensharing.principal;
+package io.opensharing.auth;
 
 import io.opensharing.http.ApiException;
 
-/**
- * A share may only be changed by the principal that owns it. Reading is open to any authenticated
- * principal.
- */
+/** Rejects updates unless the caller owns the share. Reads are allowed for any authenticated caller. */
 public final class Ownership {
 
   private Ownership() {}
 
   public static void requireOwner(String ownerId, Caller caller, String what) {
-    if (!ownerId.equals(caller.principalId())) {
+    if (!ownerId.equals(caller.id())) {
       throw ApiException.permissionDenied(
           "principal '" + caller.name() + "' does not own " + what);
     }
