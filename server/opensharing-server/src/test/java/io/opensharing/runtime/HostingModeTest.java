@@ -2,6 +2,8 @@ package io.opensharing.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.local.LocalCatalogConnector;
 import io.opensharing.config.OpenSharingProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,12 +19,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 class HostingModeTest {
 
   @Autowired private OpenSharingProperties properties;
-  @Autowired private SharingRuntime runtime;
+  @Autowired private CatalogConnector catalog;
 
   @Test
   void defaultsToStandaloneHosting() {
     assertEquals(HostingMode.STANDALONE, properties.getHosting().getMode());
-    assertEquals(HostingMode.STANDALONE, runtime.hostingMode());
-    assertEquals("local", runtime.catalogConnector().name());
+    assertEquals(LocalCatalogConnector.NAME, catalog.name());
   }
 }

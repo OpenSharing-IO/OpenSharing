@@ -7,7 +7,6 @@ import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogLoader;
 import io.opensharing.runtime.HostingMode;
-import io.opensharing.runtime.SharingRuntime;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -27,13 +26,14 @@ import org.springframework.context.annotation.Bean;
     })
 class CatalogConfigurationEmbeddedTest {
 
-  @Autowired private SharingRuntime runtime;
+  @Autowired private OpenSharingProperties properties;
+  @Autowired private CatalogConnector catalog;
   @Autowired private ApplicationContext context;
 
   @Test
   void skipsStandaloneCatalogWiringWhenEmbedded() {
-    assertEquals(HostingMode.EMBEDDED, runtime.hostingMode());
-    assertEquals(LocalCatalogConnector.NAME, runtime.catalogConnector().name());
+    assertEquals(HostingMode.EMBEDDED, properties.getHosting().getMode());
+    assertEquals(LocalCatalogConnector.NAME, catalog.name());
     assertFalse(context.containsBean("catalogConfiguration"));
   }
 
