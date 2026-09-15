@@ -22,9 +22,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 class CatalogConfigurationTest {
 
   @Autowired private CatalogConnector catalog;
+  @Autowired private OpenSharingProperties properties;
 
   @Test
   void loadsTheConfiguredLocalCatalog() {
+    assertEquals(OpenSharingProperties.Hosting.Mode.STANDALONE, properties.getHosting().getMode());
+
     UserContext user = UserContext.fromUserIdAndName("alice@example.com", "alice@example.com");
 
     assertEquals("local", catalog.name());
