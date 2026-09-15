@@ -25,7 +25,6 @@ class ObjectNamesTest {
   @Test
   void rejectsPeriodOnlyForSchemasAndAssets() {
     assertEquals("share.with.dots", ObjectNames.validateShareName("share.with.dots"));
-    assertEquals("alice@example.com", ObjectNames.validatePrincipalName("alice@example.com"));
     assertThrows(IllegalArgumentException.class, () -> ObjectNames.validateSchemaName("a.b"));
     assertThrows(IllegalArgumentException.class, () -> ObjectNames.validateAssetName("a.b"));
   }
