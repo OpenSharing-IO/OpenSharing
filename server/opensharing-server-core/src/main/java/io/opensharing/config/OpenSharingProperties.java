@@ -7,14 +7,30 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class OpenSharingProperties {
 
   private final Hosting hosting = new Hosting();
+  private final Provider provider = new Provider();
   private final Catalog catalog = new Catalog();
 
   public Hosting getHosting() {
     return hosting;
   }
 
+  public Provider getProvider() {
+    return provider;
+  }
+
   public Catalog getCatalog() {
     return catalog;
+  }
+
+  /**
+   * A url prefix without its trailing slash, kept that way here so that everything appending to
+   * one — a filter's url pattern, an OpenAPI path match, a route the server builds — appends to a
+   * known shape instead of each trimming first.
+   */
+  private static String prefix(String value) {
+    return value != null && value.length() > 1 && value.endsWith("/")
+        ? value.substring(0, value.length() - 1)
+        : value;
   }
 
   public static class Hosting {
@@ -32,6 +48,20 @@ public class OpenSharingProperties {
 
     public void setMode(Mode mode) {
       this.mode = mode;
+    }
+  }
+
+  /** Provider-admin HTTP surface. */
+  public static class Provider {
+
+    private String basePath = "/api/1.0/opensharing/provider";
+
+    public String getBasePath() {
+      return basePath;
+    }
+
+    public void setBasePath(String basePath) {
+      this.basePath = prefix(basePath);
     }
   }
 
