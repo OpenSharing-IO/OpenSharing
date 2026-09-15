@@ -6,8 +6,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "opensharing")
 public class OpenSharingProperties {
 
+  /** URL prefix the recipient-facing protocol endpoints are mounted under. */
+  private String protocolPrefix = "/api/1.0/opensharing";
+
   private final Hosting hosting = new Hosting();
   private final Catalog catalog = new Catalog();
+
+  public String getProtocolPrefix() {
+    return protocolPrefix;
+  }
+
+  public void setProtocolPrefix(String protocolPrefix) {
+    this.protocolPrefix = prefix(protocolPrefix);
+  }
 
   public Hosting getHosting() {
     return hosting;
@@ -15,6 +26,17 @@ public class OpenSharingProperties {
 
   public Catalog getCatalog() {
     return catalog;
+  }
+
+  /**
+   * A url prefix without its trailing slash, kept that way here so that everything appending to
+   * one — a filter's url pattern, an OpenAPI path match, a route the server builds — appends to a
+   * known shape instead of each trimming first.
+   */
+  private static String prefix(String value) {
+    return value != null && value.length() > 1 && value.endsWith("/")
+        ? value.substring(0, value.length() - 1)
+        : value;
   }
 
   public static class Hosting {
