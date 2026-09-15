@@ -7,11 +7,23 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.opensharing.catalog.AssetLookup;
+import io.opensharing.catalog.CatalogCaller;
+import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.CatalogPrincipal;
+import io.opensharing.catalog.CredentialRequest;
+import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.catalog.StorageCredentials;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.http.ErrorCodes;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -19,11 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
     properties = {
       "spring.datasource.url=jdbc:h2:mem:provider-shares;DB_CLOSE_DELAY=-1",
       "opensharing.catalog.type=local",
-      "opensharing.catalog.local.file=classpath:local-catalog.yml",
-      "opensharing.admin.principals[0].name=alice",
-      "opensharing.admin.principals[0].bearer-token=alice-token",
-      "opensharing.admin.principals[1].name=bob",
-      "opensharing.admin.principals[1].bearer-token=bob-token"
+      "opensharing.catalog.local.file=classpath:local-catalog.yml"
     })
 @AutoConfigureMockMvc
 class ShareAdminControllerTest {
@@ -33,7 +41,7 @@ class ShareAdminControllerTest {
   @Autowired private MockMvc mvc;
 
   @Test
-  void requiresAConfiguredPrincipal() throws Exception {
+  void requiresACatalogAuthorizedPrincipal() throws Exception {
     mvc.perform(get(SHARES).contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.UNAUTHENTICATED));
@@ -48,7 +56,7 @@ class ShareAdminControllerTest {
                 .content("{\"name\":\"sales\",\"comment\":\"orders\"}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.name").value("sales"))
-        .andExpect(jsonPath("$.owner_id").value("alice"));
+        .andExpect(jsonPath("$.owner_id").value("catalog-alice-id"));
 
     mvc.perform(get(SHARES).header("Authorization", "Bearer alice-token"))
         .andExpect(status().isOk())
@@ -80,5 +88,40 @@ class ShareAdminControllerTest {
     mvc.perform(get(SHARES + "/sales").header("Authorization", "Bearer alice-token"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
+
+  @TestConfiguration
+  static class CatalogAuthorization {
+
+    @Bean
+    @Primary
+    CatalogConnector testCatalogConnector() {
+      return new CatalogConnector() {
+        @Override
+        public String name() {
+          return "test";
+        }
+
+        @Override
+        public ResolvedAsset resolveAsset(AssetLookup lookup, CatalogCaller caller) {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<StorageCredentials> getStorageCredentials(
+            CredentialRequest request, CatalogCaller caller) {
+          return List.of();
+        }
+
+        @Override
+        public CatalogPrincipal authorize(String bearerToken, String privilege) {
+          return switch (bearerToken) {
+            case "alice-token" -> new CatalogPrincipal("catalog-alice-id", "alice");
+            case "bob-token" -> new CatalogPrincipal("catalog-bob-id", "bob");
+            default -> throw new CatalogAuthorizationException("invalid bearer token");
+          };
+        }
+      };
+    }
   }
 }

@@ -44,12 +44,8 @@ opensharing:
     # embedded: a host application registers an OpenSharing server inside its own process.
     mode: standalone
   provider:
-    # Provider-admin API, authenticated with opensharing.admin.principals in standalone mode.
+    # Provider-admin API. Its bearer tokens are authorized by the configured catalog.
     base-path: /api/1.0/opensharing/provider
-  admin:
-    principals:
-      - name: alice
-        bearer-token: local-alice-token
   asset-credentials:
     # Lifetime of the cloud credentials the catalog vends for reading an asset's storage.
     ttl: 1h
