@@ -33,11 +33,6 @@ public final class ObjectNames {
     return normalize(validate(name, "recipient name", false));
   }
 
-  /** Validates a principal name, which is often an email address and so may contain periods. */
-  public static String validatePrincipalName(String name) {
-    return validate(name, "principal name", false);
-  }
-
   /** Lower-cases a name for case-insensitive lookups and uniqueness checks. */
   public static String normalize(String name) {
     return name == null ? null : name.toLowerCase(Locale.ROOT);
