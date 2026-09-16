@@ -1,0 +1,43 @@
+package io.opensharing.catalog;
+
+import io.opensharing.auth.UserContext;
+import io.opensharing.exception.AssetNotFoundException;
+import io.opensharing.exception.UnsupportedAssetTypeException;
+import java.util.List;
+
+/**
+ * Looks up assets and vends storage credentials as a {@link UserContext}. Implementations must be
+ * thread-safe.
+ */
+public interface CatalogConnector {
+
+  /** Identifier used to select this connector in configuration. */
+  String name();
+
+  /**
+   * Resolves an asset as {@code user}. Also the existence check: missing assets throw {@link
+   * AssetNotFoundException}.
+   */
+  ResolvedAsset resolveAsset(AssetLookup lookup, UserContext user);
+
+  /**
+   * Lists children of a container such as a schema. Optional: catalogs that cannot enumerate throw
+   * {@link UnsupportedAssetTypeException}.
+   */
+  default List<ResolvedAsset> listChildren(AssetLookup parent, UserContext user) {
+    throw new UnsupportedAssetTypeException(
+        "the " + name() + " catalog cannot list the contents of a " + parent.type());
+  }
+
+  /** Mints credentials scoped to the asset location, as {@code user}. */
+  List<StorageCredentials> getStorageCredentials(CredentialRequest request, UserContext user);
+
+  /**
+   * Maps a bearer token to a {@link UserContext}, optionally checking {@code privilege}. Optional:
+   * catalogs with no provider identity throw {@link UnsupportedOperationException}.
+   */
+  default UserContext authorize(String bearerToken, String privilege) {
+    throw new UnsupportedOperationException(
+        "the " + name() + " catalog has no notion of provider identity to authorize");
+  }
+}
