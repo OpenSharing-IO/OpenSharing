@@ -1,17 +1,17 @@
 package io.opensharing.config;
 
-import io.opensharing.auth.CallerArgumentResolver;
+import io.opensharing.auth.UserContextArgumentResolver;
 import java.util.List;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/** Lets controller methods take a {@link io.opensharing.auth.Caller} from the authenticated request. */
+/** Lets provider controllers receive the authenticated user context. */
 @Configuration
 public class WebMvcConfiguration implements WebMvcConfigurer {
 
   @Override
   public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
-    resolvers.add(new CallerArgumentResolver());
+    resolvers.add(new UserContextArgumentResolver());
   }
 }

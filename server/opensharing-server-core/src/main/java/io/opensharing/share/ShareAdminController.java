@@ -1,7 +1,7 @@
 package io.opensharing.share;
 
 import io.opensharing.http.ListResponse;
-import io.opensharing.auth.Caller;
+import io.opensharing.auth.UserContext;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -29,10 +29,10 @@ public class ShareAdminController {
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
-  public ShareResponse create(Caller caller, @Valid @RequestBody CreateShareRequest request) {
+  public ShareResponse create(UserContext user, @Valid @RequestBody CreateShareRequest request) {
     return ShareResponse.from(
         shares.create(
-            caller,
+            user,
             request.name(),
             request.displayName(),
             request.comment(),
@@ -40,26 +40,26 @@ public class ShareAdminController {
   }
 
   @GetMapping
-  public ListResponse<ShareResponse> list(Caller caller) {
+  public ListResponse<ShareResponse> list(UserContext user) {
     return ListResponse.of(shares.list(Pageable.unpaged()).stream().map(ShareResponse::from).toList());
   }
 
   @GetMapping("/{share}")
-  public ShareResponse get(Caller caller, @PathVariable String share) {
+  public ShareResponse get(UserContext user, @PathVariable String share) {
     return ShareResponse.from(shares.require(share));
   }
 
   @PatchMapping("/{share}")
   public ShareResponse update(
-      Caller caller, @PathVariable String share, @Valid @RequestBody UpdateShareRequest request) {
+      UserContext user, @PathVariable String share, @Valid @RequestBody UpdateShareRequest request) {
     return ShareResponse.from(
         shares.update(
-            caller, share, request.displayName(), request.comment(), request.properties()));
+            user, share, request.displayName(), request.comment(), request.properties()));
   }
 
   @DeleteMapping("/{share}")
-  public ResponseEntity<Void> delete(Caller caller, @PathVariable String share) {
-    shares.delete(share, caller);
+  public ResponseEntity<Void> delete(UserContext user, @PathVariable String share) {
+    shares.delete(share, user);
     return ResponseEntity.noContent().build();
   }
 }
