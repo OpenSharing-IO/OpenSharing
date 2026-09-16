@@ -7,12 +7,12 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
-/** Injects the {@link Caller} set by {@link ProviderAuthenticationFilter} into controller methods. */
-public class CallerArgumentResolver implements HandlerMethodArgumentResolver {
+/** Injects the authenticated {@link UserContext} into provider controller methods. */
+public class UserContextArgumentResolver implements HandlerMethodArgumentResolver {
 
   @Override
   public boolean supportsParameter(MethodParameter parameter) {
-    return Caller.class.equals(parameter.getParameterType());
+    return UserContext.class.equals(parameter.getParameterType());
   }
 
   @Override
@@ -21,10 +21,11 @@ public class CallerArgumentResolver implements HandlerMethodArgumentResolver {
       ModelAndViewContainer mavContainer,
       NativeWebRequest webRequest,
       WebDataBinderFactory binderFactory) {
-    Object caller = webRequest.getAttribute(Caller.REQUEST_ATTRIBUTE, 0);
-    if (caller instanceof Caller resolved) {
+    Object user =
+        webRequest.getAttribute(ProviderAuthenticationFilter.USER_CONTEXT_ATTRIBUTE, 0);
+    if (user instanceof UserContext resolved) {
       return resolved;
     }
-    throw ApiException.unauthenticated("this endpoint requires a principal's bearer token");
+    throw ApiException.unauthenticated("this endpoint requires an authenticated user");
   }
 }
