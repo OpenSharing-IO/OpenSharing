@@ -2,9 +2,9 @@ package io.opensharing.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.AssetLookup;
 import io.opensharing.catalog.AssetType;
-import io.opensharing.catalog.CatalogCaller;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.CatalogException;
@@ -23,7 +23,7 @@ class ApiFailureTest {
     assertEquals(HttpStatus.NOT_FOUND, missing.status());
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, missing.errorCode());
 
-    CatalogCaller bob = CatalogCaller.withBearerToken("bob@example.com", "token");
+    UserContext bob = new UserContext("bob@example.com", "bob@example.com");
     ApiFailure denied = ApiFailure.of(new AssetAccessDeniedException(lookup, bob));
     assertEquals(HttpStatus.FORBIDDEN, denied.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, denied.errorCode());
