@@ -10,7 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Storage for shares. Name lookups are case-insensitive. */
+/** Storage for shares. Names are stored lowercase and looked up case-insensitively. */
 @Service
 @Transactional
 public class ShareStore {
@@ -27,12 +27,12 @@ public class ShareStore {
       String displayName,
       String comment,
       Map<String, String> properties) {
-    ObjectNames.validateShareName(name);
-    if (shares.existsByNameLower(ObjectNames.normalize(name))) {
-      throw ApiException.alreadyExists("share '" + name + "' already exists");
+    String stored = ObjectNames.validateShareName(name);
+    if (shares.existsByName(stored)) {
+      throw ApiException.alreadyExists("share '" + stored + "' already exists");
     }
     ShareEntity share = new ShareEntity();
-    share.setName(name);
+    share.setName(stored);
     share.setDisplayName(displayName);
     share.setComment(comment);
     share.setProperties(properties);
@@ -63,7 +63,7 @@ public class ShareStore {
 
   @Transactional(readOnly = true)
   public Optional<ShareEntity> find(String name) {
-    return shares.findByNameLower(ObjectNames.normalize(name));
+    return shares.findByName(ObjectNames.normalize(name));
   }
 
   @Transactional(readOnly = true)
@@ -81,7 +81,7 @@ public class ShareStore {
 
   @Transactional(readOnly = true)
   public Page<ShareEntity> list(Pageable pageable) {
-    return shares.findAllByOrderByNameLowerAsc(pageable);
+    return shares.findAllByOrderByNameAsc(pageable);
   }
 
   public void delete(String name, UserContext user) {

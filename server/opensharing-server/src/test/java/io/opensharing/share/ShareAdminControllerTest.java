@@ -52,7 +52,7 @@ class ShareAdminControllerTest {
             post(SHARES)
                 .header("Authorization", "Bearer alice-token")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"sales\",\"comment\":\"orders\"}"))
+                .content("{\"name\":\"Sales\",\"comment\":\"orders\"}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.name").value("sales"))
         .andExpect(jsonPath("$.id").exists());
@@ -61,8 +61,9 @@ class ShareAdminControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].name").value("sales"));
 
-    mvc.perform(get(SHARES + "/sales").header("Authorization", "Bearer bob-token"))
+    mvc.perform(get(SHARES + "/SALES").header("Authorization", "Bearer bob-token"))
         .andExpect(status().isOk())
+        .andExpect(jsonPath("$.name").value("sales"))
         .andExpect(jsonPath("$.comment").value("orders"));
 
     mvc.perform(
