@@ -6,8 +6,8 @@ import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.util.List;
 
 /**
- * Looks up assets and vends storage credentials as a named {@link CatalogCaller}. Implementations
- * must be thread-safe.
+ * Looks up assets and vends storage credentials as a {@link UserContext}. Implementations must be
+ * thread-safe.
  */
 public interface CatalogConnector {
 
@@ -15,22 +15,22 @@ public interface CatalogConnector {
   String name();
 
   /**
-   * Resolves an asset as {@code caller}. Also the existence check: missing assets throw {@link
+   * Resolves an asset as {@code user}. Also the existence check: missing assets throw {@link
    * AssetNotFoundException}.
    */
-  ResolvedAsset resolveAsset(AssetLookup lookup, CatalogCaller caller);
+  ResolvedAsset resolveAsset(AssetLookup lookup, UserContext user);
 
   /**
    * Lists children of a container such as a schema. Optional: catalogs that cannot enumerate throw
    * {@link UnsupportedAssetTypeException}.
    */
-  default List<ResolvedAsset> listChildren(AssetLookup parent, CatalogCaller caller) {
+  default List<ResolvedAsset> listChildren(AssetLookup parent, UserContext user) {
     throw new UnsupportedAssetTypeException(
         "the " + name() + " catalog cannot list the contents of a " + parent.type());
   }
 
-  /** Mints credentials scoped to the asset location, as {@code caller}. */
-  List<StorageCredentials> getStorageCredentials(CredentialRequest request, CatalogCaller caller);
+  /** Mints credentials scoped to the asset location, as {@code user}. */
+  List<StorageCredentials> getStorageCredentials(CredentialRequest request, UserContext user);
 
   /**
    * Maps a bearer token to a {@link UserContext}, optionally checking {@code privilege}. Optional:
