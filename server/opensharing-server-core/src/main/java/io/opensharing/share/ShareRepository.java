@@ -5,12 +5,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-/** JPA access to share rows; lookups use the case-folded {@code name_lower} column. */
+/** JPA access to share rows. Names are stored lowercase and looked up case-insensitively. */
 public interface ShareRepository extends JpaRepository<ShareEntity, String> {
 
-  Optional<ShareEntity> findByNameLower(String nameLower);
+  Optional<ShareEntity> findByName(String name);
 
-  boolean existsByNameLower(String nameLower);
+  boolean existsByName(String name);
 
-  Page<ShareEntity> findAllByOrderByNameLowerAsc(Pageable pageable);
+  Page<ShareEntity> findAllByOrderByNameAsc(Pageable pageable);
 }
