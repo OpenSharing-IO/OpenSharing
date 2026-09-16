@@ -1,5 +1,6 @@
 package io.opensharing.catalog;
 
+import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.util.List;
@@ -32,11 +33,11 @@ public interface CatalogConnector {
   List<StorageCredentials> getStorageCredentials(CredentialRequest request, CatalogCaller caller);
 
   /**
-   * Maps a bearer token to a catalog principal, optionally checking {@code privilege}. Optional:
-   * catalogs with no provider-admin identity throw {@link UnsupportedOperationException}.
+   * Maps a bearer token to a {@link UserContext}, optionally checking {@code privilege}. Optional:
+   * catalogs with no provider identity throw {@link UnsupportedOperationException}.
    */
-  default CatalogPrincipal authorize(String bearerToken, String privilege) {
+  default UserContext authorize(String bearerToken, String privilege) {
     throw new UnsupportedOperationException(
-        "the " + name() + " catalog has no notion of provider-admin identity to authorize");
+        "the " + name() + " catalog has no notion of provider identity to authorize");
   }
 }
