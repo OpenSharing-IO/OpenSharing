@@ -1,9 +1,7 @@
 package io.opensharing.auth;
 
-import io.opensharing.catalog.CatalogConnector;
-
 /**
- * Identity returned by {@link CatalogConnector#authorize}.
+ * Who a catalog or provider request is for.
  *
  * @param id durable catalog id, stored as share/recipient owner
  * @param name display name
