@@ -1,9 +1,8 @@
 package io.opensharing.catalog;
 
 import java.util.List;
-import java.util.Set;
 
-/** Where an asset lives and how it can be read, as the catalog reports it. */
+/** Where an asset lives, as the catalog reports it. */
 public record ResolvedAsset(
     AssetType type,
     String identifier,
@@ -14,11 +13,9 @@ public record ResolvedAsset(
     String schema,
     List<String> partitionColumns,
     String subtype,
-    Set<AccessMode> accessModes,
     List<String> auxiliaryLocations) {
 
   public ResolvedAsset {
-    accessModes = accessModes == null ? Set.of() : Set.copyOf(accessModes);
     auxiliaryLocations = auxiliaryLocations == null ? List.of() : List.copyOf(auxiliaryLocations);
     partitionColumns = partitionColumns == null ? List.of() : List.copyOf(partitionColumns);
   }
@@ -37,7 +34,6 @@ public record ResolvedAsset(
     private String schema;
     private List<String> partitionColumns = List.of();
     private String subtype;
-    private Set<AccessMode> accessModes = Set.of();
     private List<String> auxiliaryLocations = List.of();
 
     private Builder(AssetType type, String identifier) {
@@ -80,11 +76,6 @@ public record ResolvedAsset(
       return this;
     }
 
-    public Builder accessModes(Set<AccessMode> value) {
-      this.accessModes = value;
-      return this;
-    }
-
     public Builder auxiliaryLocations(List<String> value) {
       this.auxiliaryLocations = value;
       return this;
@@ -101,7 +92,6 @@ public record ResolvedAsset(
           schema,
           partitionColumns,
           subtype,
-          accessModes,
           auxiliaryLocations);
     }
   }
