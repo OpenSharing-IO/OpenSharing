@@ -1,21 +1,16 @@
 package io.opensharing.share;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import java.time.Instant;
 import java.util.Map;
 
-/** A share as the provider API reports it. */
+/** A share as the protocol reports it. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ShareResponse(
-    String shareId,
+    String id,
     String name,
     String displayName,
     String comment,
-    Map<String, String> properties,
-    String ownerId,
-    Instant createdAt,
-    String createdBy,
-    Instant updatedAt) {
+    Map<String, String> properties) {
 
   public static ShareResponse from(ShareEntity share) {
     return new ShareResponse(
@@ -23,10 +18,6 @@ public record ShareResponse(
         share.getName(),
         share.getDisplayName(),
         share.getComment(),
-        Map.copyOf(share.getProperties()),
-        share.getOwnerId(),
-        share.getCreatedAt(),
-        share.getCreatedBy(),
-        share.getUpdatedAt());
+        Map.copyOf(share.getProperties()));
   }
 }

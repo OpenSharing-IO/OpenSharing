@@ -2,7 +2,6 @@ package io.opensharing.share;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.http.ApiException;
-import io.opensharing.auth.Ownership;
 import io.opensharing.auth.UserContext;
 import java.util.Map;
 import java.util.Optional;
@@ -76,7 +75,7 @@ public class ShareStore {
   @Transactional(readOnly = true)
   public ShareEntity requireOwned(String name, UserContext user) {
     ShareEntity share = require(name);
-    Ownership.requireOwner(share.getOwnerId(), user, "share '" + share.getName() + "'");
+    user.requireOwner(share.getOwnerId(), "share '" + share.getName() + "'");
     return share;
   }
 
