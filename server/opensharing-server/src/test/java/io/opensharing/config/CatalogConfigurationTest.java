@@ -2,9 +2,9 @@ package io.opensharing.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.AssetLookup;
 import io.opensharing.catalog.AssetType;
-import io.opensharing.catalog.CatalogCaller;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.TableFormat;
 import org.junit.jupiter.api.Test;
@@ -23,13 +23,13 @@ class CatalogConfigurationTest {
 
   @Test
   void loadsTheConfiguredLocalCatalog() {
-    CatalogCaller caller = CatalogCaller.withBearerToken("alice@example.com", "token");
+    UserContext user = new UserContext("alice@example.com", "alice@example.com");
 
     assertEquals("local", catalog.name());
     assertEquals(
         TableFormat.DELTA,
         catalog
-            .resolveAsset(AssetLookup.of(AssetType.TABLE, "main.sales.table1"), caller)
+            .resolveAsset(AssetLookup.of(AssetType.TABLE, "main.sales.table1"), user)
             .format());
   }
 }
