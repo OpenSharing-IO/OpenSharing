@@ -2,8 +2,8 @@ package io.opensharing.share;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.http.ApiException;
-import io.opensharing.auth.Caller;
 import io.opensharing.auth.Ownership;
+import io.opensharing.auth.UserContext;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
@@ -23,7 +23,7 @@ public class ShareStore {
   }
 
   public ShareEntity create(
-      Caller author,
+      UserContext author,
       String name,
       String displayName,
       String comment,
@@ -44,12 +44,12 @@ public class ShareStore {
 
   /** Only non-null fields are applied. Only the owner may update the share. */
   public ShareEntity update(
-      Caller caller,
+      UserContext user,
       String name,
       String displayName,
       String comment,
       Map<String, String> properties) {
-    ShareEntity share = requireOwned(name, caller);
+    ShareEntity share = requireOwned(name, user);
     if (displayName != null) {
       share.setDisplayName(displayName);
     }
@@ -74,9 +74,9 @@ public class ShareStore {
   }
 
   @Transactional(readOnly = true)
-  public ShareEntity requireOwned(String name, Caller caller) {
+  public ShareEntity requireOwned(String name, UserContext user) {
     ShareEntity share = require(name);
-    Ownership.requireOwner(share.getOwnerId(), caller, "share '" + share.getName() + "'");
+    Ownership.requireOwner(share.getOwnerId(), user, "share '" + share.getName() + "'");
     return share;
   }
 
@@ -85,8 +85,8 @@ public class ShareStore {
     return shares.findAllByOrderByNameLowerAsc(pageable);
   }
 
-  public void delete(String name, Caller caller) {
-    ShareEntity share = requireOwned(name, caller);
+  public void delete(String name, UserContext user) {
+    ShareEntity share = requireOwned(name, user);
     shares.delete(share);
   }
 }

@@ -2,7 +2,6 @@ package io.opensharing.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opensharing.catalog.CatalogConnector;
-import io.opensharing.catalog.CatalogPrincipal;
 import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.http.ErrorCodes;
 import io.opensharing.http.ErrorResponse;
@@ -17,6 +16,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /** Authenticates a provider request through the configured catalog. */
 public class ProviderAuthenticationFilter extends OncePerRequestFilter {
+
+  public static final String USER_CONTEXT_ATTRIBUTE = "io.opensharing.userContext";
 
   private final CatalogConnector catalog;
   private final ObjectMapper objectMapper;
@@ -35,15 +36,14 @@ public class ProviderAuthenticationFilter extends OncePerRequestFilter {
       reject(response, "bearer token is required");
       return;
     }
-    CatalogPrincipal principal;
+    UserContext user;
     try {
-      principal = catalog.authorize(token, privilegeFor(request));
+      user = catalog.authorize(token, privilegeFor(request));
     } catch (CatalogAuthorizationException rejected) {
       reject(response, "bearer token is invalid or unauthorized");
       return;
     }
-    request.setAttribute(
-        Caller.REQUEST_ATTRIBUTE, new Caller(principal.id(), principal.name(), token));
+    request.setAttribute(USER_CONTEXT_ATTRIBUTE, user);
     chain.doFilter(request, response);
   }
 
