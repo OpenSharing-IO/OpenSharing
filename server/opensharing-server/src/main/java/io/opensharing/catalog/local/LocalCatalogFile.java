@@ -1,11 +1,9 @@
 package io.opensharing.catalog.local;
 
-import io.opensharing.catalog.AccessMode;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.TableFormat;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /** YAML/JSON description of a local catalog. */
@@ -44,7 +42,6 @@ public record LocalCatalogFile(Credentials credentials, List<Asset> assets) {
       String format,
       String schema,
       List<String> partitionColumns,
-      List<String> accessModes,
       String catalogAssetId,
       List<String> auxiliaryLocations,
       List<String> sharableBy) {
@@ -55,19 +52,9 @@ public record LocalCatalogFile(Credentials credentials, List<Asset> assets) {
       }
       type = type == null ? AssetType.TABLE : type;
       partitionColumns = partitionColumns == null ? List.of() : List.copyOf(partitionColumns);
-      accessModes = accessModes == null ? List.of() : List.copyOf(accessModes);
       auxiliaryLocations = auxiliaryLocations == null ? List.of() : List.copyOf(auxiliaryLocations);
       sharableBy = sharableBy == null ? List.of() : List.copyOf(sharableBy);
       TableFormat.fromWireName(format);
-      accessModes.forEach(LocalCatalogFile::parseAccessMode);
-    }
-  }
-
-  static AccessMode parseAccessMode(String value) {
-    try {
-      return AccessMode.valueOf(value.trim().toUpperCase(Locale.ROOT));
-    } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("unsupported access mode '" + value + "'", e);
     }
   }
 }
