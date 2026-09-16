@@ -1,5 +1,6 @@
 package io.opensharing.share;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -7,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.opensharing.asset.SharedDataObjectRepository;
 import io.opensharing.http.ErrorCodes;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +29,7 @@ class ShareAdminControllerTest {
   private static final String SHARES = "/api/1.0/opensharing/provider/shares";
 
   @Autowired private MockMvc mvc;
+  @Autowired private SharedDataObjectRepository objects;
 
   @Test
   void requiresACatalogAuthorizedPrincipal() throws Exception {
@@ -68,18 +71,73 @@ class ShareAdminControllerTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.PERMISSION_DENIED));
 
-    // Owner updates the comment.
+    // Owner updates the comment and adds a table.
     mvc.perform(
             patch(SHARES + "/sales")
                 .header("Authorization", "Bearer alice-token")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"comment\":\"updated\"}"))
+                .content(
+                    """
+                    {
+                      "comment": "updated",
+                      "updates": [{
+                        "action": "ADD",
+                        "dataObject": {
+                          "name": "main.sales.orders",
+                          "type": "TABLE",
+                          "sharedAs": "sales.orders"
+                        }
+                      }]
+                    }
+                    """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.comment").value("updated"));
 
-    // Owner deletes the share.
+    assertEquals(1, objects.count());
+
+    // Owner removes the table by sharedAs.
+    mvc.perform(
+            patch(SHARES + "/sales")
+                .header("Authorization", "Bearer alice-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "updates": [{
+                        "action": "REMOVE",
+                        "dataObject": {"sharedAs": "sales.orders"}
+                      }]
+                    }
+                    """))
+        .andExpect(status().isOk());
+
+    assertEquals(0, objects.count());
+
+    // Owner adds the table back so delete can cascade it.
+    mvc.perform(
+            patch(SHARES + "/sales")
+                .header("Authorization", "Bearer alice-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "updates": [{
+                        "action": "ADD",
+                        "dataObject": {
+                          "name": "main.sales.orders",
+                          "type": "TABLE",
+                          "sharedAs": "sales.orders"
+                        }
+                      }]
+                    }
+                    """))
+        .andExpect(status().isOk());
+
+    // Owner deletes the share; shared objects are removed with it.
     mvc.perform(delete(SHARES + "/sales").header("Authorization", "Bearer alice-token"))
         .andExpect(status().isNoContent());
+
+    assertEquals(0, objects.count());
 
     // Deleted share is 404.
     mvc.perform(get(SHARES + "/sales").header("Authorization", "Bearer alice-token"))
