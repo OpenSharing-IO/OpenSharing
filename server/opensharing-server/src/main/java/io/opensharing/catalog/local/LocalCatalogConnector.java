@@ -1,11 +1,10 @@
 package io.opensharing.catalog.local;
 
-import io.opensharing.catalog.AccessMode;
+import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.AssetLookup;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
-import io.opensharing.catalog.CatalogCaller;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
@@ -23,7 +22,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,23 +66,23 @@ public final class LocalCatalogConnector implements CatalogConnector {
   }
 
   @Override
-  public ResolvedAsset resolveAsset(AssetLookup lookup, CatalogCaller caller) {
-    return resolved(requireAsset(lookup, caller));
+  public ResolvedAsset resolveAsset(AssetLookup lookup, UserContext user) {
+    return resolved(requireAsset(lookup, user));
   }
 
   /** Tables whose identifier is this schema plus one more dotted segment. */
   @Override
-  public List<ResolvedAsset> listChildren(AssetLookup parent, CatalogCaller caller) {
+  public List<ResolvedAsset> listChildren(AssetLookup parent, UserContext user) {
     if (parent.type() != AssetType.SCHEMA) {
       throw new UnsupportedAssetTypeException(
           "the " + NAME + " catalog only lists the contents of a SCHEMA, not a " + parent.type());
     }
-    requireAsset(parent, caller);
+    requireAsset(parent, user);
     String prefix = parent.identifier().toLowerCase(Locale.ROOT) + ".";
     return assetsByIdentifier.values().stream()
         .filter(asset -> asset.type() == AssetType.TABLE)
         .filter(asset -> isChildOf(asset.identifier(), prefix))
-        .filter(asset -> allows(asset, caller))
+        .filter(asset -> allows(asset, user))
         .sorted(Comparator.comparing(asset -> asset.identifier().toLowerCase(Locale.ROOT)))
         .map(LocalCatalogConnector::resolved)
         .toList();
@@ -104,35 +102,34 @@ public final class LocalCatalogConnector implements CatalogConnector {
         .schema(asset.schema())
         .partitionColumns(asset.partitionColumns())
         .subtype(asset.subtype())
-        .accessModes(accessModes(asset))
         .auxiliaryLocations(asset.auxiliaryLocations())
         .build();
   }
 
-  /** Empty {@code sharableBy} means anyone; otherwise the caller name must match. */
-  private static boolean allows(LocalCatalogFile.Asset asset, CatalogCaller caller) {
+  /** Empty {@code sharableBy} means anyone; otherwise the user name must match. */
+  private static boolean allows(LocalCatalogFile.Asset asset, UserContext user) {
     if (asset.sharableBy().isEmpty()) {
       return true;
     }
-    return asset.sharableBy().stream().anyMatch(name -> name.equalsIgnoreCase(caller.name()));
+    return asset.sharableBy().stream().anyMatch(name -> name.equalsIgnoreCase(user.name()));
   }
 
-  private LocalCatalogFile.Asset requireAsset(AssetLookup lookup, CatalogCaller caller) {
+  private LocalCatalogFile.Asset requireAsset(AssetLookup lookup, UserContext user) {
     LocalCatalogFile.Asset asset = assetsByIdentifier.get(key(lookup.type(), lookup.identifier()));
     if (asset == null) {
       throw new AssetNotFoundException(lookup);
     }
-    if (!allows(asset, caller)) {
-      throw new AssetAccessDeniedException(lookup, caller);
+    if (!allows(asset, user)) {
+      throw new AssetAccessDeniedException(lookup, user);
     }
     return asset;
   }
 
   @Override
   public List<StorageCredentials> getStorageCredentials(
-      CredentialRequest request, CatalogCaller caller) {
+      CredentialRequest request, UserContext user) {
     LocalCatalogFile.Asset asset =
-        requireAsset(AssetLookup.of(request.assetType(), request.identifier()), caller);
+        requireAsset(AssetLookup.of(request.assetType(), request.identifier()), user);
     String location = request.storageLocation();
     if (location == null || location.isBlank()) {
       location = asset.storageLocation();
@@ -225,18 +222,6 @@ public final class LocalCatalogConnector implements CatalogConnector {
       case AZURE -> List.of(StorageCredentials.SAS_TOKEN);
       case GCP -> List.of(StorageCredentials.OAUTH_TOKEN);
     };
-  }
-
-  /** Modes from the file, or {@code DIR} when the asset has a storage location. */
-  private static Set<AccessMode> accessModes(LocalCatalogFile.Asset asset) {
-    if (!asset.accessModes().isEmpty()) {
-      return asset.accessModes().stream()
-          .map(LocalCatalogFile::parseAccessMode)
-          .collect(Collectors.toUnmodifiableSet());
-    }
-    boolean hasLocation =
-        asset.storageLocation() != null && !asset.storageLocation().isBlank();
-    return hasLocation ? Set.of(AccessMode.DIR) : Set.of();
   }
 
   private String randomString(int length) {

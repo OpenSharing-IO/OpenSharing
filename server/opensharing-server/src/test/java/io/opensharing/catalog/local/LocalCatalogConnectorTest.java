@@ -4,12 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.opensharing.catalog.AccessMode;
+import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.AssetLookup;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
-import io.opensharing.catalog.CatalogCaller;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
@@ -23,7 +22,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
@@ -53,8 +51,8 @@ class LocalCatalogConnectorTest {
             - alice@example.com
       """;
 
-  private static final CatalogCaller ALICE =
-      CatalogCaller.withBearerToken("alice@example.com", "secret");
+  private static final UserContext ALICE =
+      new UserContext("alice@example.com", "alice@example.com");
 
   private static LocalCatalogConnector connector(String yaml) {
     return new LocalCatalogConnector(
@@ -63,13 +61,12 @@ class LocalCatalogConnectorTest {
   }
 
   @Test
-  void resolvesTableWithFormatAndDirectoryAccess() {
+  void resolvesTableWithFormat() {
     ResolvedAsset asset = resolve(CATALOG, "main.sales.table1", ALICE);
 
     assertEquals(TABLE1, asset.storageLocation());
     assertEquals(TableFormat.DELTA, asset.format());
     assertEquals("MANAGED", asset.subtype());
-    assertEquals(Set.of(AccessMode.DIR), asset.accessModes());
   }
 
   @Test
@@ -97,8 +94,8 @@ class LocalCatalogConnectorTest {
 
   /**
    * Serving consults the same list, of the owner of the share being read through, so this is what
-   * revokes an existing read as well as what refuses a new share. The credential each caller carries
-   * is ignored: this file authenticates nobody, it only recognizes names.
+   * revokes an existing read as well as what refuses a new share. This file authenticates nobody;
+   * it only recognizes names.
    */
   @Test
   void letsOnlyTheListedPrincipalsShareARestrictedAsset() {
@@ -106,14 +103,14 @@ class LocalCatalogConnectorTest {
 
     LocalCatalogConnector connector = connector(CATALOG);
     AssetLookup lookup = AssetLookup.of(AssetType.TABLE, "main.finance.ledger");
-    CatalogCaller bob = CatalogCaller.withBearerToken("bob@example.com", "bob-catalog-credential");
+    UserContext bob = new UserContext("bob@example.com", "bob@example.com");
     assertThrows(AssetAccessDeniedException.class, () -> connector.resolveAsset(lookup, bob));
   }
 
   @Test
   void refusesToVendWhenCallerIsNotOnSharableBy() {
     LocalCatalogConnector connector = connector(CATALOG);
-    CatalogCaller bob = CatalogCaller.withBearerToken("bob@example.com", "bob-catalog-credential");
+    UserContext bob = new UserContext("bob@example.com", "bob@example.com");
     CredentialRequest request =
         new CredentialRequest(
             AssetType.TABLE,
@@ -157,8 +154,8 @@ class LocalCatalogConnectorTest {
     assertThrows(CatalogException.class, () -> connector.getStorageCredentials(request, ALICE));
   }
 
-  private static ResolvedAsset resolve(String yaml, String identifier, CatalogCaller caller) {
-    return connector(yaml).resolveAsset(AssetLookup.of(AssetType.TABLE, identifier), caller);
+  private static ResolvedAsset resolve(String yaml, String identifier, UserContext user) {
+    return connector(yaml).resolveAsset(AssetLookup.of(AssetType.TABLE, identifier), user);
   }
 
   @Test
@@ -226,7 +223,6 @@ class LocalCatalogConnectorTest {
                     null,
                     "delta",
                     null,
-                    List.of(),
                     List.of(),
                     null,
                     List.of(),
@@ -352,7 +348,7 @@ class LocalCatalogConnectorTest {
             sharableBy:
               - alice@example.com
         """;
-    CatalogCaller bob = CatalogCaller.withBearerToken("bob@example.com", "bob-catalog-credential");
+    UserContext bob = new UserContext("bob@example.com", "bob@example.com");
 
     assertEquals(
         List.of("main.sales.ledger", "main.sales.table1"),
@@ -412,17 +408,4 @@ class LocalCatalogConnectorTest {
     assertThrows(CatalogException.class, () -> connector(yaml));
   }
 
-  @Test
-  void rejectsUnsupportedAccessModeAtLoad() {
-    String yaml =
-        """
-        assets:
-          - identifier: main.sales.orders
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-            accessModes:
-              - directory
-        """;
-
-    assertThrows(CatalogException.class, () -> connector(yaml));
-  }
 }
