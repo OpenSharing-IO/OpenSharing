@@ -15,19 +15,15 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Persisted share row. */
+/** Persisted share row. {@code name} is always stored lowercase. */
 @Entity
 @Table(
     name = "os_shares",
-    uniqueConstraints =
-        @UniqueConstraint(name = "uk_shares_name_lower", columnNames = "name_lower"))
+    uniqueConstraints = @UniqueConstraint(name = "uk_shares_name", columnNames = "name"))
 public class ShareEntity extends BaseEntity {
 
   @Column(nullable = false, length = 255)
   private String name;
-
-  @Column(name = "name_lower", nullable = false, length = 255)
-  private String nameLower;
 
   @Column(name = "display_name", length = 255)
   private String displayName;
@@ -62,8 +58,7 @@ public class ShareEntity extends BaseEntity {
   }
 
   public void setName(String name) {
-    this.name = name;
-    this.nameLower = ObjectNames.normalize(name);
+    this.name = ObjectNames.normalize(name);
   }
 
   public String getDisplayName() {
