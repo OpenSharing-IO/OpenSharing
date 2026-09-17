@@ -27,6 +27,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 @SpringBootTest(
     properties = {
@@ -94,9 +95,8 @@ class ShareAdminControllerTest {
                       "updates": [{
                         "action": "ADD",
                         "dataObject": {
-                          "name": "main.sales.orders",
-                          "type": "TABLE",
-                          "sharedAs": "sales.orders"
+                          "name": "Main.Sales.Orders",
+                          "type": "TABLE"
                         }
                       }]
                     }
@@ -105,6 +105,10 @@ class ShareAdminControllerTest {
         .andExpect(jsonPath("$.comment").value("updated"));
 
     assertEquals(1, objects.count());
+    var stored = objects.findAll().getFirst();
+    assertEquals("sales", stored.getSharedAsSchema());
+    assertEquals("orders", stored.getSharedAsTable());
+    assertEquals("sales.orders", stored.getSharedAs());
 
     // Owner removes the table by sharedAs.
     mvc.perform(
@@ -116,7 +120,47 @@ class ShareAdminControllerTest {
                     {
                       "updates": [{
                         "action": "REMOVE",
-                        "dataObject": {"sharedAs": "sales.orders"}
+                        "dataObject": {"type": "TABLE", "sharedAs": "SALES.ORDERS"}
+                      }]
+                    }
+                    """))
+        .andExpect(status().isOk());
+
+    assertEquals(0, objects.count());
+
+    mvc.perform(
+            patch(SHARES + "/sales")
+                .header("Authorization", "Bearer alice-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "updates": [{
+                        "action": "ADD",
+                        "dataObject": {
+                          "name": "Main.Sales",
+                          "type": "SCHEMA"
+                        }
+                      }]
+                    }
+                    """))
+        .andExpect(status().isOk());
+
+    stored = objects.findAll().getFirst();
+    assertEquals("sales", stored.getSharedAsSchema());
+    assertEquals("", stored.getSharedAsTable());
+    assertEquals("sales", stored.getSharedAs());
+
+    mvc.perform(
+            patch(SHARES + "/sales")
+                .header("Authorization", "Bearer alice-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "updates": [{
+                        "action": "REMOVE",
+                        "dataObject": {"type": "SCHEMA", "sharedAs": "MAIN.SALES"}
                       }]
                     }
                     """))
@@ -137,7 +181,7 @@ class ShareAdminControllerTest {
                         "dataObject": {
                           "name": "main.sales.orders",
                           "type": "TABLE",
-                          "sharedAs": "sales.orders"
+                          "sharedAs": "Sales.Orders"
                         }
                       }]
                     }
@@ -154,6 +198,114 @@ class ShareAdminControllerTest {
     mvc.perform(get(SHARES + "/sales").header("Authorization", "Bearer alice-token"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
+
+  @Test
+  void rejectsUnsupportedAssetTypes() throws Exception {
+    createShare("edge-volume");
+    patchShare(
+            "edge-volume",
+            """
+            {"updates":[{"action":"ADD","dataObject":{"name":"main.sales.orders","type":"VOLUME"}}]}
+            """)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    deleteShare("edge-volume");
+  }
+
+  @Test
+  void rejectsTableNamesWithoutASchema() throws Exception {
+    createShare("edge-nodot");
+    patchShare(
+            "edge-nodot",
+            """
+            {"updates":[{"action":"ADD","dataObject":{"name":"Orders","type":"TABLE"}}]}
+            """)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    deleteShare("edge-nodot");
+  }
+
+  @Test
+  void rejectsDuplicateAliasAndSource() throws Exception {
+    createShare("edge-dup");
+    patchShare(
+            "edge-dup",
+            """
+            {"updates":[{"action":"ADD","dataObject":{"name":"Main.Sales.Orders","type":"TABLE"}}]}
+            """)
+        .andExpect(status().isOk());
+    patchShare(
+            "edge-dup",
+            """
+            {"updates":[{"action":"ADD","dataObject":{"name":"Main.Sales.Orders","type":"TABLE"}}]}
+            """)
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_ALREADY_EXISTS));
+    patchShare(
+            "edge-dup",
+            """
+            {"updates":[{"action":"ADD","dataObject":{
+              "name":"Main.Sales.Orders","type":"TABLE","sharedAs":"other.orders"}}]}
+            """)
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_ALREADY_EXISTS));
+    deleteShare("edge-dup");
+  }
+
+  @Test
+  void removeRequiresTypeAndAnExistingObject() throws Exception {
+    createShare("edge-remove");
+    patchShare(
+            "edge-remove",
+            """
+            {"updates":[{"action":"ADD","dataObject":{"name":"Main.Sales.Orders","type":"TABLE"}}]}
+            """)
+        .andExpect(status().isOk());
+    patchShare(
+            "edge-remove",
+            """
+            {"updates":[{"action":"REMOVE","dataObject":{"sharedAs":"sales.orders"}}]}
+            """)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    patchShare(
+            "edge-remove",
+            """
+            {"updates":[{"action":"REMOVE","dataObject":{"type":"TABLE","sharedAs":"missing.table"}}]}
+            """)
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+    patchShare(
+            "edge-remove",
+            """
+            {"updates":[{"action":"REMOVE","dataObject":{"name":"Main.Sales.Orders","type":"TABLE"}}]}
+            """)
+        .andExpect(status().isOk());
+    deleteShare("edge-remove");
+  }
+
+  private void createShare(String name) throws Exception {
+    mvc.perform(
+            post(SHARES)
+                .header("Authorization", "Bearer alice-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"" + name + "\"}"))
+        .andExpect(status().isCreated());
+  }
+
+  private ResultActions patchShare(String share, String body)
+      throws Exception {
+    return mvc.perform(
+        patch(SHARES + "/" + share)
+            .header("Authorization", "Bearer alice-token")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(body));
+  }
+
+  private void deleteShare(String share) throws Exception {
+    mvc.perform(delete(SHARES + "/" + share).header("Authorization", "Bearer alice-token"))
+        .andExpect(status().isNoContent());
   }
 
   @TestConfiguration

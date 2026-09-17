@@ -4,8 +4,8 @@ import java.util.Locale;
 
 /**
  * Name rules from {@code spec/protocols/OVERVIEW.md}. Object names are compared case-insensitively.
- * Share names are stored lowercase; other names persist the original casing plus {@link
- * #normalize(String)} for lookups.
+ * Share names and shared-as schema/table names are stored lowercase; catalog identifiers persist
+ * original casing.
  */
 public final class ObjectNames {
 

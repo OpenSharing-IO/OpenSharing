@@ -39,11 +39,13 @@ public class SharedDataObjectStore {
     if (type == null) {
       throw ApiException.invalidParameter("dataObject.type is required");
     }
-    validateAlias(sharedAs, type);
+    requireSupportedType(type);
+    Alias alias = parseAlias(sharedAs, type, name);
 
-    if (objects.existsByShareAndSharedAsLower(share, ObjectNames.normalize(sharedAs))) {
+    if (objects.existsByShareAndSharedAsSchemaAndSharedAsTable(
+        share, alias.schema(), alias.table())) {
       throw ApiException.alreadyExists(
-          "alias '" + sharedAs + "' already exists in share '" + share.getName() + "'");
+          "alias '" + alias.formatted() + "' already exists in share '" + share.getName() + "'");
     }
 
     ResolvedAsset resolved = catalog.resolveAsset(AssetLookup.of(type, name), user);
@@ -55,8 +57,7 @@ public class SharedDataObjectStore {
     if (resolved.identifier().length() > 512) {
       throw new CatalogException("catalog asset identifier must not exceed 512 characters");
     }
-    if (objects.existsByShareAndNameLower(
-        share, ObjectNames.normalize(resolved.identifier()))) {
+    if (objects.existsByShareAndName(share, resolved.identifier())) {
       throw ApiException.alreadyExists(
           "'" + resolved.identifier() + "' is already included in share '" + share.getName() + "'");
     }
@@ -68,41 +69,62 @@ public class SharedDataObjectStore {
     object.setType(type);
     object.setSourceSubtype(resolved.subtype());
     object.setSourceFormat(resolved.format());
-    object.setSharedAs(sharedAs);
-    object.setAddedBy(user.id());
+    object.setSharedAsSchema(alias.schema());
+    object.setSharedAsTable(alias.table());
     return objects.save(object);
   }
 
-  public void remove(ShareEntity share, String name, String sharedAs) {
+  public void remove(ShareEntity share, String name, AssetType type, String sharedAs) {
+    if (type == null) {
+      throw ApiException.invalidParameter("dataObject.type is required");
+    }
+    requireSupportedType(type);
     SharedDataObjectEntity object;
     if (sharedAs != null && !sharedAs.isBlank()) {
+      Alias alias = parseAlias(sharedAs, type, null);
       object =
           objects
-              .findByShareAndSharedAsLower(share, ObjectNames.normalize(sharedAs))
-              .orElseThrow(() -> notIncluded(share, sharedAs));
+              .findByShareAndSharedAsSchemaAndSharedAsTable(
+                  share, alias.schema(), alias.table())
+              .orElseThrow(() -> notIncluded(share, alias.formatted()));
     } else {
       requireText(name, "dataObject.name or dataObject.sharedAs");
       object =
-          objects
-              .findByShareAndNameLower(share, ObjectNames.normalize(name))
-              .orElseThrow(() -> notIncluded(share, name));
+          objects.findByShareAndName(share, name).orElseThrow(() -> notIncluded(share, name));
+    }
+    if (object.getType() != type) {
+      throw notIncluded(share, object.getSharedAs());
     }
     objects.delete(object);
   }
 
-  private static void validateAlias(String sharedAs, AssetType type) {
-    requireText(sharedAs, "dataObject.sharedAs");
-    String[] parts = sharedAs.split("\\.", -1);
-    int expectedParts = type == AssetType.SCHEMA ? 1 : 2;
-    if (parts.length != expectedParts) {
-      throw ApiException.invalidParameter(
-          "dataObject.sharedAs must have "
-              + expectedParts
-              + (expectedParts == 1 ? " name" : " dot-separated names"));
+  private static Alias parseAlias(String sharedAs, AssetType type, String name) {
+    String raw = sharedAs == null || sharedAs.isBlank() ? name : sharedAs;
+    if (raw == null || raw.isBlank()) {
+      throw ApiException.invalidParameter("dataObject.sharedAs is required");
     }
-    ObjectNames.validateSchemaName(parts[0]);
-    if (expectedParts == 2) {
-      ObjectNames.validateAssetName(parts[1]);
+    raw = ObjectNames.normalize(raw);
+    String[] parts = raw.split("\\.", -1);
+    try {
+      if (type == AssetType.SCHEMA) {
+        String schema = ObjectNames.validateSchemaName(parts[parts.length - 1]);
+        return new Alias(schema, "");
+      }
+      if (parts.length < 2) {
+        throw ApiException.invalidParameter(
+            "dataObject.sharedAs must have at least 2 dot-separated names");
+      }
+      String schema = ObjectNames.validateSchemaName(parts[parts.length - 2]);
+      String table = ObjectNames.validateAssetName(parts[parts.length - 1]);
+      return new Alias(schema, table);
+    } catch (IllegalArgumentException e) {
+      throw ApiException.invalidParameter(e.getMessage());
+    }
+  }
+
+  private static void requireSupportedType(AssetType type) {
+    if (type != AssetType.SCHEMA && type != AssetType.TABLE) {
+      throw ApiException.invalidParameter("dataObject.type " + type + " is not supported yet");
     }
   }
 
@@ -115,5 +137,11 @@ public class SharedDataObjectStore {
   private static ApiException notIncluded(ShareEntity share, String object) {
     return ApiException.notFound(
         "'" + object + "' is not included in share '" + share.getName() + "'");
+  }
+
+  private record Alias(String schema, String table) {
+    String formatted() {
+      return table.isEmpty() ? schema : schema + "." + table;
+    }
   }
 }
