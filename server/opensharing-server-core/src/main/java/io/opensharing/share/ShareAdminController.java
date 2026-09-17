@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -50,8 +51,15 @@ public class ShareAdminController {
   }
 
   @GetMapping("/{share}")
-  public ShareResponse get(UserContext user, @PathVariable String share) {
-    return ShareResponse.from(shares.require(share));
+  public ShareResponse get(
+      UserContext user,
+      @PathVariable String share,
+      @RequestParam(name = "include_shared_data", defaultValue = "false")
+          boolean includeSharedData) {
+    ShareEntity entity = shares.require(share);
+    return includeSharedData
+        ? ShareResponse.from(entity, objects.list(entity))
+        : ShareResponse.from(entity);
   }
 
   @PatchMapping("/{share}")
