@@ -73,7 +73,10 @@ public class ShareAdminController {
                 update.dataObject().sharedAs());
         case REMOVE ->
             objects.remove(
-                entity, update.dataObject().name(), update.dataObject().sharedAs());
+                entity,
+                update.dataObject().name(),
+                update.dataObject().type(),
+                update.dataObject().sharedAs());
       }
     }
     return ShareResponse.from(
