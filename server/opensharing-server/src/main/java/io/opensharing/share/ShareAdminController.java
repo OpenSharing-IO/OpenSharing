@@ -8,7 +8,6 @@ import io.opensharing.http.ListResponse;
 import io.opensharing.runtime.OpenSharing;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -64,7 +63,6 @@ public class ShareAdminController {
 
   /** {@code PATCH /shares/{share}}: updates the fields set in the body. Owner only. */
   @PatchMapping("/{share}")
-  @Transactional
   public ShareResponse update(
       UserContext user,
       @PathVariable String share,
