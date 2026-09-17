@@ -8,13 +8,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface SharedDataObjectRepository
     extends JpaRepository<SharedDataObjectEntity, String> {
 
-  boolean existsByShareAndNameLower(ShareEntity share, String nameLower);
+  boolean existsByShareAndName(ShareEntity share, String name);
 
-  boolean existsByShareAndSharedAsLower(ShareEntity share, String sharedAsLower);
+  boolean existsByShareAndSharedAsSchemaAndSharedAsTable(
+      ShareEntity share, String sharedAsSchema, String sharedAsTable);
 
-  Optional<SharedDataObjectEntity> findByShareAndNameLower(
-      ShareEntity share, String nameLower);
+  Optional<SharedDataObjectEntity> findByShareAndName(ShareEntity share, String name);
 
-  Optional<SharedDataObjectEntity> findByShareAndSharedAsLower(
-      ShareEntity share, String sharedAsLower);
+  Optional<SharedDataObjectEntity> findByShareAndSharedAsSchemaAndSharedAsTable(
+      ShareEntity share, String sharedAsSchema, String sharedAsTable);
 }
