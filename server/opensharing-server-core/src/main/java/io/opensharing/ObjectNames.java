@@ -4,8 +4,8 @@ import java.util.Locale;
 
 /**
  * Name rules from {@code spec/protocols/OVERVIEW.md}. Object names are compared case-insensitively.
- * Share names and shared-as schema/table names are stored lowercase; catalog identifiers persist
- * original casing.
+ * Share names, recipient names, and shared-as schema/table names are stored lowercase; catalog
+ * identifiers persist original casing.
  */
 public final class ObjectNames {
 
@@ -28,9 +28,9 @@ public final class ObjectNames {
     return validate(name, "asset name", true);
   }
 
-  /** Validates a recipient name using the same rules as a share name. */
+  /** Validates a recipient name and returns it lowercased. */
   public static String validateRecipientName(String name) {
-    return validate(name, "recipient name", false);
+    return normalize(validate(name, "recipient name", false));
   }
 
   /** Lower-cases a name for case-insensitive lookups and uniqueness checks. */
