@@ -22,10 +22,10 @@ import org.hibernate.annotations.OnDeleteAction;
 @Table(
     name = "os_shared_data_objects",
     uniqueConstraints = {
+      @UniqueConstraint(name = "uk_shared_objects_source", columnNames = {"share_id", "name"}),
       @UniqueConstraint(
-          name = "uk_shared_objects_source", columnNames = {"share_id", "name_lower"}),
-      @UniqueConstraint(
-          name = "uk_shared_objects_alias", columnNames = {"share_id", "shared_as_lower"})
+          name = "uk_shared_objects_alias",
+          columnNames = {"share_id", "shared_as_schema", "shared_as_table"})
     })
 public class SharedDataObjectEntity extends BaseEntity {
 
@@ -40,9 +40,6 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Column(nullable = false, length = 512)
   private String name;
 
-  @Column(name = "name_lower", nullable = false, length = 512)
-  private String nameLower;
-
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 32)
   private AssetType type;
@@ -54,14 +51,12 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Column(name = "source_format", length = 32)
   private TableFormat sourceFormat;
 
-  @Column(name = "shared_as", nullable = false, length = 511)
-  private String sharedAs;
+  @Column(name = "shared_as_schema", nullable = false, length = 255)
+  private String sharedAsSchema;
 
-  @Column(name = "shared_as_lower", nullable = false, length = 511)
-  private String sharedAsLower;
-
-  @Column(name = "added_by", nullable = false, length = 255)
-  private String addedBy;
+  /** Empty for schema-level shares; otherwise the lowercase table (or other asset) name. */
+  @Column(name = "shared_as_table", nullable = false, length = 255)
+  private String sharedAsTable;
 
   public ShareEntity getShare() {
     return share;
@@ -85,7 +80,6 @@ public class SharedDataObjectEntity extends BaseEntity {
 
   public void setName(String name) {
     this.name = name;
-    this.nameLower = ObjectNames.normalize(name);
   }
 
   public AssetType getType() {
@@ -112,20 +106,26 @@ public class SharedDataObjectEntity extends BaseEntity {
     this.sourceFormat = sourceFormat;
   }
 
+  public String getSharedAsSchema() {
+    return sharedAsSchema;
+  }
+
+  public void setSharedAsSchema(String sharedAsSchema) {
+    this.sharedAsSchema = ObjectNames.normalize(sharedAsSchema);
+  }
+
+  public String getSharedAsTable() {
+    return sharedAsTable;
+  }
+
+  public void setSharedAsTable(String sharedAsTable) {
+    this.sharedAsTable = sharedAsTable == null ? "" : ObjectNames.normalize(sharedAsTable);
+  }
+
+  /** Recipient-visible alias: {@code schema} or {@code schema.table}. */
   public String getSharedAs() {
-    return sharedAs;
-  }
-
-  public void setSharedAs(String sharedAs) {
-    this.sharedAs = sharedAs;
-    this.sharedAsLower = ObjectNames.normalize(sharedAs);
-  }
-
-  public String getAddedBy() {
-    return addedBy;
-  }
-
-  public void setAddedBy(String addedBy) {
-    this.addedBy = addedBy;
+    return sharedAsTable == null || sharedAsTable.isEmpty()
+        ? sharedAsSchema
+        : sharedAsSchema + "." + sharedAsTable;
   }
 }
