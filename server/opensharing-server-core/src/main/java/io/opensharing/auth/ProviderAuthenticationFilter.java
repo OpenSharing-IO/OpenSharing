@@ -50,10 +50,17 @@ public class ProviderAuthenticationFilter extends OncePerRequestFilter {
   }
 
   private static Privilege privilegeFor(HttpServletRequest request) {
-    return "POST".equalsIgnoreCase(request.getMethod())
-            && request.getRequestURI().replaceFirst("/$", "").endsWith("/shares")
-        ? Privilege.CREATE_SHARE
-        : null;
+    if (!"POST".equalsIgnoreCase(request.getMethod())) {
+      return null;
+    }
+    String path = request.getRequestURI().replaceFirst("/$", "");
+    if (path.endsWith("/shares")) {
+      return Privilege.CREATE_SHARE;
+    }
+    if (path.endsWith("/recipients")) {
+      return Privilege.CREATE_RECIPIENT;
+    }
+    return null;
   }
 
   private void reject(HttpServletResponse response, String message) throws IOException {
