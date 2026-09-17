@@ -29,6 +29,8 @@ server:
 opensharing:
   # Prefix the protocol-serving endpoints are mounted under; this is what goes in a profile file.
   protocol-prefix: /api/1.0/opensharing
+  # Prefix recipient activation URLs are built under.
+  activation-prefix: /api/1.0/opensharing/activations
   hosting:
     # standalone: run as its own Spring Boot process.
     # embedded: host registers a CatalogConnector bean.

@@ -1,5 +1,6 @@
 package io.opensharing.recipient;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -55,16 +56,24 @@ class RecipientAdminControllerTest {
                 .content("{\"name\":\"Acme\",\"comment\":\"partner\"}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.name").value("acme"))
+        .andExpect(jsonPath("$.authenticationType").value("TOKEN"))
+        .andExpect(jsonPath("$.activationUrl").exists())
+        .andExpect(
+            jsonPath("$.activationUrl")
+                .value(startsWith("http://localhost/api/1.0/opensharing/activations/")))
         .andExpect(jsonPath("$.id").exists());
 
     mvc.perform(get(RECIPIENTS).header("Authorization", "Bearer alice-token"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.items[0].name").value("acme"));
+        .andExpect(jsonPath("$.items[0].name").value("acme"))
+        .andExpect(jsonPath("$.items[0].activationUrl").doesNotExist());
 
     mvc.perform(get(RECIPIENTS + "/ACME").header("Authorization", "Bearer bob-token"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.name").value("acme"))
-        .andExpect(jsonPath("$.comment").value("partner"));
+        .andExpect(jsonPath("$.comment").value("partner"))
+        .andExpect(jsonPath("$.authenticationType").value("TOKEN"))
+        .andExpect(jsonPath("$.activationUrl").doesNotExist());
 
     mvc.perform(
             patch(RECIPIENTS + "/acme")
@@ -88,6 +97,17 @@ class RecipientAdminControllerTest {
     mvc.perform(get(RECIPIENTS + "/acme").header("Authorization", "Bearer alice-token"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
+
+  @Test
+  void rejectsOidcUntilImplemented() throws Exception {
+    mvc.perform(
+            post(RECIPIENTS)
+                .header("Authorization", "Bearer alice-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"oidc-partner\",\"authenticationType\":\"OIDC\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
   }
 
   @TestConfiguration
