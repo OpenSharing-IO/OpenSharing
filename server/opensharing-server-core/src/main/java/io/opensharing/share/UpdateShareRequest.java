@@ -19,7 +19,7 @@ public record UpdateShareRequest(
 
   public record Update(@NotNull Action action, @NotNull @Valid DataObject dataObject) {}
 
-  public record DataObject(String name, AssetType type, String sharedAs) {}
+  public record DataObject(String name, @NotNull AssetType type, String sharedAs) {}
 
   public enum Action {
     ADD,
