@@ -166,7 +166,16 @@ class ShareAdminControllerTest {
     mvc.perform(get(SHARES + "/SALES").header("Authorization", "Bearer bob-token"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.name").value("sales"))
-        .andExpect(jsonPath("$.comment").value("orders"));
+        .andExpect(jsonPath("$.comment").value("orders"))
+        .andExpect(jsonPath("$.objects").doesNotExist());
+
+    // include_shared_data returns objects; none are shared yet.
+    mvc.perform(
+            get(SHARES + "/SALES")
+                .param("include_shared_data", "true")
+                .header("Authorization", "Bearer bob-token"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.objects").isEmpty());
 
     // Non-owner cannot update.
     mvc.perform(
@@ -204,6 +213,22 @@ class ShareAdminControllerTest {
     assertEquals("orders", stored.getSharedAsTable());
     assertEquals("sales.orders", stored.getSharedAs());
 
+    // Default GET omits objects even after they are shared.
+    mvc.perform(get(SHARES + "/sales").header("Authorization", "Bearer bob-token"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.objects").doesNotExist());
+
+    // include_shared_data returns the added table and its default alias.
+    mvc.perform(
+            get(SHARES + "/sales")
+                .param("include_shared_data", "true")
+                .header("Authorization", "Bearer bob-token"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.objects.length()").value(1))
+        .andExpect(jsonPath("$.objects[0].name").value("Main.Sales.Orders"))
+        .andExpect(jsonPath("$.objects[0].type").value("TABLE"))
+        .andExpect(jsonPath("$.objects[0].sharedAs").value("sales.orders"));
+
     // Owner removes the table by sharedAs.
     mvc.perform(
             patch(SHARES + "/sales")
@@ -222,6 +247,7 @@ class ShareAdminControllerTest {
 
     assertEquals(0, objects.count());
 
+    // SCHEMA add uses the last name segment as the shared schema.
     mvc.perform(
             patch(SHARES + "/sales")
                 .header("Authorization", "Bearer alice-token")
@@ -245,6 +271,7 @@ class ShareAdminControllerTest {
     assertEquals("", stored.getSharedAsTable());
     assertEquals("sales", stored.getSharedAs());
 
+    // Owner removes the schema by sharedAs.
     mvc.perform(
             patch(SHARES + "/sales")
                 .header("Authorization", "Bearer alice-token")
@@ -262,7 +289,7 @@ class ShareAdminControllerTest {
 
     assertEquals(0, objects.count());
 
-    // Owner adds the table back so delete can cascade it.
+    // Owner adds a table with an explicit sharedAs alias.
     mvc.perform(
             patch(SHARES + "/sales")
                 .header("Authorization", "Bearer alice-token")
@@ -296,6 +323,7 @@ class ShareAdminControllerTest {
 
   @Test
   void rejectsUnsupportedAssetTypes() throws Exception {
+    // VOLUME is not a supported shared-object type.
     createShare("edge-volume");
     patchShare(
             "edge-volume",
@@ -309,6 +337,7 @@ class ShareAdminControllerTest {
 
   @Test
   void rejectsTableNamesWithoutASchema() throws Exception {
+    // TABLE name must include a schema segment.
     createShare("edge-nodot");
     patchShare(
             "edge-nodot",
@@ -322,6 +351,7 @@ class ShareAdminControllerTest {
 
   @Test
   void rejectsDuplicateAliasAndSource() throws Exception {
+    // First ADD of the catalog table succeeds.
     createShare("edge-dup");
     patchShare(
             "edge-dup",
@@ -329,6 +359,7 @@ class ShareAdminControllerTest {
             {"updates":[{"action":"ADD","dataObject":{"name":"Main.Sales.Orders","type":"TABLE"}}]}
             """)
         .andExpect(status().isOk());
+    // Same catalog table cannot be added twice.
     patchShare(
             "edge-dup",
             """
@@ -336,6 +367,7 @@ class ShareAdminControllerTest {
             """)
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_ALREADY_EXISTS));
+    // Same catalog table with a different alias is still a duplicate source.
     patchShare(
             "edge-dup",
             """
@@ -349,6 +381,7 @@ class ShareAdminControllerTest {
 
   @Test
   void removeRequiresTypeAndAnExistingObject() throws Exception {
+    // ADD a table to remove later.
     createShare("edge-remove");
     patchShare(
             "edge-remove",
@@ -356,6 +389,7 @@ class ShareAdminControllerTest {
             {"updates":[{"action":"ADD","dataObject":{"name":"Main.Sales.Orders","type":"TABLE"}}]}
             """)
         .andExpect(status().isOk());
+    // REMOVE without type is invalid.
     patchShare(
             "edge-remove",
             """
@@ -363,6 +397,7 @@ class ShareAdminControllerTest {
             """)
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    // REMOVE of a missing alias is 404.
     patchShare(
             "edge-remove",
             """
@@ -370,6 +405,7 @@ class ShareAdminControllerTest {
             """)
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+    // REMOVE by catalog name succeeds.
     patchShare(
             "edge-remove",
             """
