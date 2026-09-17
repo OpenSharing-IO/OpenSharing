@@ -1,6 +1,7 @@
 package io.opensharing.recipient;
 
 import io.opensharing.auth.UserContext;
+import io.opensharing.config.OpenSharingProperties;
 import io.opensharing.http.ListResponse;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 /** Provider HTTP API for recipient CRUD. */
 @RestController
@@ -22,16 +24,20 @@ import org.springframework.web.bind.annotation.RestController;
 public class RecipientAdminController {
 
   private final RecipientStore recipients;
+  private final OpenSharingProperties properties;
 
-  public RecipientAdminController(RecipientStore recipients) {
+  public RecipientAdminController(RecipientStore recipients, OpenSharingProperties properties) {
     this.recipients = recipients;
+    this.properties = properties;
   }
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public RecipientResponse create(
       UserContext user, @Valid @RequestBody CreateRecipientRequest request) {
-    return RecipientResponse.from(recipients.create(user, request.name(), request.comment()));
+    RecipientStore.CreatedRecipient created =
+        recipients.create(user, request.name(), request.comment(), request.authenticationType());
+    return RecipientResponse.from(created.recipient(), activationUrl(created.activationCode()));
   }
 
   @GetMapping
@@ -57,5 +63,13 @@ public class RecipientAdminController {
   public ResponseEntity<Void> delete(UserContext user, @PathVariable String recipient) {
     recipients.delete(recipient, user);
     return ResponseEntity.noContent().build();
+  }
+
+  private String activationUrl(String code) {
+    return ServletUriComponentsBuilder.fromCurrentContextPath()
+        .path(properties.getActivationPrefix())
+        .path("/")
+        .path(code)
+        .toUriString();
   }
 }

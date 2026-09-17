@@ -4,6 +4,8 @@ import io.opensharing.BaseEntity;
 import io.opensharing.ObjectNames;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -23,8 +25,13 @@ public class RecipientEntity extends BaseEntity {
   @Column(name = "owner_id", nullable = false, length = 255)
   private String ownerId;
 
-  @Column(name = "created_by", nullable = false, length = 255)
-  private String createdBy;
+  @Enumerated(EnumType.STRING)
+  @Column(name = "authentication_type", nullable = false, length = 32)
+  private AuthenticationType authenticationType;
+
+  /** SHA-256 of the one-time activation code; null after the code is redeemed. */
+  @Column(name = "activation_code_hash", unique = true, length = 64)
+  private String activationCodeHash;
 
   public String getName() {
     return name;
@@ -50,11 +57,19 @@ public class RecipientEntity extends BaseEntity {
     this.ownerId = ownerId;
   }
 
-  public String getCreatedBy() {
-    return createdBy;
+  public AuthenticationType getAuthenticationType() {
+    return authenticationType;
   }
 
-  public void setCreatedBy(String createdBy) {
-    this.createdBy = createdBy;
+  public void setAuthenticationType(AuthenticationType authenticationType) {
+    this.authenticationType = authenticationType;
+  }
+
+  public String getActivationCodeHash() {
+    return activationCodeHash;
+  }
+
+  public void setActivationCodeHash(String activationCodeHash) {
+    this.activationCodeHash = activationCodeHash;
   }
 }
