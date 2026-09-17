@@ -49,25 +49,21 @@ public class SharedDataObjectStore {
       throw ApiException.alreadyExists(
           "alias '" + alias.formatted() + "' already exists in share '" + share.getName() + "'");
     }
+    if (objects.existsByShareAndName(share, name)) {
+      throw ApiException.alreadyExists(
+          "'" + name + "' is already included in share '" + share.getName() + "'");
+    }
 
     ResolvedAsset resolved = catalog.resolveAsset(AssetLookup.of(type, name), AuthContext.of(user));
     if (resolved.type() != type) {
       throw new CatalogException(
           "catalog resolved '" + name + "' as " + resolved.type() + " instead of " + type);
     }
-    requireText(resolved.identifier(), "catalog asset identifier");
-    if (resolved.identifier().length() > 512) {
-      throw new CatalogException("catalog asset identifier must not exceed 512 characters");
-    }
-    if (objects.existsByShareAndName(share, resolved.identifier())) {
-      throw ApiException.alreadyExists(
-          "'" + resolved.identifier() + "' is already included in share '" + share.getName() + "'");
-    }
 
     SharedDataObjectEntity object = new SharedDataObjectEntity();
     object.setShare(share);
     object.setSourceAssetId(resolved.catalogAssetId());
-    object.setName(resolved.identifier());
+    object.setName(name);
     object.setType(type);
     object.setSourceSubtype(resolved.subtype());
     object.setSourceFormat(resolved.format());
@@ -118,21 +114,16 @@ public class SharedDataObjectStore {
     }
     raw = ObjectNames.normalize(raw);
     String[] parts = raw.split("\\.", -1);
-    try {
-      if (type == AssetType.SCHEMA) {
-        String schema = ObjectNames.validateSchemaName(parts[parts.length - 1]);
-        return new Alias(schema, "");
-      }
-      if (parts.length < 2) {
-        throw ApiException.invalidParameter(
-            "dataObject.sharedAs must have at least 2 dot-separated names");
-      }
-      String schema = ObjectNames.validateSchemaName(parts[parts.length - 2]);
-      String table = ObjectNames.validateAssetName(parts[parts.length - 1]);
-      return new Alias(schema, table);
-    } catch (IllegalArgumentException e) {
-      throw ApiException.invalidParameter(e.getMessage());
+    if (type == AssetType.SCHEMA) {
+      return new Alias(ObjectNames.validateSchemaName(parts[parts.length - 1]), "");
     }
+    if (parts.length < 2) {
+      throw ApiException.invalidParameter(
+          "dataObject.sharedAs must have at least 2 dot-separated names");
+    }
+    return new Alias(
+        ObjectNames.validateSchemaName(parts[parts.length - 2]),
+        ObjectNames.validateAssetName(parts[parts.length - 1]));
   }
 
   private static void requireSupportedType(AssetType type) {
