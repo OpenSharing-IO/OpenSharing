@@ -1,6 +1,7 @@
 package io.opensharing.asset;
 
 import io.opensharing.share.ShareEntity;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -17,4 +18,7 @@ public interface SharedDataObjectRepository
 
   Optional<SharedDataObjectEntity> findByShareAndSharedAsSchemaAndSharedAsTable(
       ShareEntity share, String sharedAsSchema, String sharedAsTable);
+
+  List<SharedDataObjectEntity> findByShareOrderBySharedAsSchemaAscSharedAsTableAsc(
+      ShareEntity share);
 }

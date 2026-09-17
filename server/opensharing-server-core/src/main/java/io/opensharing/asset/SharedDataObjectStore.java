@@ -10,6 +10,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.share.ShareEntity;
+import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,6 +76,11 @@ public class SharedDataObjectStore {
     return objects.save(object);
   }
 
+  @Transactional(readOnly = true)
+  public List<SharedDataObjectEntity> list(ShareEntity share) {
+    return objects.findByShareOrderBySharedAsSchemaAscSharedAsTableAsc(share);
+  }
+
   public void remove(ShareEntity share, String name, AssetType type, String sharedAs) {
     if (type == null) {
       throw ApiException.invalidParameter("dataObject.type is required");
@@ -99,6 +105,12 @@ public class SharedDataObjectStore {
     objects.delete(object);
   }
 
+  /**
+   * Lowercased {@code sharedAs}, or {@code name} if omitted; catalog prefix is dropped.
+   *
+   * <p>{@code Main.Sales.Orders} (TABLE) → {@code sales} / {@code orders}. {@code Main.Sales}
+   * (SCHEMA) → {@code sales}. {@code Sales.Orders} (TABLE) → {@code sales} / {@code orders}.
+   */
   private static Alias parseAlias(String sharedAs, AssetType type, String name) {
     String raw = sharedAs == null || sharedAs.isBlank() ? name : sharedAs;
     if (raw == null || raw.isBlank()) {
