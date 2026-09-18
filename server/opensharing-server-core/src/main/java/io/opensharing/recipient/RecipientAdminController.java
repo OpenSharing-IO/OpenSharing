@@ -1,9 +1,16 @@
 package io.opensharing.recipient;
 
+import io.opensharing.ObjectNames;
 import io.opensharing.auth.UserContext;
 import io.opensharing.config.OpenSharingProperties;
+import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,9 +42,22 @@ public class RecipientAdminController {
   @ResponseStatus(HttpStatus.CREATED)
   public RecipientResponse create(
       UserContext user, @Valid @RequestBody CreateRecipientRequest request) {
-    RecipientStore.CreatedRecipient created =
-        recipients.create(user, request.name(), request.comment(), request.authenticationType());
-    return RecipientResponse.from(created.recipient(), activationUrl(created.activationCode()));
+    AuthenticationType mode =
+        request.authenticationType() == null
+            ? AuthenticationType.TOKEN
+            : request.authenticationType();
+    if (mode != AuthenticationType.TOKEN) {
+      throw ApiException.invalidParameter("authenticationType " + mode + " is not supported yet");
+    }
+    String activationCode = UUID.randomUUID().toString();
+    RecipientEntity recipient =
+        recipients.create(
+            user,
+            ObjectNames.validateRecipientName(request.name()),
+            request.comment(),
+            mode,
+            sha256(activationCode));
+    return RecipientResponse.from(recipient, activationUrl(activationCode));
   }
 
   @GetMapping
@@ -71,5 +91,14 @@ public class RecipientAdminController {
         .path("/")
         .path(code)
         .toUriString();
+  }
+
+  private static String sha256(String value) {
+    try {
+      return HexFormat.of()
+          .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException(e);
+    }
   }
 }
