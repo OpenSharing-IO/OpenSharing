@@ -16,9 +16,7 @@ public class ProviderConfiguration {
   FilterRegistrationBean<ProviderAuthenticationFilter> providerAuthentication(
       CatalogConnector catalog, ObjectMapper objectMapper, OpenSharingProperties properties) {
     FilterRegistrationBean<ProviderAuthenticationFilter> registration =
-        new FilterRegistrationBean<>(
-            new ProviderAuthenticationFilter(
-                catalog, objectMapper, properties.getProvider().getBasePath()));
+        new FilterRegistrationBean<>(new ProviderAuthenticationFilter(catalog, objectMapper));
     registration.addUrlPatterns(properties.getProvider().getBasePath() + "/*");
     // After Boot's encoding / forwarded-header / request-context filters (HIGHEST … +5).
     registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
