@@ -53,7 +53,7 @@ class RecipientAdminControllerTest {
             post(RECIPIENTS)
                 .header("Authorization", "Bearer alice-token")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\":\"Acme\",\"comment\":\"partner\"}"))
+                .content("{\"name\":\"Acme\",\"comment\":\"partner\",\"authenticationType\":\"TOKEN\"}"))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.name").value("acme"))
         .andExpect(jsonPath("$.authenticationType").value("TOKEN"))
