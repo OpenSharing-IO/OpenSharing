@@ -21,10 +21,13 @@ public class ProviderAuthenticationFilter extends OncePerRequestFilter {
 
   private final CatalogConnector catalog;
   private final ObjectMapper objectMapper;
+  private final String providerBasePath;
 
-  public ProviderAuthenticationFilter(CatalogConnector catalog, ObjectMapper objectMapper) {
+  public ProviderAuthenticationFilter(
+      CatalogConnector catalog, ObjectMapper objectMapper, String providerBasePath) {
     this.catalog = catalog;
     this.objectMapper = objectMapper;
+    this.providerBasePath = providerBasePath;
   }
 
   @Override
@@ -49,15 +52,15 @@ public class ProviderAuthenticationFilter extends OncePerRequestFilter {
     chain.doFilter(request, response);
   }
 
-  private static String privilegeFor(HttpServletRequest request) {
+  private String privilegeFor(HttpServletRequest request) {
     if (!"POST".equalsIgnoreCase(request.getMethod())) {
       return null;
     }
     String path = request.getRequestURI().replaceFirst("/$", "");
-    if (path.endsWith("/shares")) {
+    if (path.equals(providerBasePath + "/shares")) {
       return "CREATE_SHARE";
     }
-    if (path.endsWith("/recipients")) {
+    if (path.equals(providerBasePath + "/recipients")) {
       return "CREATE_RECIPIENT";
     }
     return null;
