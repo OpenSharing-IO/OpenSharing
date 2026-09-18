@@ -38,19 +38,16 @@ public class RecipientAdminController {
   @ResponseStatus(HttpStatus.CREATED)
   public RecipientResponse create(
       UserContext user, @Valid @RequestBody CreateRecipientRequest request) {
-    AuthenticationType mode =
-        request.authenticationType() == null
-            ? AuthenticationType.TOKEN
-            : request.authenticationType();
-    if (mode != AuthenticationType.TOKEN) {
-      throw ApiException.invalidParameter("authenticationType " + mode + " is not supported yet");
+    if (request.authenticationType() != AuthenticationType.TOKEN) {
+      throw ApiException.invalidParameter(
+          "authenticationType " + request.authenticationType() + " is not supported yet");
     }
     RecipientEntity recipient =
         recipients.create(
             user,
             ObjectNames.validateRecipientName(request.name()),
             request.comment(),
-            mode,
+            request.authenticationType(),
             UUID.randomUUID().toString());
     return toResponse(recipient);
   }
