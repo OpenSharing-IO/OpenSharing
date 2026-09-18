@@ -13,10 +13,12 @@ import jakarta.persistence.UniqueConstraint;
 @Entity
 @Table(
     name = "os_recipient_tokens",
-    uniqueConstraints =
-        @UniqueConstraint(
-            name = "uk_recipient_tokens_activation_code",
-            columnNames = "activation_code"))
+    uniqueConstraints = {
+      @UniqueConstraint(
+          name = "uk_recipient_tokens_activation_code",
+          columnNames = "activation_code"),
+      @UniqueConstraint(name = "uk_recipient_tokens_token", columnNames = "token")
+    })
 public class RecipientTokenEntity extends BaseEntity {
 
   /** The recipient the token belongs to. {@code RecipientStore} deletes tokens with it. */
@@ -27,6 +29,9 @@ public class RecipientTokenEntity extends BaseEntity {
   /** One-time code embedded in the activation URL. */
   @Column(name = "activation_code", unique = true, length = 36)
   private String activationCode;
+
+  @Column(unique = true, length = 36)
+  private String token;
 
   public RecipientEntity getRecipient() {
     return recipient;
@@ -42,5 +47,13 @@ public class RecipientTokenEntity extends BaseEntity {
 
   public void setActivationCode(String activationCode) {
     this.activationCode = activationCode;
+  }
+
+  public String getToken() {
+    return token;
+  }
+
+  public void setToken(String token) {
+    this.token = token;
   }
 }

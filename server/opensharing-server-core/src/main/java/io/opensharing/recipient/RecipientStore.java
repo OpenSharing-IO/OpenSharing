@@ -7,6 +7,11 @@ import io.opensharing.http.ApiException;
 import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Storage for recipients and their tokens. Names are stored lowercase and looked up
@@ -133,5 +138,18 @@ public class RecipientStore {
     RecipientEntity recipient = require(em, name);
     user.requireOwner(recipient.getOwnerId(), "recipient '" + recipient.getName() + "'");
     return recipient;
+  }
+
+  /** Redeems a one-time activation code and returns the issued bearer token. */
+  public String activate(String activationCode) {
+    RecipientTokenEntity token =
+        tokens
+            .findByActivationCode(activationCode)
+            .orElseThrow(() -> ApiException.notFound("activation code does not exist"));
+    String bearer = UUID.randomUUID().toString();
+    token.setToken(bearer);
+    token.setActivationCode(null);
+    tokens.save(token);
+    return bearer;
   }
 }
