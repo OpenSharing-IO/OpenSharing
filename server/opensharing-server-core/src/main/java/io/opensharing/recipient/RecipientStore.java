@@ -15,9 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class RecipientStore {
 
   private final RecipientRepository recipients;
+  private final RecipientTokenRepository tokens;
 
-  public RecipientStore(RecipientRepository recipients) {
+  public RecipientStore(RecipientRepository recipients, RecipientTokenRepository tokens) {
     this.recipients = recipients;
+    this.tokens = tokens;
   }
 
   public RecipientEntity create(
@@ -25,7 +27,7 @@ public class RecipientStore {
       String name,
       String comment,
       AuthenticationType authenticationType,
-      String activationCodeHash) {
+      String activationCode) {
     if (recipients.existsByName(name)) {
       throw ApiException.alreadyExists("recipient '" + name + "' already exists");
     }
@@ -34,8 +36,12 @@ public class RecipientStore {
     recipient.setComment(comment);
     recipient.setOwnerId(author.id());
     recipient.setAuthenticationType(authenticationType);
-    recipient.setActivationCodeHash(activationCodeHash);
-    return recipients.save(recipient);
+    recipient = recipients.save(recipient);
+    RecipientTokenEntity token = new RecipientTokenEntity();
+    token.setRecipient(recipient);
+    token.setActivationCode(activationCode);
+    tokens.save(token);
+    return recipient;
   }
 
   public RecipientEntity update(UserContext user, String name, String comment) {
@@ -62,6 +68,14 @@ public class RecipientStore {
     RecipientEntity recipient = require(name);
     user.requireOwner(recipient.getOwnerId(), "recipient '" + recipient.getName() + "'");
     return recipient;
+  }
+
+  @Transactional(readOnly = true)
+  public String findActivationCode(RecipientEntity recipient) {
+    return tokens
+        .findFirstByRecipientOrderByCreatedAtDesc(recipient)
+        .map(RecipientTokenEntity::getActivationCode)
+        .orElse(null);
   }
 
   @Transactional(readOnly = true)

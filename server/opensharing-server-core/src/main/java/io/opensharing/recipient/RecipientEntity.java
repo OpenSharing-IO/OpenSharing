@@ -29,10 +29,6 @@ public class RecipientEntity extends BaseEntity {
   @Column(name = "authentication_type", nullable = false, length = 32)
   private AuthenticationType authenticationType;
 
-  /** SHA-256 of the one-time activation code; null after the code is redeemed. */
-  @Column(name = "activation_code_hash", unique = true, length = 64)
-  private String activationCodeHash;
-
   public String getName() {
     return name;
   }
@@ -63,13 +59,5 @@ public class RecipientEntity extends BaseEntity {
 
   public void setAuthenticationType(AuthenticationType authenticationType) {
     this.authenticationType = authenticationType;
-  }
-
-  public String getActivationCodeHash() {
-    return activationCodeHash;
-  }
-
-  public void setActivationCodeHash(String activationCodeHash) {
-    this.activationCodeHash = activationCodeHash;
   }
 }
