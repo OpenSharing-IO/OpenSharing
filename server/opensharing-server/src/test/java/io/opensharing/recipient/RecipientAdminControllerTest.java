@@ -120,7 +120,7 @@ class RecipientAdminControllerTest {
 
   @Test
   void createsARecipientWithAnExplicitTokenLifetime() throws Exception {
-    // Create can set the first token's lifetime in seconds.
+    // Create can set the first token's lifetime in days.
     String created =
         mvc.perform(
                 post(RECIPIENTS)
