@@ -16,7 +16,9 @@ public class ProviderConfiguration {
   FilterRegistrationBean<ProviderAuthenticationFilter> providerAuthentication(
       CatalogConnector catalog, ObjectMapper objectMapper, OpenSharingProperties properties) {
     FilterRegistrationBean<ProviderAuthenticationFilter> registration =
-        new FilterRegistrationBean<>(new ProviderAuthenticationFilter(catalog, objectMapper));
+        new FilterRegistrationBean<>(
+            new ProviderAuthenticationFilter(
+                catalog, objectMapper, properties.getProvider().getBasePath()));
 
     // Only provider API requests carry a provider token; protocol and activation paths are not
     // filtered.
