@@ -66,14 +66,18 @@ class RecipientAdminControllerTest {
     mvc.perform(get(RECIPIENTS).header("Authorization", "Bearer alice-token"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].name").value("acme"))
-        .andExpect(jsonPath("$.items[0].activationUrl").doesNotExist());
+        .andExpect(
+            jsonPath("$.items[0].activationUrl")
+                .value(startsWith("http://localhost/api/1.0/opensharing/activations/")));
 
     mvc.perform(get(RECIPIENTS + "/ACME").header("Authorization", "Bearer bob-token"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.name").value("acme"))
         .andExpect(jsonPath("$.comment").value("partner"))
         .andExpect(jsonPath("$.authenticationType").value("TOKEN"))
-        .andExpect(jsonPath("$.activationUrl").doesNotExist());
+        .andExpect(
+            jsonPath("$.activationUrl")
+                .value(startsWith("http://localhost/api/1.0/opensharing/activations/")));
 
     mvc.perform(
             patch(RECIPIENTS + "/acme")

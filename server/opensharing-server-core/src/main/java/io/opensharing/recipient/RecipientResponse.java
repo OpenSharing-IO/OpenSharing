@@ -11,10 +11,6 @@ public record RecipientResponse(
     AuthenticationType authenticationType,
     String activationUrl) {
 
-  public static RecipientResponse from(RecipientEntity recipient) {
-    return from(recipient, null);
-  }
-
   public static RecipientResponse from(RecipientEntity recipient, String activationUrl) {
     return new RecipientResponse(
         recipient.getId(),
