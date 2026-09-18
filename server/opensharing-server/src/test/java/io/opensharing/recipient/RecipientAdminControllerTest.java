@@ -42,6 +42,7 @@ class RecipientAdminControllerTest {
 
   @Test
   void requiresACatalogAuthorizedPrincipal() throws Exception {
+    // Missing bearer token is unauthenticated.
     mvc.perform(get(RECIPIENTS).contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.UNAUTHENTICATED));
@@ -49,6 +50,7 @@ class RecipientAdminControllerTest {
 
   @Test
   void createsListsUpdatesAndDeletesARecipient() throws Exception {
+    // Owner creates a TOKEN recipient and gets an activation URL.
     mvc.perform(
             post(RECIPIENTS)
                 .header("Authorization", "Bearer alice-token")
@@ -63,6 +65,7 @@ class RecipientAdminControllerTest {
                 .value(startsWith("http://localhost/api/1.0/opensharing/activations/")))
         .andExpect(jsonPath("$.id").exists());
 
+    // Owner lists recipients including activation URLs.
     mvc.perform(get(RECIPIENTS).header("Authorization", "Bearer alice-token"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].name").value("acme"))
@@ -70,6 +73,7 @@ class RecipientAdminControllerTest {
             jsonPath("$.items[0].activationUrl")
                 .value(startsWith("http://localhost/api/1.0/opensharing/activations/")));
 
+    // Get by name is case-insensitive and allowed for any catalog principal.
     mvc.perform(get(RECIPIENTS + "/ACME").header("Authorization", "Bearer bob-token"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.name").value("acme"))
@@ -79,6 +83,7 @@ class RecipientAdminControllerTest {
             jsonPath("$.activationUrl")
                 .value(startsWith("http://localhost/api/1.0/opensharing/activations/")));
 
+    // Non-owner cannot update.
     mvc.perform(
             patch(RECIPIENTS + "/acme")
                 .header("Authorization", "Bearer bob-token")
@@ -87,6 +92,7 @@ class RecipientAdminControllerTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.PERMISSION_DENIED));
 
+    // Owner updates the comment.
     mvc.perform(
             patch(RECIPIENTS + "/acme")
                 .header("Authorization", "Bearer alice-token")
@@ -95,9 +101,11 @@ class RecipientAdminControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.comment").value("updated"));
 
+    // Owner deletes the recipient.
     mvc.perform(delete(RECIPIENTS + "/acme").header("Authorization", "Bearer alice-token"))
         .andExpect(status().isNoContent());
 
+    // Deleted recipient is 404.
     mvc.perform(get(RECIPIENTS + "/acme").header("Authorization", "Bearer alice-token"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
@@ -105,6 +113,7 @@ class RecipientAdminControllerTest {
 
   @Test
   void rejectsOidcUntilImplemented() throws Exception {
+    // OIDC is reserved and rejected at create.
     mvc.perform(
             post(RECIPIENTS)
                 .header("Authorization", "Bearer alice-token")
