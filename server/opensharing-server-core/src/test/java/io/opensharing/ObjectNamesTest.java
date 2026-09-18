@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Test;
 class ObjectNamesTest {
 
   @Test
+  void lowercasesShareNames() {
+    assertEquals("vaccine_share", ObjectNames.validateShareName("Vaccine_Share"));
+  }
+
+  @Test
   void acceptsOrdinaryNames() {
     assertEquals("vaccine_share", ObjectNames.validateShareName("vaccine_share"));
     assertEquals("acme-data", ObjectNames.validateSchemaName("acme-data"));

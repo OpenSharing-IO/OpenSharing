@@ -1,0 +1,90 @@
+package io.opensharing.share;
+
+import io.opensharing.ObjectNames;
+import io.opensharing.http.ApiException;
+import io.opensharing.auth.UserContext;
+import java.util.Map;
+import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** Storage for shares. Names are stored lowercase and looked up case-insensitively. */
+@Service
+@Transactional
+public class ShareStore {
+
+  private final ShareRepository shares;
+
+  public ShareStore(ShareRepository shares) {
+    this.shares = shares;
+  }
+
+  public ShareEntity create(
+      UserContext author,
+      String name,
+      String displayName,
+      String comment,
+      Map<String, String> properties) {
+    if (shares.existsByName(name)) {
+      throw ApiException.alreadyExists("share '" + name + "' already exists");
+    }
+    ShareEntity share = new ShareEntity();
+    share.setName(name);
+    share.setDisplayName(displayName);
+    share.setComment(comment);
+    share.setProperties(properties);
+    share.setOwnerId(author.id());
+    share.setCreatedBy(author.id());
+    return shares.save(share);
+  }
+
+  /** Only non-null fields are applied. Only the owner may update the share. */
+  public ShareEntity update(
+      UserContext user,
+      String name,
+      String displayName,
+      String comment,
+      Map<String, String> properties) {
+    ShareEntity share = requireOwned(name, user);
+    if (displayName != null) {
+      share.setDisplayName(displayName);
+    }
+    if (comment != null) {
+      share.setComment(comment);
+    }
+    if (properties != null) {
+      share.setProperties(properties);
+    }
+    return shares.save(share);
+  }
+
+  @Transactional(readOnly = true)
+  public Optional<ShareEntity> find(String name) {
+    return shares.findByName(ObjectNames.normalize(name));
+  }
+
+  @Transactional(readOnly = true)
+  public ShareEntity require(String name) {
+    return find(name)
+        .orElseThrow(() -> ApiException.notFound("share '" + name + "' does not exist"));
+  }
+
+  @Transactional(readOnly = true)
+  public ShareEntity requireOwned(String name, UserContext user) {
+    ShareEntity share = require(name);
+    user.requireOwner(share.getOwnerId(), "share '" + share.getName() + "'");
+    return share;
+  }
+
+  @Transactional(readOnly = true)
+  public Page<ShareEntity> list(Pageable pageable) {
+    return shares.findAllByOrderByNameAsc(pageable);
+  }
+
+  public void delete(String name, UserContext user) {
+    ShareEntity share = requireOwned(name, user);
+    shares.delete(share);
+  }
+}
