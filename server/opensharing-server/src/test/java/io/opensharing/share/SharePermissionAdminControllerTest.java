@@ -41,6 +41,7 @@ class SharePermissionAdminControllerTest {
 
   @Test
   void grantsAndRevokesSelect() throws Exception {
+    // Create the share that will be granted.
     mvc.perform(
             post(SHARES)
                 .header("Authorization", "Bearer alice-token")
@@ -48,6 +49,7 @@ class SharePermissionAdminControllerTest {
                 .content("{\"name\":\"sales\"}"))
         .andExpect(status().isCreated());
 
+    // Create the recipient that will receive SELECT.
     mvc.perform(
             post(RECIPIENTS)
                 .header("Authorization", "Bearer alice-token")
@@ -55,6 +57,7 @@ class SharePermissionAdminControllerTest {
                 .content("{\"name\":\"Acme\",\"authenticationType\":\"TOKEN\"}"))
         .andExpect(status().isCreated());
 
+    // Non-owner cannot grant.
     mvc.perform(
             patch(SHARES + "/sales/permissions")
                 .header("Authorization", "Bearer bob-token")
@@ -66,6 +69,7 @@ class SharePermissionAdminControllerTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.PERMISSION_DENIED));
 
+    // Owner grants SELECT (recipient name is case-insensitive).
     mvc.perform(
             patch(SHARES + "/sales/permissions")
                 .header("Authorization", "Bearer alice-token")
@@ -80,6 +84,7 @@ class SharePermissionAdminControllerTest {
         .andExpect(jsonPath("$.items[0].shareName").value("sales"))
         .andExpect(jsonPath("$.items[0].privilege").value("SELECT"));
 
+    // Granting the same privilege again is idempotent.
     mvc.perform(
             patch(SHARES + "/sales/permissions")
                 .header("Authorization", "Bearer alice-token")
@@ -91,10 +96,12 @@ class SharePermissionAdminControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items.length()").value(1));
 
+    // Listing permissions is allowed for any catalog principal.
     mvc.perform(get(SHARES + "/sales/permissions").header("Authorization", "Bearer bob-token"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items[0].privilege").value("SELECT"));
 
+    // Owner revokes SELECT.
     mvc.perform(
             patch(SHARES + "/sales/permissions")
                 .header("Authorization", "Bearer alice-token")
@@ -106,6 +113,7 @@ class SharePermissionAdminControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items").isEmpty());
 
+    // Revoking a privilege that is not granted is 404.
     mvc.perform(
             patch(SHARES + "/sales/permissions")
                 .header("Authorization", "Bearer alice-token")
