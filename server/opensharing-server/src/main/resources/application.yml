@@ -40,7 +40,7 @@ opensharing:
     base-path: /api/1.0/opensharing/provider
   recipient-tokens:
     default-ttl: 90d
-    rotation-grace: 24h
+    rotation-grace: 0s
   asset-credentials:
     ttl: 1h
   pagination:
