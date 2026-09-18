@@ -11,7 +11,22 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import io.opensharing.recipient.RecipientStore;
+import jakarta.validation.Valid;
 import java.util.Map;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Provider share CRUD. The host authenticates the caller and checks CREATE_SHARE before {@link
@@ -21,11 +36,20 @@ public class ShareService {
 
   private final ShareStore shares;
   private final SharedDataObjectStore objects;
+  private final SharePermissionStore permissions;
+  private final RecipientStore recipients;
   private final CatalogConnector catalog;
 
-  public ShareService(ShareStore shares, SharedDataObjectStore objects, CatalogConnector catalog) {
+  public ShareAdminController(
+      ShareStore shares,
+      SharedDataObjectStore objects,
+      SharePermissionStore permissions,
+      RecipientStore recipients,
+      CatalogConnector catalog) {
     this.shares = shares;
     this.objects = objects;
+    this.permissions = permissions;
+    this.recipients = recipients;
     this.catalog = catalog;
   }
 
@@ -84,6 +108,29 @@ public class ShareService {
   /** Deletes the share. Owner only. */
   public void delete(UserContext user, String share) {
     shares.delete(share, user);
+  }
+
+  @GetMapping("/{share}/permissions")
+  public ListResponse<SharePermissionResponse> listPermissions(
+      UserContext user, @PathVariable String share) {
+    return ListResponse.of(
+        permissions.list(shares.require(share)).stream()
+            .map(SharePermissionResponse::from)
+            .toList());
+  }
+
+  @PatchMapping("/{share}/permissions")
+  public ListResponse<SharePermissionResponse> updatePermissions(
+      UserContext user,
+      @PathVariable String share,
+      @Valid @RequestBody UpdateSharePermissionsRequest request) {
+    ShareEntity entity = shares.requireOwned(share, user);
+    for (UpdateSharePermissionsRequest.Change change : request.changes()) {
+      var recipient = recipients.require(change.recipientName());
+      change.remove().forEach(privilege -> permissions.revoke(entity, recipient, privilege));
+      change.add().forEach(privilege -> permissions.grant(entity, recipient, privilege));
+    }
+    return listPermissions(user, share);
   }
 
   // Resolves the object in the catalog on behalf of the caller and checks the declared type.
