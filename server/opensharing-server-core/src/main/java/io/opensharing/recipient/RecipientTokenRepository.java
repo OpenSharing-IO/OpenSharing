@@ -7,4 +7,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface RecipientTokenRepository extends JpaRepository<RecipientTokenEntity, String> {
 
   Optional<RecipientTokenEntity> findFirstByRecipientOrderByCreatedAtDesc(RecipientEntity recipient);
+
+  Optional<RecipientTokenEntity> findByActivationCode(String activationCode);
 }

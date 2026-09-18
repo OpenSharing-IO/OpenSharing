@@ -15,8 +15,10 @@ import org.hibernate.annotations.OnDeleteAction;
 @Entity
 @Table(
     name = "os_recipient_tokens",
-    uniqueConstraints =
-        @UniqueConstraint(name = "uk_recipient_tokens_activation_code", columnNames = "activation_code"))
+    uniqueConstraints = {
+      @UniqueConstraint(name = "uk_recipient_tokens_activation_code", columnNames = "activation_code"),
+      @UniqueConstraint(name = "uk_recipient_tokens_token", columnNames = "token")
+    })
 public class RecipientTokenEntity extends BaseEntity {
 
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -26,6 +28,9 @@ public class RecipientTokenEntity extends BaseEntity {
 
   @Column(name = "activation_code", unique = true, length = 36)
   private String activationCode;
+
+  @Column(unique = true, length = 36)
+  private String token;
 
   public RecipientEntity getRecipient() {
     return recipient;
@@ -41,5 +46,13 @@ public class RecipientTokenEntity extends BaseEntity {
 
   public void setActivationCode(String activationCode) {
     this.activationCode = activationCode;
+  }
+
+  public String getToken() {
+    return token;
+  }
+
+  public void setToken(String token) {
+    this.token = token;
   }
 }

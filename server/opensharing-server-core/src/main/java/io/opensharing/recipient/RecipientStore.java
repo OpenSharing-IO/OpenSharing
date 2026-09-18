@@ -4,6 +4,7 @@ import io.opensharing.ObjectNames;
 import io.opensharing.auth.UserContext;
 import io.opensharing.http.ApiException;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -86,5 +87,18 @@ public class RecipientStore {
   public void delete(String name, UserContext user) {
     RecipientEntity recipient = requireOwned(name, user);
     recipients.delete(recipient);
+  }
+
+  /** Redeems a one-time activation code and returns the issued bearer token. */
+  public String activate(String activationCode) {
+    RecipientTokenEntity token =
+        tokens
+            .findByActivationCode(activationCode)
+            .orElseThrow(() -> ApiException.notFound("activation code does not exist"));
+    String bearer = UUID.randomUUID().toString();
+    token.setToken(bearer);
+    token.setActivationCode(null);
+    tokens.save(token);
+    return bearer;
   }
 }
