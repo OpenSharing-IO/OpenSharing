@@ -2,6 +2,7 @@ package io.opensharing.share;
 
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Listings;
+import io.opensharing.protocol.Share;
 import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.recipient.RecipientStore;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,16 +20,21 @@ public class ProtocolShareController {
   private final RecipientStore recipients;
   private final SharePermissionStore permissions;
   private final Listings listings;
+  private final ShareMapper mapper;
 
   public ProtocolShareController(
-      RecipientStore recipients, SharePermissionStore permissions, Listings listings) {
+      RecipientStore recipients,
+      SharePermissionStore permissions,
+      Listings listings,
+      ShareMapper mapper) {
     this.recipients = recipients;
     this.permissions = permissions;
     this.listings = listings;
+    this.mapper = mapper;
   }
 
   @GetMapping
-  public ListResponse<ShareResponse> list(
+  public ListResponse<Share> list(
       RecipientPrincipal principal,
       @RequestParam(required = false) Integer maxResults,
       @RequestParam(required = false) String pageToken) {
@@ -37,6 +43,6 @@ public class ProtocolShareController {
         maxResults,
         pageToken,
         pageable -> permissions.listSharesFor(recipient, pageable),
-        ShareResponse::from);
+        mapper::toProtocol);
   }
 }
