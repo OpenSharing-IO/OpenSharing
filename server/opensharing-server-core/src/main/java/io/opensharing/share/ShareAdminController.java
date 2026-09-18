@@ -1,5 +1,6 @@
 package io.opensharing.share;
 
+import io.opensharing.ObjectNames;
 import io.opensharing.http.ListResponse;
 import io.opensharing.auth.UserContext;
 import jakarta.validation.Valid;
@@ -33,7 +34,7 @@ public class ShareAdminController {
     return ShareResponse.from(
         shares.create(
             user,
-            request.name(),
+            ObjectNames.validateShareName(request.name()),
             request.displayName(),
             request.comment(),
             request.properties()));

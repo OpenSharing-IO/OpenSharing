@@ -27,12 +27,11 @@ public class ShareStore {
       String displayName,
       String comment,
       Map<String, String> properties) {
-    String stored = ObjectNames.validateShareName(name);
-    if (shares.existsByName(stored)) {
-      throw ApiException.alreadyExists("share '" + stored + "' already exists");
+    if (shares.existsByName(name)) {
+      throw ApiException.alreadyExists("share '" + name + "' already exists");
     }
     ShareEntity share = new ShareEntity();
-    share.setName(stored);
+    share.setName(name);
     share.setDisplayName(displayName);
     share.setComment(comment);
     share.setProperties(properties);
