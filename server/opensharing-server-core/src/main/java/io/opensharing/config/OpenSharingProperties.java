@@ -6,10 +6,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "opensharing")
 public class OpenSharingProperties {
 
+  private String protocolPrefix = "/api/1.0/opensharing";
   private String activationPrefix = "/api/1.0/opensharing/activations";
   private final Hosting hosting = new Hosting();
   private final Provider provider = new Provider();
   private final Catalog catalog = new Catalog();
+
+  public String getProtocolPrefix() {
+    return protocolPrefix;
+  }
+
+  public void setProtocolPrefix(String protocolPrefix) {
+    this.protocolPrefix = prefix(protocolPrefix);
+  }
 
   public String getActivationPrefix() {
     return activationPrefix;
