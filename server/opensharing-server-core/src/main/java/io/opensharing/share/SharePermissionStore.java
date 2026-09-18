@@ -3,6 +3,8 @@ package io.opensharing.share;
 import io.opensharing.http.ApiException;
 import io.opensharing.recipient.RecipientEntity;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -52,5 +54,10 @@ public class SharePermissionStore {
   @Transactional(readOnly = true)
   public List<SharePermissionEntity> list(ShareEntity share) {
     return permissions.findByShareOrderByRecipient_NameAsc(share);
+  }
+
+  @Transactional(readOnly = true)
+  public Page<ShareEntity> listSharesFor(RecipientEntity recipient, Pageable pageable) {
+    return permissions.findSharesForRecipient(recipient, SharePrivilege.SELECT, pageable);
   }
 }
