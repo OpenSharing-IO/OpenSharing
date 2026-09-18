@@ -6,10 +6,6 @@ import io.opensharing.config.OpenSharingProperties;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import jakarta.validation.Valid;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -49,26 +45,25 @@ public class RecipientAdminController {
     if (mode != AuthenticationType.TOKEN) {
       throw ApiException.invalidParameter("authenticationType " + mode + " is not supported yet");
     }
-    String activationCode = UUID.randomUUID().toString();
     RecipientEntity recipient =
         recipients.create(
             user,
             ObjectNames.validateRecipientName(request.name()),
             request.comment(),
             mode,
-            sha256(activationCode));
-    return RecipientResponse.from(recipient, activationUrl(activationCode));
+            UUID.randomUUID().toString());
+    return toResponse(recipient);
   }
 
   @GetMapping
   public ListResponse<RecipientResponse> list(UserContext user) {
     return ListResponse.of(
-        recipients.list(Pageable.unpaged()).stream().map(RecipientResponse::from).toList());
+        recipients.list(Pageable.unpaged()).stream().map(this::toResponse).toList());
   }
 
   @GetMapping("/{recipient}")
   public RecipientResponse get(UserContext user, @PathVariable String recipient) {
-    return RecipientResponse.from(recipients.require(recipient));
+    return toResponse(recipients.require(recipient));
   }
 
   @PatchMapping("/{recipient}")
@@ -76,7 +71,7 @@ public class RecipientAdminController {
       UserContext user,
       @PathVariable String recipient,
       @Valid @RequestBody UpdateRecipientRequest request) {
-    return RecipientResponse.from(recipients.update(user, recipient, request.comment()));
+    return toResponse(recipients.update(user, recipient, request.comment()));
   }
 
   @DeleteMapping("/{recipient}")
@@ -85,20 +80,16 @@ public class RecipientAdminController {
     return ResponseEntity.noContent().build();
   }
 
+  private RecipientResponse toResponse(RecipientEntity recipient) {
+    String code = recipients.findActivationCode(recipient);
+    return RecipientResponse.from(recipient, code == null ? null : activationUrl(code));
+  }
+
   private String activationUrl(String code) {
     return ServletUriComponentsBuilder.fromCurrentContextPath()
         .path(properties.getActivationPrefix())
         .path("/")
         .path(code)
         .toUriString();
-  }
-
-  private static String sha256(String value) {
-    try {
-      return HexFormat.of()
-          .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException(e);
-    }
   }
 }
