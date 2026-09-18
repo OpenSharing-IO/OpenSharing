@@ -1,5 +1,6 @@
 package io.opensharing.config;
 
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /** OpenSharing server configuration. */
@@ -11,6 +12,7 @@ public class OpenSharingProperties {
   /** Path prefix recipient activation URLs are built under. */
   private String activationPrefix = "/api/1.0/opensharing/activations";
   private final Provider provider = new Provider();
+  private final RecipientTokens recipientTokens = new RecipientTokens();
   private final Catalog catalog = new Catalog();
 
   public String getProtocolPrefix() {
@@ -31,6 +33,10 @@ public class OpenSharingProperties {
 
   public Provider getProvider() {
     return provider;
+  }
+
+  public RecipientTokens getRecipientTokens() {
+    return recipientTokens;
   }
 
   public Catalog getCatalog() {
@@ -59,6 +65,29 @@ public class OpenSharingProperties {
 
     public void setBasePath(String basePath) {
       this.basePath = prefix(basePath);
+    }
+  }
+
+  /** Issued recipient bearer tokens. */
+  public static class RecipientTokens {
+
+    private Duration defaultTtl = Duration.ofDays(90);
+    private Duration rotationGrace = Duration.ZERO;
+
+    public Duration getDefaultTtl() {
+      return defaultTtl;
+    }
+
+    public void setDefaultTtl(Duration defaultTtl) {
+      this.defaultTtl = defaultTtl;
+    }
+
+    public Duration getRotationGrace() {
+      return rotationGrace;
+    }
+
+    public void setRotationGrace(Duration rotationGrace) {
+      this.rotationGrace = rotationGrace;
     }
   }
 

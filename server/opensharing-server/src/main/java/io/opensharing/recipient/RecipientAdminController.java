@@ -3,7 +3,11 @@ package io.opensharing.recipient;
 import io.opensharing.auth.UserContext;
 import io.opensharing.config.OpenSharingProperties;
 import io.opensharing.http.ListResponse;
-import io.opensharing.runtime.OpenSharing;
+import jakarta.validation.Valid;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.UUID;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -39,8 +43,27 @@ public class RecipientAdminController {
    */
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
-  public RecipientResponse create(UserContext user, @RequestBody CreateRecipientRequest request) {
-    return recipients.create(user, request, activationBaseUrl());
+  public RecipientResponse create(
+      UserContext user, @Valid @RequestBody CreateRecipientRequest request) {
+    if (request.authenticationType() != AuthenticationType.TOKEN) {
+      throw ApiException.invalidParameter(
+          "authenticationType " + request.authenticationType() + " is not supported yet");
+    }
+    Instant now = Instant.now();
+    Instant expiresAt =
+        request.tokenExpirationDays() == null
+            ? plus(now, properties.getRecipientTokens().getDefaultTtl())
+            : plus(now, Duration.ofDays(request.tokenExpirationDays()));
+    requireFuture(expiresAt, now);
+    RecipientEntity recipient =
+        recipients.create(
+            user,
+            ObjectNames.validateRecipientName(request.name()),
+            request.comment(),
+            request.authenticationType(),
+            UUID.randomUUID().toString(),
+            expiresAt);
+    return toResponse(recipient);
   }
 
   /** {@code GET /recipients}: lists every recipient by name, unpaged. */
@@ -71,10 +94,52 @@ public class RecipientAdminController {
     return ResponseEntity.noContent().build();
   }
 
-  // Absolute URL on this server, so the recipient can open the link as is.
-  private String activationBaseUrl() {
+  @PostMapping("/{recipient}/rotate-token")
+  @ResponseStatus(HttpStatus.CREATED)
+  public IssuedTokenResponse rotateToken(
+      UserContext user,
+      @PathVariable String recipient,
+      @Valid @RequestBody(required = false) RotateTokenRequest request) {
+    RotateTokenRequest effective = request == null ? RotateTokenRequest.DEFAULTS : request;
+    Instant now = Instant.now();
+    Instant expiresAt =
+        effective.tokenExpirationDays() == null
+            ? plus(now, properties.getRecipientTokens().getDefaultTtl())
+            : plus(now, Duration.ofDays(effective.tokenExpirationDays()));
+    Duration grace =
+        effective.existingTokenExpireInSeconds() == null
+            ? properties.getRecipientTokens().getRotationGrace()
+            : Duration.ofSeconds(effective.existingTokenExpireInSeconds());
+    requireFuture(expiresAt, now);
+    RecipientTokenEntity token =
+        recipients.rotate(
+            recipients.requireOwned(recipient, user),
+            UUID.randomUUID().toString(),
+            expiresAt,
+            now,
+            grace);
+    return IssuedTokenResponse.from(token, activationUrl(token.getActivationCode()));
+  }
+
+  private RecipientResponse toResponse(RecipientEntity recipient) {
+    String code = recipients.findActivationCode(recipient);
+    return RecipientResponse.from(recipient, code == null ? null : activationUrl(code));
+  }
+
+  // Absolute URL on this server, so the recipient can open it as is.
+  private String activationUrl(String code) {
     return ServletUriComponentsBuilder.fromCurrentContextPath()
         .path(properties.getActivationPrefix())
         .toUriString();
+  }
+
+  private static Instant plus(Instant now, Duration duration) {
+    return duration == null ? null : now.plus(duration);
+  }
+
+  private static void requireFuture(Instant expiresAt, Instant now) {
+    if (expiresAt != null && !expiresAt.isAfter(now)) {
+      throw ApiException.invalidParameter("token expiration must be in the future");
+    }
   }
 }

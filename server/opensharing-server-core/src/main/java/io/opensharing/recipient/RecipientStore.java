@@ -4,10 +4,9 @@ import io.opensharing.ObjectNames;
 import io.opensharing.Transactions;
 import io.opensharing.auth.UserContext;
 import io.opensharing.http.ApiException;
-import jakarta.persistence.EntityManager;
-import java.util.List;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
-import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -35,25 +34,23 @@ public class RecipientStore {
       String name,
       String comment,
       AuthenticationType authenticationType,
-      String activationCode) {
-    return tx.inTransaction(
-        false,
-        em -> {
-          if (find(em, name).isPresent()) {
-            throw ApiException.alreadyExists("recipient '" + name + "' already exists");
-          }
-          RecipientEntity recipient = new RecipientEntity();
-          recipient.setName(name);
-          recipient.setComment(comment);
-          recipient.setOwnerId(author.userId());
-          recipient.setAuthenticationType(authenticationType);
-          em.persist(recipient);
-          RecipientTokenEntity token = new RecipientTokenEntity();
-          token.setRecipient(recipient);
-          token.setActivationCode(activationCode);
-          em.persist(token);
-          return recipient;
-        });
+      String activationCode,
+      Instant expiresAt) {
+    if (recipients.existsByName(name)) {
+      throw ApiException.alreadyExists("recipient '" + name + "' already exists");
+    }
+    RecipientEntity recipient = new RecipientEntity();
+    recipient.setName(name);
+    recipient.setComment(comment);
+    recipient.setOwnerId(author.userId());
+    recipient.setAuthenticationType(authenticationType);
+    recipient = recipients.save(recipient);
+    RecipientTokenEntity token = new RecipientTokenEntity();
+    token.setRecipient(recipient);
+    token.setActivationCode(activationCode);
+    token.setExpiresAt(expiresAt);
+    tokens.save(token);
+    return recipient;
   }
 
   /** Only non-null fields are applied. Only the owner may update the recipient. */
@@ -140,16 +137,52 @@ public class RecipientStore {
     return recipient;
   }
 
-  /** Redeems a one-time activation code and returns the issued bearer token. */
-  public String activate(String activationCode) {
+  /** Persists a bearer hash and consumes a valid one-time activation code. The row is locked so a concurrent redeem of the same code waits, then 404s. */
+  public RecipientTokenEntity activate(String activationCode, String tokenHash, Instant now) {
     RecipientTokenEntity token =
         tokens
             .findByActivationCode(activationCode)
             .orElseThrow(() -> ApiException.notFound("activation code does not exist"));
-    String bearer = UUID.randomUUID().toString();
-    token.setToken(bearer);
+    if (token.isActivated()
+        || (token.getExpiresAt() != null && !token.getExpiresAt().isAfter(now))) {
+      throw ApiException.notFound("activation code does not exist");
+    }
+    token.setTokenHash(tokenHash);
     token.setActivationCode(null);
-    tokens.save(token);
-    return bearer;
+    token.setActivated(true);
+    return tokens.save(token);
+  }
+
+  /**
+   * Supersedes live credentials and persists a pending replacement. An unactivated credential or a
+   * zero grace window expires immediately because no recipient should keep using it.
+   */
+  public RecipientTokenEntity rotate(
+      RecipientEntity recipient,
+      String activationCode,
+      Instant expiresAt,
+      Instant now,
+      Duration grace) {
+    for (RecipientTokenEntity current : tokens.findByRecipient(recipient)) {
+      if (current.getExpiresAt() != null && !current.getExpiresAt().isAfter(now)) {
+        continue;
+      }
+      current.setSupersededAt(now);
+      current.setActivationCode(null);
+      if (!current.isActivated() || grace.isZero() || grace.isNegative()) {
+        current.setExpiresAt(now);
+      } else {
+        Instant deadline = now.plus(grace);
+        if (current.getExpiresAt() == null || current.getExpiresAt().isAfter(deadline)) {
+          current.setExpiresAt(deadline);
+        }
+      }
+      tokens.save(current);
+    }
+    RecipientTokenEntity replacement = new RecipientTokenEntity();
+    replacement.setRecipient(recipient);
+    replacement.setActivationCode(activationCode);
+    replacement.setExpiresAt(expiresAt);
+    return tokens.save(replacement);
   }
 }
