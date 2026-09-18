@@ -11,6 +11,8 @@ public interface RecipientTokenRepository extends JpaRepository<RecipientTokenEn
 
   Optional<RecipientTokenEntity> findFirstByRecipientOrderByCreatedAtDesc(RecipientEntity recipient);
 
+  Optional<RecipientTokenEntity> findByTokenHash(String tokenHash);
+
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   Optional<RecipientTokenEntity> findByActivationCode(String activationCode);
 
