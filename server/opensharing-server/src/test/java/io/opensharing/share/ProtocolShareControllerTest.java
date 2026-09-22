@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.AssetLookup;
 import io.opensharing.catalog.CatalogConnector;
@@ -200,19 +201,20 @@ class ProtocolShareControllerTest {
         }
 
         @Override
-        public ResolvedAsset resolveAsset(AssetLookup lookup, UserContext user) {
+        public ResolvedAsset resolveAsset(AssetLookup lookup, AuthContext auth) {
           return ResolvedAsset.builder(lookup.type(), lookup.identifier()).build();
         }
 
         @Override
         public List<StorageCredentials> getStorageCredentials(
-            CredentialRequest request, UserContext user) {
+            CredentialRequest request, AuthContext auth) {
           return List.of();
         }
 
         @Override
-        public UserContext authorize(String bearerToken, String privilege) {
-          if ("alice-token".equals(bearerToken)) {
+        public UserContext authorize(AuthContext auth, String privilege) {
+          String token = auth.user() == null ? null : auth.user().bearerToken();
+          if ("alice-token".equals(token)) {
             return new UserContext("catalog-alice-id", "alice");
           }
           throw new CatalogAuthorizationException("invalid bearer token");
