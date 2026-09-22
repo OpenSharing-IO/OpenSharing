@@ -38,7 +38,9 @@ public class ProviderAuthenticationFilter extends OncePerRequestFilter {
     }
     UserContext user;
     try {
-      user = catalog.authorize(token, privilegeFor(request));
+      user =
+          catalog.authorize(
+              new AuthContext(null, new UserContext(null, token, null)), privilegeFor(request));
     } catch (CatalogAuthorizationException rejected) {
       reject(response, "bearer token is invalid or unauthorized");
       return;
