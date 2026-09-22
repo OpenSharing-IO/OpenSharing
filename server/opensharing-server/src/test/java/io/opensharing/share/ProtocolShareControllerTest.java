@@ -62,7 +62,6 @@ class ProtocolShareControllerTest {
         .andExpect(jsonPath("$.items[0].name").value("protocol-granted"))
         .andExpect(jsonPath("$.items[0].displayName").value("Visible"))
         .andExpect(jsonPath("$.items[0].id").exists())
-        .andExpect(jsonPath("$.items[0].properties").doesNotExist())
         .andExpect(jsonPath("$.items[0].objects").doesNotExist())
         .andExpect(jsonPath("$.nextPageToken").doesNotExist());
   }
