@@ -1,5 +1,6 @@
 package io.opensharing.catalog.local;
 
+import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.AssetLookup;
@@ -66,23 +67,23 @@ public final class LocalCatalogConnector implements CatalogConnector {
   }
 
   @Override
-  public ResolvedAsset resolveAsset(AssetLookup lookup, UserContext user) {
-    return resolved(requireAsset(lookup, user));
+  public ResolvedAsset resolveAsset(AssetLookup lookup, AuthContext auth) {
+    return resolved(requireAsset(lookup, auth));
   }
 
   /** Tables whose identifier is this schema plus one more dotted segment. */
   @Override
-  public List<ResolvedAsset> listChildren(AssetLookup parent, UserContext user) {
+  public List<ResolvedAsset> listChildren(AssetLookup parent, AuthContext auth) {
     if (parent.type() != AssetType.SCHEMA) {
       throw new UnsupportedAssetTypeException(
           "the " + NAME + " catalog only lists the contents of a SCHEMA, not a " + parent.type());
     }
-    requireAsset(parent, user);
+    requireAsset(parent, auth);
     String prefix = parent.identifier().toLowerCase(Locale.ROOT) + ".";
     return assetsByIdentifier.values().stream()
         .filter(asset -> asset.type() == AssetType.TABLE)
         .filter(asset -> isChildOf(asset.identifier(), prefix))
-        .filter(asset -> allows(asset, user))
+        .filter(asset -> allows(asset, auth))
         .sorted(Comparator.comparing(asset -> asset.identifier().toLowerCase(Locale.ROOT)))
         .map(LocalCatalogConnector::resolved)
         .toList();
@@ -107,29 +108,34 @@ public final class LocalCatalogConnector implements CatalogConnector {
   }
 
   /** Empty {@code sharableBy} means anyone; otherwise the user name must match. */
-  private static boolean allows(LocalCatalogFile.Asset asset, UserContext user) {
+  private static boolean allows(LocalCatalogFile.Asset asset, AuthContext auth) {
     if (asset.sharableBy().isEmpty()) {
       return true;
     }
-    return asset.sharableBy().stream().anyMatch(name -> name.equalsIgnoreCase(user.name()));
+    UserContext user = auth == null ? null : auth.user();
+    String name = user == null ? null : user.userName();
+    if (name == null) {
+      return false;
+    }
+    return asset.sharableBy().stream().anyMatch(allowed -> allowed.equalsIgnoreCase(name));
   }
 
-  private LocalCatalogFile.Asset requireAsset(AssetLookup lookup, UserContext user) {
+  private LocalCatalogFile.Asset requireAsset(AssetLookup lookup, AuthContext auth) {
     LocalCatalogFile.Asset asset = assetsByIdentifier.get(key(lookup.type(), lookup.identifier()));
     if (asset == null) {
       throw new AssetNotFoundException(lookup);
     }
-    if (!allows(asset, user)) {
-      throw new AssetAccessDeniedException(lookup, user);
+    if (!allows(asset, auth)) {
+      throw new AssetAccessDeniedException(lookup, auth == null ? null : auth.user());
     }
     return asset;
   }
 
   @Override
   public List<StorageCredentials> getStorageCredentials(
-      CredentialRequest request, UserContext user) {
+      CredentialRequest request, AuthContext auth) {
     LocalCatalogFile.Asset asset =
-        requireAsset(AssetLookup.of(request.assetType(), request.identifier()), user);
+        requireAsset(AssetLookup.of(request.assetType(), request.identifier()), auth);
     String location = request.storageLocation();
     if (location == null || location.isBlank()) {
       location = asset.storageLocation();
