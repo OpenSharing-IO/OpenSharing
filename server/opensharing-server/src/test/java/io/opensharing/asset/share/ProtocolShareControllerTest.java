@@ -1,4 +1,4 @@
-package io.opensharing.share;
+package io.opensharing.asset.share;
 
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
