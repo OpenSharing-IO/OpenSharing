@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.CatalogConnector;
@@ -136,21 +137,22 @@ class RecipientAdminControllerTest {
         }
 
         @Override
-        public ResolvedAsset resolveAsset(Asset lookup, UserContext user) {
+        public ResolvedAsset resolveAsset(AssetLookup lookup, AuthContext auth) {
           return ResolvedAsset.builder(lookup.type(), lookup.identifier()).build();
         }
 
         @Override
         public List<StorageCredentials> getStorageCredentials(
-            CredentialRequest request, UserContext user) {
+            CredentialRequest request, AuthContext auth) {
           return List.of();
         }
 
         @Override
-        public UserContext authorize(String bearerToken, String privilege) {
-          return switch (bearerToken) {
-            case "alice-token" -> UserContext.fromUserIdAndName("catalog-alice-id", "alice");
-            case "bob-token" -> UserContext.fromUserIdAndName("catalog-bob-id", "bob");
+        public UserContext authorize(AuthContext auth, String privilege) {
+          String token = auth.user() == null ? null : auth.user().bearerToken();
+          return switch (token) {
+            case "alice-token" -> new UserContext("catalog-alice-id", "alice");
+            case "bob-token" -> new UserContext("catalog-bob-id", "bob");
             default -> throw new CatalogAuthorizationException("invalid bearer token");
           };
         }
