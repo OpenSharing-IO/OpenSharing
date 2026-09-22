@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.AssetLookup;
@@ -89,7 +90,7 @@ class LocalCatalogConnectorTest {
 
     assertThrows(
         AssetNotFoundException.class,
-        () -> connector.resolveAsset(lookup, ALICE));
+        () -> connector.resolveAsset(lookup, AuthContext.of(ALICE)));
   }
 
   /**
@@ -104,7 +105,7 @@ class LocalCatalogConnectorTest {
     LocalCatalogConnector connector = connector(CATALOG);
     AssetLookup lookup = AssetLookup.of(AssetType.TABLE, "main.finance.ledger");
     UserContext bob = new UserContext("bob@example.com", "bob@example.com");
-    assertThrows(AssetAccessDeniedException.class, () -> connector.resolveAsset(lookup, bob));
+    assertThrows(AssetAccessDeniedException.class, () -> connector.resolveAsset(lookup, AuthContext.of(bob)));
   }
 
   @Test
@@ -121,7 +122,7 @@ class LocalCatalogConnectorTest {
             null);
 
     assertThrows(
-        AssetAccessDeniedException.class, () -> connector.getStorageCredentials(request, bob));
+        AssetAccessDeniedException.class, () -> connector.getStorageCredentials(request, AuthContext.of(bob)));
   }
 
   @Test
@@ -136,7 +137,7 @@ class LocalCatalogConnectorTest {
             StorageOperation.READ,
             null);
 
-    assertThrows(AssetNotFoundException.class, () -> connector.getStorageCredentials(request, ALICE));
+    assertThrows(AssetNotFoundException.class, () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
   }
 
   @Test
@@ -151,11 +152,11 @@ class LocalCatalogConnectorTest {
             StorageOperation.READ,
             null);
 
-    assertThrows(CatalogException.class, () -> connector.getStorageCredentials(request, ALICE));
+    assertThrows(CatalogException.class, () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
   }
 
   private static ResolvedAsset resolve(String yaml, String identifier, UserContext user) {
-    return connector(yaml).resolveAsset(AssetLookup.of(AssetType.TABLE, identifier), user);
+    return connector(yaml).resolveAsset(AssetLookup.of(AssetType.TABLE, identifier), AuthContext.of(user));
   }
 
   @Test
@@ -186,7 +187,7 @@ class LocalCatalogConnectorTest {
                     TABLE1,
                     StorageOperation.READ,
                     Duration.ofMinutes(5)),
-                ALICE);
+                AuthContext.of(ALICE));
 
     assertEquals(1, vended.size(), "this connector scopes to the one location it was asked about");
     StorageCredentials credentials = vended.get(0);
@@ -238,7 +239,7 @@ class LocalCatalogConnectorTest {
                     TABLE1,
                     StorageOperation.READ,
                     Duration.ofMinutes(5)),
-                ALICE)
+                AuthContext.of(ALICE))
             .get(0);
 
     assertEquals(TABLE1, credentials.prefix());
@@ -272,7 +273,7 @@ class LocalCatalogConnectorTest {
                     TABLE1,
                     StorageOperation.READ,
                     null),
-                ALICE)
+                AuthContext.of(ALICE))
             .get(0);
 
     assertEquals(CloudProvider.AZURE, credentials.provider());
@@ -302,7 +303,7 @@ class LocalCatalogConnectorTest {
             StorageOperation.READ,
             null);
 
-    assertThrows(CatalogException.class, () -> connector.getStorageCredentials(request, ALICE));
+    assertThrows(CatalogException.class, () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
   }
 
   @Test
@@ -323,7 +324,7 @@ class LocalCatalogConnectorTest {
 
     List<ResolvedAsset> children =
         connector(yaml)
-            .listChildren(AssetLookup.of(AssetType.SCHEMA, "MAIN.SALES"), ALICE);
+            .listChildren(AssetLookup.of(AssetType.SCHEMA, "MAIN.SALES"), AuthContext.of(ALICE));
 
     assertEquals(
         List.of("main.sales.table1"),
@@ -352,12 +353,12 @@ class LocalCatalogConnectorTest {
 
     assertEquals(
         List.of("main.sales.ledger", "main.sales.table1"),
-        connector(yaml).listChildren(AssetLookup.of(AssetType.SCHEMA, "main.sales"), ALICE).stream()
+        connector(yaml).listChildren(AssetLookup.of(AssetType.SCHEMA, "main.sales"), AuthContext.of(ALICE)).stream()
             .map(ResolvedAsset::identifier)
             .toList());
     assertEquals(
         List.of("main.sales.table1"),
-        connector(yaml).listChildren(AssetLookup.of(AssetType.SCHEMA, "main.sales"), bob).stream()
+        connector(yaml).listChildren(AssetLookup.of(AssetType.SCHEMA, "main.sales"), AuthContext.of(bob)).stream()
             .map(ResolvedAsset::identifier)
             .toList());
   }
@@ -369,7 +370,7 @@ class LocalCatalogConnectorTest {
 
     assertThrows(
         UnsupportedAssetTypeException.class,
-        () -> connector.listChildren(table, ALICE));
+        () -> connector.listChildren(table, AuthContext.of(ALICE)));
   }
 
   @Test
@@ -379,7 +380,7 @@ class LocalCatalogConnectorTest {
 
     assertThrows(
         AssetNotFoundException.class,
-        () -> connector.listChildren(schema, ALICE));
+        () -> connector.listChildren(schema, AuthContext.of(ALICE)));
   }
 
   @Test
