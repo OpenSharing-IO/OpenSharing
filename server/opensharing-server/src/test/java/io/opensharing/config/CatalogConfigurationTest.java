@@ -2,6 +2,7 @@ package io.opensharing.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.AssetLookup;
 import io.opensharing.catalog.AssetType;
@@ -29,7 +30,7 @@ class CatalogConfigurationTest {
     assertEquals(
         TableFormat.DELTA,
         catalog
-            .resolveAsset(AssetLookup.of(AssetType.TABLE, "main.sales.table1"), user)
+            .resolveAsset(AssetLookup.of(AssetType.TABLE, "main.sales.table1"), AuthContext.of(user))
             .format());
   }
 }
