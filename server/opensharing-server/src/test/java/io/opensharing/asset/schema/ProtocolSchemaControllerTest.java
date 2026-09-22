@@ -1,4 +1,4 @@
-package io.opensharing.share;
+package io.opensharing.asset.schema;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
