@@ -151,6 +151,67 @@ class ProtocolShareControllerTest {
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
   }
 
+  @Test
+  void listsManyGrantedSharesAcrossPages() throws Exception {
+    int total = 25;
+    String bearer = createAndActivateRecipient("protocol-many");
+    for (int i = 0; i < total; i++) {
+      String name = "protocol-many-%02d".formatted(i);
+      createShare(name, "Share " + i);
+      grant(name, "protocol-many");
+    }
+
+    String first =
+        mvc.perform(
+                get(PROTOCOL_SHARES)
+                    .param("maxResults", "10")
+                    .header("Authorization", "Bearer " + bearer))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(10))
+            .andExpect(jsonPath("$.items[0].name").value("protocol-many-00"))
+            .andExpect(jsonPath("$.items[9].name").value("protocol-many-09"))
+            .andExpect(jsonPath("$.nextPageToken").exists())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    String firstToken = JsonPath.read(first, "$.nextPageToken");
+    String second =
+        mvc.perform(
+                get(PROTOCOL_SHARES)
+                    .param("maxResults", "10")
+                    .param("pageToken", firstToken)
+                    .header("Authorization", "Bearer " + bearer))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.items.length()").value(10))
+            .andExpect(jsonPath("$.items[0].name").value("protocol-many-10"))
+            .andExpect(jsonPath("$.items[9].name").value("protocol-many-19"))
+            .andExpect(jsonPath("$.nextPageToken").exists())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    String secondToken = JsonPath.read(second, "$.nextPageToken");
+    mvc.perform(
+            get(PROTOCOL_SHARES)
+                .param("maxResults", "10")
+                .param("pageToken", secondToken)
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(5))
+        .andExpect(jsonPath("$.items[0].name").value("protocol-many-20"))
+        .andExpect(jsonPath("$.items[4].name").value("protocol-many-24"))
+        .andExpect(jsonPath("$.nextPageToken").doesNotExist());
+
+    mvc.perform(
+            get(PROTOCOL_SHARES)
+                .param("maxResults", "10000")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(total))
+        .andExpect(jsonPath("$.items[0].name").value("protocol-many-00"))
+        .andExpect(jsonPath("$.items[24].name").value("protocol-many-24"))
+        .andExpect(jsonPath("$.nextPageToken").doesNotExist());
+  }
+
   private void createShare(String name, String displayName) throws Exception {
     mvc.perform(
             post(PROVIDER + "/shares")
