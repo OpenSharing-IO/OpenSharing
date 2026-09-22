@@ -60,4 +60,10 @@ public class SharePermissionStore {
   public Page<ShareEntity> listSharesFor(RecipientEntity recipient, Pageable pageable) {
     return permissions.findSharesForRecipient(recipient, SharePrivilege.SELECT, pageable);
   }
+
+  @Transactional(readOnly = true)
+  public boolean hasSelect(ShareEntity share, RecipientEntity recipient) {
+    return permissions.existsByShareAndRecipientAndPrivilege(
+        share, recipient, SharePrivilege.SELECT);
+  }
 }

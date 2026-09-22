@@ -64,6 +64,21 @@ class ProtocolShareControllerTest {
         .andExpect(jsonPath("$.items[0].id").exists())
         .andExpect(jsonPath("$.items[0].objects").doesNotExist())
         .andExpect(jsonPath("$.nextPageToken").doesNotExist());
+
+    // Get wraps the granted share; lookup is case-insensitive.
+    mvc.perform(get(PROTOCOL_SHARES + "/PROTOCOL-GRANTED").header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(content().encoding("UTF-8"))
+        .andExpect(jsonPath("$.share.name").value("protocol-granted"))
+        .andExpect(jsonPath("$.share.displayName").value("Visible"))
+        .andExpect(jsonPath("$.share.id").exists())
+        .andExpect(jsonPath("$.share.objects").doesNotExist());
+
+    // An ungranted share is reported as missing rather than forbidden.
+    mvc.perform(get(PROTOCOL_SHARES + "/protocol-hidden").header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
   }
 
   @Test
