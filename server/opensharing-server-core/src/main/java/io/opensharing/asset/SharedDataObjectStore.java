@@ -5,6 +5,8 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.http.ApiException;
 import io.opensharing.share.ShareEntity;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,6 +75,11 @@ public class SharedDataObjectStore {
   @Transactional(readOnly = true)
   public List<SharedDataObjectEntity> list(ShareEntity share) {
     return objects.findByShareOrderBySharedAsSchemaAscSharedAsTableAsc(share);
+  }
+
+  @Transactional(readOnly = true)
+  public Page<String> listSchemas(ShareEntity share, Pageable pageable) {
+    return objects.findDistinctSharedAsSchemasByShare(share, pageable);
   }
 
   public void removeByAlias(
