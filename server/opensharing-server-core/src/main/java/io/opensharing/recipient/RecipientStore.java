@@ -34,7 +34,7 @@ public class RecipientStore {
     RecipientEntity recipient = new RecipientEntity();
     recipient.setName(name);
     recipient.setComment(comment);
-    recipient.setOwnerId(author.id());
+    recipient.setOwnerId(author.userId());
     recipient.setAuthenticationType(authenticationType);
     recipient = recipients.save(recipient);
     RecipientTokenEntity token = new RecipientTokenEntity();
