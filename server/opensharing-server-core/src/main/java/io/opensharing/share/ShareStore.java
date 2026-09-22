@@ -35,8 +35,8 @@ public class ShareStore {
     share.setDisplayName(displayName);
     share.setComment(comment);
     share.setProperties(properties);
-    share.setOwnerId(author.id());
-    share.setCreatedBy(author.id());
+    share.setOwnerId(author.userId());
+    share.setCreatedBy(author.userId());
     return shares.save(share);
   }
 
