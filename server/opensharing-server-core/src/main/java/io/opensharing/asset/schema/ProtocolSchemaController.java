@@ -1,4 +1,4 @@
-package io.opensharing.share;
+package io.opensharing.asset.schema;
 
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.http.ApiException;
@@ -6,6 +6,9 @@ import io.opensharing.http.ListResponse;
 import io.opensharing.http.Listings;
 import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.recipient.RecipientStore;
+import io.opensharing.share.ShareEntity;
+import io.opensharing.share.SharePermissionStore;
+import io.opensharing.share.ShareStore;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
