@@ -14,10 +14,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Recipient protocol API for listing tables in a SELECT-granted share schema. */
+/** Recipient protocol API for listing tables in a SELECT-granted share. */
 @RestController
 @RequestMapping(
-    value = "${opensharing.protocol-prefix}/shares/{share}/schemas/{schema}/tables",
+    value = "${opensharing.protocol-prefix}/shares/{share}",
     produces = "application/json;charset=UTF-8")
 public class ProtocolTableController {
 
@@ -40,23 +40,37 @@ public class ProtocolTableController {
     this.listings = listings;
   }
 
-  @GetMapping
+  @GetMapping("/all-tables")
+  public ListResponse<TableResponse> listAll(
+      RecipientPrincipal principal,
+      @PathVariable String share,
+      @RequestParam(required = false) Integer maxResults,
+      @RequestParam(required = false) String pageToken) {
+    ShareEntity entity = requireGrantedShare(principal, share);
+    return listings.page(
+        maxResults, pageToken, pageable -> tables.listAll(entity, pageable), listed -> listed);
+  }
+
+  @GetMapping("/schemas/{schema}/tables")
   public ListResponse<TableResponse> list(
       RecipientPrincipal principal,
       @PathVariable String share,
       @PathVariable String schema,
       @RequestParam(required = false) Integer maxResults,
       @RequestParam(required = false) String pageToken) {
-    var recipient = recipients.requireById(principal.recipientId());
-    ShareEntity entity =
-        shares
-            .find(share)
-            .filter(candidate -> permissions.hasSelect(candidate, recipient))
-            .orElseThrow(() -> ApiException.notFound("share '" + share + "' does not exist"));
+    ShareEntity entity = requireGrantedShare(principal, share);
     return listings.page(
         maxResults,
         pageToken,
         pageable -> tables.listInSchema(entity, schema, pageable),
         listed -> listed);
+  }
+
+  private ShareEntity requireGrantedShare(RecipientPrincipal principal, String share) {
+    var recipient = recipients.requireById(principal.recipientId());
+    return shares
+        .find(share)
+        .filter(candidate -> permissions.hasSelect(candidate, recipient))
+        .orElseThrow(() -> ApiException.notFound("share '" + share + "' does not exist"));
   }
 }

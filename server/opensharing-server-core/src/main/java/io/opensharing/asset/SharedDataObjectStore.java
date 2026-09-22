@@ -106,6 +106,23 @@ public class SharedDataObjectStore {
         share, schema, AssetType.TABLE, "");
   }
 
+  @Transactional(readOnly = true)
+  public Page<SharedDataObjectEntity> listTables(ShareEntity share, Pageable pageable) {
+    return objects.findTables(share, AssetType.TABLE, pageable);
+  }
+
+  @Transactional(readOnly = true)
+  public List<SharedDataObjectEntity> listTables(ShareEntity share) {
+    return objects.findByShareAndTypeAndSharedAsTableNotOrderBySharedAsSchemaAscSharedAsTableAsc(
+        share, AssetType.TABLE, "");
+  }
+
+  @Transactional(readOnly = true)
+  public List<SharedDataObjectEntity> listSchemaGrants(ShareEntity share) {
+    return objects.findByShareAndTypeAndSharedAsTableOrderBySharedAsSchemaAsc(
+        share, AssetType.SCHEMA, "");
+  }
+
   public void removeByAlias(
       ShareEntity share, AssetType type, String sharedAsSchema, String sharedAsTable) {
     String alias = sharedAsTable.isEmpty() ? sharedAsSchema : sharedAsSchema + "." + sharedAsTable;
