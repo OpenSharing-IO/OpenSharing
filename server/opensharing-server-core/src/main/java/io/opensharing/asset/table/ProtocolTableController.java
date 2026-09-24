@@ -150,6 +150,7 @@ public class ProtocolTableController {
     }
   }
 
+  /** Slice by absolute offset; clamp if the token is past the end. hasNext is offset-based, not page-number. */
   private static Page<TableResponse> page(List<TableResponse> tables, Pageable pageable) {
     int from = Math.min(Math.toIntExact(pageable.getOffset()), tables.size());
     int to = Math.min(from + pageable.getPageSize(), tables.size());
