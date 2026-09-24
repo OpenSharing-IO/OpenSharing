@@ -37,6 +37,16 @@ public class SharedDataObjectStore {
       throw ApiException.alreadyExists(
           "'" + name + "' is already included in share '" + share.getName() + "'");
     }
+    if (!sharedAsTable.isEmpty()
+        && objects.existsByShareAndSharedAsSchemaAndTypeAndSharedAsTable(
+            share, sharedAsSchema, AssetType.SCHEMA, "")) {
+      throw ApiException.conflict(
+          "schema '"
+              + sharedAsSchema
+              + "' is already included in share '"
+              + share.getName()
+              + "'");
+    }
 
     SharedDataObjectEntity object = new SharedDataObjectEntity();
     object.setShare(share);

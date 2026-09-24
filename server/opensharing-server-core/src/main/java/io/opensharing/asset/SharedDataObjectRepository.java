@@ -1,5 +1,6 @@
 package io.opensharing.asset;
 
+import io.opensharing.catalog.AssetType;
 import io.opensharing.share.ShareEntity;
 import java.util.List;
 import java.util.Optional;
@@ -13,6 +14,9 @@ public interface SharedDataObjectRepository
 
   boolean existsByShareAndSharedAsSchemaAndSharedAsTable(
       ShareEntity share, String sharedAsSchema, String sharedAsTable);
+
+  boolean existsByShareAndSharedAsSchemaAndTypeAndSharedAsTable(
+      ShareEntity share, String sharedAsSchema, AssetType type, String sharedAsTable);
 
   Optional<SharedDataObjectEntity> findByShareAndName(ShareEntity share, String name);
 
