@@ -21,10 +21,6 @@ assets:
     subtype: MANAGED
     storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
     format: delta
-    tableVersion: 0
-    tableVersionHistory:
-      - version: 0
-        timestamp: "2026-01-01T00:00:00Z"
 
   - identifier: main.sales.orders
     type: TABLE

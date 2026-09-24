@@ -92,30 +92,6 @@ public final class LocalCatalogConnector implements CatalogConnector {
         .toList();
   }
 
-  @Override
-  public long getTableVersion(AssetLookup table, Instant timestamp, AuthContext auth) {
-    LocalCatalogFile.Asset asset = requireAsset(table, auth);
-    if (asset.type() != AssetType.TABLE || asset.tableVersion() == null) {
-      throw new UnsupportedAssetTypeException(
-          "the " + NAME + " catalog has no version for table '" + table.identifier() + "'");
-    }
-    if (timestamp == null) {
-      return asset.tableVersion();
-    }
-    if (asset.tableVersionHistory().isEmpty()) {
-      throw new UnsupportedAssetTypeException(
-          "the " + NAME + " catalog has no version history for table '" + table.identifier() + "'");
-    }
-    return asset.tableVersionHistory().stream()
-        .filter(version -> !version.instant().isBefore(timestamp))
-        .min(Comparator.comparing(LocalCatalogFile.TableVersion::instant))
-        .map(LocalCatalogFile.TableVersion::version)
-        .orElseThrow(
-            () ->
-                new IllegalArgumentException(
-                    "startingTimestamp is after the latest table version timestamp"));
-  }
-
   private static boolean isChildOf(String identifier, String schemaPrefix) {
     String folded = identifier.toLowerCase(Locale.ROOT);
     return folded.startsWith(schemaPrefix) && !folded.substring(schemaPrefix.length()).contains(".");
