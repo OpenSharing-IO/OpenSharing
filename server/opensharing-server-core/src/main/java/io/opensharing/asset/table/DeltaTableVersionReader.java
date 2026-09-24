@@ -1,9 +1,9 @@
 package io.opensharing.asset.table;
 
-import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
 import io.delta.kernel.defaults.engine.DefaultEngine;
 import io.delta.kernel.engine.Engine;
+import io.delta.kernel.internal.TableImpl;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
@@ -61,37 +61,32 @@ public class DeltaTableVersionReader {
                     new CatalogException(
                         "catalog returned no credentials for table root '" + location + "'"));
     Engine engine = DefaultEngine.create(configuration(rootCredentials, location));
-    return versionAtOrAfter(Table.forPath(engine, kernelPath(location)), engine, startingTimestamp);
+    return versionAtOrAfter(
+        (TableImpl) Table.forPath(engine, kernelPath(location)),
+        engine,
+        startingTimestamp,
+        0);
   }
 
-  static long versionAtOrAfter(Table table, Engine engine, Instant startingTimestamp) {
-    Snapshot latest = table.getLatestSnapshot(engine);
+  static long versionAtOrAfter(
+      TableImpl table, Engine engine, Instant startingTimestamp, long startVersion) {
+    long version;
     if (startingTimestamp == null) {
-      return latest.getVersion();
-    }
-
-    long requestedMillis = startingTimestamp.toEpochMilli();
-    Snapshot first = table.getSnapshotAsOfVersion(engine, 0);
-    if (requestedMillis <= first.getTimestamp(engine)) {
-      return first.getVersion();
-    }
-    if (requestedMillis > latest.getTimestamp(engine)) {
-      throw ApiException.invalidParameter(
-          "startingTimestamp is after the latest table version timestamp");
-    }
-
-    long low = first.getVersion();
-    long high = latest.getVersion();
-    while (low < high) {
-      long middle = low + (high - low) / 2;
-      Snapshot candidate = table.getSnapshotAsOfVersion(engine, middle);
-      if (candidate.getTimestamp(engine) < requestedMillis) {
-        low = middle + 1;
-      } else {
-        high = middle;
+      version = table.getLatestSnapshot(engine).getVersion();
+    } else {
+      try {
+        version =
+            table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
+      } catch (IllegalArgumentException invalid) {
+        throw ApiException.invalidParameter(
+            "startingTimestamp is after the latest table version timestamp");
       }
     }
-    return low;
+    if (version < startVersion) {
+      throw ApiException.permissionDenied(
+          "resolved table version is before the share's start version");
+    }
+    return version;
   }
 
   private static boolean covers(String prefix, String location) {
