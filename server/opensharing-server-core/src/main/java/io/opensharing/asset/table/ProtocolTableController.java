@@ -47,6 +47,7 @@ public class ProtocolTableController {
   private final SharePermissionStore permissions;
   private final SharedDataObjectStore objects;
   private final CatalogConnector catalog;
+  private final DeltaTableVersionReader versions;
   private final Listings listings;
 
   public ProtocolTableController(
@@ -55,12 +56,14 @@ public class ProtocolTableController {
       SharePermissionStore permissions,
       SharedDataObjectStore objects,
       CatalogConnector catalog,
+      DeltaTableVersionReader versions,
       Listings listings) {
     this.recipients = recipients;
     this.shares = shares;
     this.permissions = permissions;
     this.objects = objects;
     this.catalog = catalog;
+    this.versions = versions;
     this.listings = listings;
   }
 
@@ -135,31 +138,30 @@ public class ProtocolTableController {
       throw ApiException.notFound(
           "schema '" + schema + "' does not exist in share '" + share.getName() + "'");
     }
-    return objects
-        .findSchemaGrant(share, schemaName)
-        .map(grant -> findChild(share, grant, tableName))
-        .map(asset -> catalog.getTableVersion(asset, startingTimestamp, owner(share)))
-        .orElseGet(
-            () -> {
-              SharedDataObjectEntity object =
-                  objects
-                      .findTable(share, schemaName, tableName)
-                      .orElseThrow(() -> tableNotFound(share, schema, table));
-              return catalog.getTableVersion(
-                  AssetLookup.of(object.getType(), object.getName()),
-                  startingTimestamp,
-                  owner(share));
-            });
+    ResolvedAsset resolved =
+        objects
+            .findSchemaGrant(share, schemaName)
+            .map(grant -> findChild(share, grant, tableName))
+            .orElseGet(
+                () -> {
+                  SharedDataObjectEntity object =
+                      objects
+                          .findTable(share, schemaName, tableName)
+                          .orElseThrow(() -> tableNotFound(share, schema, table));
+                  return catalog.resolveAsset(
+                      AssetLookup.of(object.getType(), object.getName()), owner(share));
+                });
+    return versions.getVersion(resolved, startingTimestamp, owner(share));
   }
 
-  private AssetLookup findChild(
+  private ResolvedAsset findChild(
       ShareEntity share, SharedDataObjectEntity grant, String tableName) {
     for (ResolvedAsset child :
         catalog.listChildren(
             AssetLookup.of(AssetType.SCHEMA, grant.getName()), owner(share))) {
       if (child.type() == AssetType.TABLE
           && tableName.equals(ObjectNames.normalize(lastSegment(child.identifier())))) {
-        return AssetLookup.of(AssetType.TABLE, child.identifier());
+        return child;
       }
     }
     throw tableNotFound(share, grant.getSharedAsSchema(), tableName);

@@ -3,7 +3,6 @@ package io.opensharing.catalog.local;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.TableFormat;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -53,8 +52,6 @@ public record LocalCatalogFile(
       String schema,
       List<String> partitionColumns,
       String catalogAssetId,
-      Long tableVersion,
-      List<TableVersion> tableVersionHistory,
       List<String> auxiliaryLocations,
       List<String> sharableBy) {
 
@@ -64,28 +61,9 @@ public record LocalCatalogFile(
       }
       type = type == null ? AssetType.TABLE : type;
       partitionColumns = partitionColumns == null ? List.of() : List.copyOf(partitionColumns);
-      tableVersionHistory =
-          tableVersionHistory == null ? List.of() : List.copyOf(tableVersionHistory);
       auxiliaryLocations = auxiliaryLocations == null ? List.of() : List.copyOf(auxiliaryLocations);
       sharableBy = sharableBy == null ? List.of() : List.copyOf(sharableBy);
       TableFormat.fromWireName(format);
-    }
-  }
-
-  public record TableVersion(long version, String timestamp) {
-
-    public TableVersion {
-      if (version < 0) {
-        throw new IllegalArgumentException("table version must not be negative");
-      }
-      if (timestamp == null || timestamp.isBlank()) {
-        throw new IllegalArgumentException("table version timestamp is required");
-      }
-      Instant.parse(timestamp);
-    }
-
-    Instant instant() {
-      return Instant.parse(timestamp);
     }
   }
 }
