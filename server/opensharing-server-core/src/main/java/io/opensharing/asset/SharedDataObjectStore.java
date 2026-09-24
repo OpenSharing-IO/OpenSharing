@@ -95,6 +95,13 @@ public class SharedDataObjectStore {
   }
 
   @Transactional(readOnly = true)
+  public Optional<SharedDataObjectEntity> findTable(
+      ShareEntity share, String schema, String table) {
+    return objects.findByShareAndSharedAsSchemaAndTypeAndSharedAsTable(
+        share, schema, AssetType.TABLE, table);
+  }
+
+  @Transactional(readOnly = true)
   public Page<SharedDataObjectEntity> listTablesInSchema(
       ShareEntity share, String schema, Pageable pageable) {
     return objects.findTablesInSchema(share, schema, AssetType.TABLE, pageable);

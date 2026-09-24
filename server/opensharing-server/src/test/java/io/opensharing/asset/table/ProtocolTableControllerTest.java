@@ -170,4 +170,55 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
   }
+
+  @Test
+  void getsAGrantedTable() throws Exception {
+    createShare("get-table");
+    addObject("get-table", "TABLE", "catalog.sales.orders", "sales.orders");
+    addObject("get-table", "SCHEMA", "catalog.hr", "hr");
+    createShare("hidden-get");
+    addObject("hidden-get", "TABLE", "catalog.sales.customers", "sales.customers");
+    String bearer = createAndActivateRecipient("get-table-partner");
+    grant("get-table", "get-table-partner");
+
+    mvc.perform(
+            get(PROTOCOL + "/shares/GET-TABLE/schemas/SALES/tables/ORDERS")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(content().encoding("UTF-8"))
+        .andExpect(jsonPath("$.name").value("orders"))
+        .andExpect(jsonPath("$.schema").value("sales"))
+        .andExpect(jsonPath("$.share").value("get-table"))
+        .andExpect(jsonPath("$.shareId").exists())
+        .andExpect(jsonPath("$.id").value("catalog.sales.orders"))
+        .andExpect(jsonPath("$.format").value("delta"))
+        .andExpect(jsonPath("$.location").doesNotExist())
+        .andExpect(jsonPath("$.accessModes").doesNotExist());
+
+    mvc.perform(
+            get(PROTOCOL + "/shares/get-table/schemas/hr/tables/SALARIES")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.name").value("salaries"))
+        .andExpect(jsonPath("$.schema").value("hr"))
+        .andExpect(jsonPath("$.id").value("catalog.hr.salaries"))
+        .andExpect(jsonPath("$.format").value("delta"));
+
+    mvc.perform(
+            get(PROTOCOL + "/shares/get-table/schemas/sales/tables/missing")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+    mvc.perform(
+            get(PROTOCOL + "/shares/get-table/schemas/hr/tables/missing")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+    mvc.perform(
+            get(PROTOCOL + "/shares/hidden-get/schemas/sales/tables/customers")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
 }

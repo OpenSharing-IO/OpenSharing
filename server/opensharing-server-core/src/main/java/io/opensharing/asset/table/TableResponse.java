@@ -13,4 +13,5 @@ public record TableResponse(
     String id,
     String location,
     List<String> auxiliaryLocations,
-    List<String> accessModes) {}
+    List<String> accessModes,
+    String format) {}

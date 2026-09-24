@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Recipient protocol API for listing tables in a SELECT-granted share. */
+/** Recipient protocol API for tables in a SELECT-granted share. */
 @RestController
 @RequestMapping(
     value = "${opensharing.protocol-prefix}/shares/{share}",
@@ -84,6 +84,15 @@ public class ProtocolTableController {
         maxResults, pageToken, pageable -> listInSchema(entity, schema, pageable), listed -> listed);
   }
 
+  @GetMapping("/schemas/{schema}/tables/{table}")
+  public TableResponse get(
+      RecipientPrincipal principal,
+      @PathVariable String share,
+      @PathVariable String schema,
+      @PathVariable String table) {
+    return getTable(requireGrantedShare(principal, share), schema, table);
+  }
+
   private ShareEntity requireGrantedShare(RecipientPrincipal principal, String share) {
     var recipient = recipients.requireById(principal.recipientId());
     return shares
@@ -106,6 +115,80 @@ public class ProtocolTableController {
                 objects
                     .listTablesInSchema(share, schemaName, pageable)
                     .map(table -> fromStored(share, table)));
+  }
+
+  private TableResponse getTable(ShareEntity share, String schema, String table) {
+    String schemaName = ObjectNames.normalize(schema);
+    String tableName = ObjectNames.normalize(table);
+    if (!objects.existsInSchema(share, schemaName)) {
+      throw ApiException.notFound(
+          "schema '" + schema + "' does not exist in share '" + share.getName() + "'");
+    }
+    return objects
+        .findSchemaGrant(share, schemaName)
+        .map(grant -> getChild(share, grant, table, tableName))
+        .orElseGet(() -> getStored(share, schema, schemaName, table, tableName));
+  }
+
+  private TableResponse getStored(
+      ShareEntity share, String schema, String schemaName, String table, String tableName) {
+    SharedDataObjectEntity object =
+        objects
+            .findTable(share, schemaName, tableName)
+            .orElseThrow(
+                () ->
+                    ApiException.notFound(
+                        "table '"
+                            + schema
+                            + "."
+                            + table
+                            + "' does not exist in share '"
+                            + share.getName()
+                            + "'"));
+    return getInfo(share, object.getSharedAsTable(), object.getSharedAsSchema(), object, null);
+  }
+
+  private TableResponse getChild(
+      ShareEntity share, SharedDataObjectEntity grant, String table, String tableName) {
+    for (ResolvedAsset child :
+        catalog.listChildren(AssetLookup.of(AssetType.SCHEMA, grant.getName()), owner(share))) {
+      if (child.type() == AssetType.TABLE
+          && tableName.equals(ObjectNames.normalize(lastSegment(child.identifier())))) {
+        return getInfo(share, lastSegment(child.identifier()), grant.getSharedAsSchema(), null, child);
+      }
+    }
+    throw ApiException.notFound(
+        "table '"
+            + grant.getSharedAsSchema()
+            + "."
+            + table
+            + "' does not exist in share '"
+            + share.getName()
+            + "'");
+  }
+
+  private TableResponse getInfo(
+      ShareEntity share,
+      String name,
+      String schemaName,
+      SharedDataObjectEntity stored,
+      ResolvedAsset child) {
+    ResolvedAsset resolved =
+        child != null
+            ? child
+            : catalog.resolveAsset(
+                AssetLookup.of(stored.getType(), stored.getName()), owner(share));
+    String id = child != null ? child.catalogAssetId() : stored.getSourceAssetId();
+    return new TableResponse(
+        name,
+        schemaName,
+        share.getName(),
+        share.getId(),
+        id,
+        null,
+        null,
+        null,
+        format(resolved));
   }
 
   private Page<TableResponse> listAll(ShareEntity share, Pageable pageable) {
@@ -173,7 +256,8 @@ public class ProtocolTableController {
         object.getSourceAssetId(),
         resolved.storageLocation(),
         emptyToNull(resolved.auxiliaryLocations()),
-        accessModes(resolved));
+        accessModes(resolved),
+        null);
   }
 
   private static TableResponse fromChild(
@@ -186,7 +270,8 @@ public class ProtocolTableController {
         child.catalogAssetId(),
         child.storageLocation(),
         emptyToNull(child.auxiliaryLocations()),
-        accessModes(child));
+        accessModes(child),
+        null);
   }
 
   private static AuthContext owner(ShareEntity share) {
@@ -216,5 +301,9 @@ public class ProtocolTableController {
       return List.of("url", "dir");
     }
     return null;
+  }
+
+  private static String format(ResolvedAsset asset) {
+    return asset.format() == null ? null : asset.format().wireName();
   }
 }
