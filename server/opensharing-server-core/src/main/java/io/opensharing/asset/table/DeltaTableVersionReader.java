@@ -62,31 +62,19 @@ public class DeltaTableVersionReader {
                         "catalog returned no credentials for table root '" + location + "'"));
     Engine engine = DefaultEngine.create(configuration(rootCredentials, location));
     return versionAtOrAfter(
-        (TableImpl) Table.forPath(engine, kernelPath(location)),
-        engine,
-        startingTimestamp,
-        0);
+        (TableImpl) Table.forPath(engine, kernelPath(location)), engine, startingTimestamp);
   }
 
-  static long versionAtOrAfter(
-      TableImpl table, Engine engine, Instant startingTimestamp, long startVersion) {
-    long version;
+  static long versionAtOrAfter(TableImpl table, Engine engine, Instant startingTimestamp) {
     if (startingTimestamp == null) {
-      version = table.getLatestSnapshot(engine).getVersion();
-    } else {
-      try {
-        version =
-            table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
-      } catch (IllegalArgumentException invalid) {
-        throw ApiException.invalidParameter(
-            "startingTimestamp is after the latest table version timestamp");
-      }
+      return table.getLatestSnapshot(engine).getVersion();
     }
-    if (version < startVersion) {
-      throw ApiException.permissionDenied(
-          "resolved table version is before the share's start version");
+    try {
+      return table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
+    } catch (IllegalArgumentException invalid) {
+      throw ApiException.invalidParameter(
+          "startingTimestamp is after the latest table version timestamp");
     }
-    return version;
   }
 
   private static boolean covers(String prefix, String location) {
@@ -126,7 +114,7 @@ public class DeltaTableVersionReader {
     }
   }
 
-  private static void configureAzure(
+  private static void configureAzure( 
       Configuration configuration, StorageCredentials credentials, String location) {
     String host = URI.create(location).getHost();
     if (host == null || host.isBlank()) {
@@ -158,6 +146,7 @@ public class DeltaTableVersionReader {
         Long.toString(expiration.toEpochMilli()));
   }
 
+  /** Hadoop's S3 connector is s3a://; catalogs typically return s3://. */
   private static String kernelPath(String location) {
     return location.startsWith("s3://") ? "s3a://" + location.substring(5) : location;
   }
