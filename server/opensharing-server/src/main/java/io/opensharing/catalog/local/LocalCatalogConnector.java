@@ -99,11 +99,21 @@ public final class LocalCatalogConnector implements CatalogConnector {
       throw new UnsupportedAssetTypeException(
           "the " + NAME + " catalog has no version for table '" + table.identifier() + "'");
     }
-    if (timestamp != null) {
-      throw new UnsupportedAssetTypeException(
-          "the " + NAME + " catalog has no table version history");
+    if (timestamp == null) {
+      return asset.tableVersion();
     }
-    return asset.tableVersion();
+    if (asset.tableVersionHistory().isEmpty()) {
+      throw new UnsupportedAssetTypeException(
+          "the " + NAME + " catalog has no version history for table '" + table.identifier() + "'");
+    }
+    return asset.tableVersionHistory().stream()
+        .filter(version -> !version.instant().isBefore(timestamp))
+        .min(Comparator.comparing(LocalCatalogFile.TableVersion::instant))
+        .map(LocalCatalogFile.TableVersion::version)
+        .orElseThrow(
+            () ->
+                new IllegalArgumentException(
+                    "startingTimestamp is after the latest table version timestamp"));
   }
 
   private static boolean isChildOf(String identifier, String schemaPrefix) {

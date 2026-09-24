@@ -47,6 +47,13 @@ class LocalCatalogConnectorTest {
           storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
           format: delta
           tableVersion: 123
+          tableVersionHistory:
+            - version: 0
+              timestamp: "2022-01-01T00:00:00Z"
+            - version: 45
+              timestamp: "2022-02-01T00:00:00Z"
+            - version: 123
+              timestamp: "2022-03-01T00:00:00Z"
         - identifier: main.finance.ledger
           storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
           format: delta
@@ -79,6 +86,26 @@ class LocalCatalogConnectorTest {
         123,
         connector.getTableVersion(
             AssetLookup.of(AssetType.TABLE, "main.sales.table1"), null, AuthContext.of(ALICE)));
+  }
+
+  @Test
+  void resolvesEarliestTableVersionAtOrAfterTimestamp() {
+    LocalCatalogConnector connector = connector(CATALOG);
+    AssetLookup table = AssetLookup.of(AssetType.TABLE, "main.sales.table1");
+
+    assertEquals(
+        0,
+        connector.getTableVersion(
+            table, java.time.Instant.parse("2021-12-01T00:00:00Z"), AuthContext.of(ALICE)));
+    assertEquals(
+        45,
+        connector.getTableVersion(
+            table, java.time.Instant.parse("2022-01-15T00:00:00Z"), AuthContext.of(ALICE)));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            connector.getTableVersion(
+                table, java.time.Instant.parse("2022-04-01T00:00:00Z"), AuthContext.of(ALICE)));
   }
 
   @Test
@@ -238,6 +265,7 @@ class LocalCatalogConnectorTest {
                     List.of(),
                     null,
                     null,
+                    List.of(),
                     List.of(),
                     List.of())));
 
