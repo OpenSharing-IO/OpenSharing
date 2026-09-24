@@ -23,7 +23,7 @@ class DeltaTableVersionReaderTest {
     when(latest.getVersion()).thenReturn(7L);
     when(table.getLatestSnapshot(engine)).thenReturn(latest);
 
-    assertEquals(7, DeltaTableVersionReader.versionAtOrAfter(table, engine, null, 0));
+    assertEquals(7, DeltaTableVersionReader.versionAtOrAfter(table, engine, null));
   }
 
   @Test
@@ -37,33 +37,18 @@ class DeltaTableVersionReaderTest {
         .thenThrow(new IllegalArgumentException("timestamp after latest"));
 
     assertEquals(
-        0, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(500), 0));
+        0, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(500)));
     assertEquals(
-        1, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(2000), 0));
+        1, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(2000)));
     assertEquals(
-        2, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(2500), 0));
+        2, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(2500)));
 
     ApiException afterLatest =
         assertThrows(
             ApiException.class,
             () ->
                 DeltaTableVersionReader.versionAtOrAfter(
-                    table, engine, Instant.ofEpochMilli(6000), 0));
+                    table, engine, Instant.ofEpochMilli(6000)));
     assertEquals(HttpStatus.BAD_REQUEST, afterLatest.getStatus());
-  }
-
-  @Test
-  void rejectsResolvedVersionBeforeShareStartVersion() {
-    Engine engine = mock(Engine.class);
-    TableImpl table = mock(TableImpl.class);
-    when(table.getVersionAtOrAfterTimestamp(engine, 2000)).thenReturn(1L);
-
-    ApiException beforeStart =
-        assertThrows(
-            ApiException.class,
-            () ->
-                DeltaTableVersionReader.versionAtOrAfter(
-                    table, engine, Instant.ofEpochMilli(2000), 3));
-    assertEquals(HttpStatus.FORBIDDEN, beforeStart.getStatus());
   }
 }
