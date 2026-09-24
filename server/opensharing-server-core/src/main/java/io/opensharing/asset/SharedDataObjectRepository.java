@@ -18,6 +18,9 @@ public interface SharedDataObjectRepository
   boolean existsByShareAndSharedAsSchemaAndTypeAndSharedAsTable(
       ShareEntity share, String sharedAsSchema, AssetType type, String sharedAsTable);
 
+  boolean existsByShareAndSharedAsSchemaAndTypeAndSharedAsTableNot(
+      ShareEntity share, String sharedAsSchema, AssetType type, String sharedAsTable);
+
   Optional<SharedDataObjectEntity> findByShareAndName(ShareEntity share, String name);
 
   Optional<SharedDataObjectEntity> findByShareAndSharedAsSchemaAndSharedAsTable(
