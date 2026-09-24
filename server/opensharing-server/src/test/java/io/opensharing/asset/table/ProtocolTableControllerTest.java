@@ -2,6 +2,7 @@ package io.opensharing.asset.table;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -172,51 +173,43 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
   }
 
   @Test
-  void getsAGrantedTable() throws Exception {
-    createShare("get-table");
-    addObject("get-table", "TABLE", "catalog.sales.orders", "sales.orders");
-    addObject("get-table", "SCHEMA", "catalog.hr", "hr");
-    createShare("hidden-get");
-    addObject("hidden-get", "TABLE", "catalog.sales.customers", "sales.customers");
-    String bearer = createAndActivateRecipient("get-table-partner");
-    grant("get-table", "get-table-partner");
+  void queriesAGrantedTableVersion() throws Exception {
+    createShare("table-version");
+    addObject("table-version", "TABLE", "catalog.sales.orders", "sales.orders");
+    addObject("table-version", "SCHEMA", "catalog.hr", "hr");
+    createShare("hidden-version");
+    addObject("hidden-version", "TABLE", "catalog.sales.customers", "sales.customers");
+    String bearer = createAndActivateRecipient("table-version-partner");
+    grant("table-version", "table-version-partner");
 
     mvc.perform(
-            get(PROTOCOL + "/shares/GET-TABLE/schemas/SALES/tables/ORDERS")
+            get(PROTOCOL + "/shares/TABLE-VERSION/schemas/SALES/tables/ORDERS/version")
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isOk())
-        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(content().encoding("UTF-8"))
-        .andExpect(jsonPath("$.name").value("orders"))
-        .andExpect(jsonPath("$.schema").value("sales"))
-        .andExpect(jsonPath("$.share").value("get-table"))
-        .andExpect(jsonPath("$.shareId").exists())
-        .andExpect(jsonPath("$.id").value("catalog.sales.orders"))
-        .andExpect(jsonPath("$.format").value("delta"))
-        .andExpect(jsonPath("$.location").doesNotExist())
-        .andExpect(jsonPath("$.accessModes").doesNotExist());
+        .andExpect(header().string("Delta-Table-Version", "123"))
+        .andExpect(content().string(""));
 
     mvc.perform(
-            get(PROTOCOL + "/shares/get-table/schemas/hr/tables/SALARIES")
+            get(PROTOCOL + "/shares/table-version/schemas/hr/tables/SALARIES/version")
+                .param("startingTimestamp", "2022-01-01T00:00:00Z")
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.name").value("salaries"))
-        .andExpect(jsonPath("$.schema").value("hr"))
-        .andExpect(jsonPath("$.id").value("catalog.hr.salaries"))
-        .andExpect(jsonPath("$.format").value("delta"));
+        .andExpect(header().string("Delta-Table-Version", "45"))
+        .andExpect(content().string(""));
 
     mvc.perform(
-            get(PROTOCOL + "/shares/get-table/schemas/sales/tables/missing")
+            get(PROTOCOL + "/shares/table-version/schemas/sales/tables/orders/version")
+                .param("startingTimestamp", "not-a-timestamp")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-version/schemas/hr/tables/missing/version")
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
     mvc.perform(
-            get(PROTOCOL + "/shares/get-table/schemas/hr/tables/missing")
-                .header("Authorization", "Bearer " + bearer))
-        .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
-    mvc.perform(
-            get(PROTOCOL + "/shares/hidden-get/schemas/sales/tables/customers")
+            get(PROTOCOL + "/shares/hidden-version/schemas/sales/tables/customers/version")
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));

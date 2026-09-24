@@ -4,6 +4,7 @@ import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -28,6 +29,12 @@ public interface CatalogConnector {
   default List<ResolvedAsset> listChildren(AssetLookup parent, AuthContext auth) {
     throw new UnsupportedAssetTypeException(
         "the " + name() + " catalog cannot list the contents of a " + parent.type());
+  }
+
+  /** Returns the current table version, or the earliest version at or after {@code timestamp}. */
+  default long getTableVersion(AssetLookup table, Instant timestamp, AuthContext auth) {
+    throw new UnsupportedAssetTypeException(
+        "the " + name() + " catalog cannot resolve table versions");
   }
 
   /** Mints credentials scoped to the asset location, as {@code auth}. */

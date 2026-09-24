@@ -46,6 +46,7 @@ class LocalCatalogConnectorTest {
           subtype: MANAGED
           storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
           format: delta
+          tableVersion: 123
         - identifier: main.finance.ledger
           storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
           format: delta
@@ -69,6 +70,15 @@ class LocalCatalogConnectorTest {
     assertEquals(TABLE1, asset.storageLocation());
     assertEquals(TableFormat.DELTA, asset.format());
     assertEquals("MANAGED", asset.subtype());
+  }
+
+  @Test
+  void resolvesCurrentTableVersion() {
+    LocalCatalogConnector connector = connector(CATALOG);
+    assertEquals(
+        123,
+        connector.getTableVersion(
+            AssetLookup.of(AssetType.TABLE, "main.sales.table1"), null, AuthContext.of(ALICE)));
   }
 
   @Test
@@ -226,6 +236,7 @@ class LocalCatalogConnectorTest {
                     "delta",
                     null,
                     List.of(),
+                    null,
                     null,
                     List.of(),
                     List.of())));

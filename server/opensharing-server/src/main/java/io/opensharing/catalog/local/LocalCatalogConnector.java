@@ -92,6 +92,20 @@ public final class LocalCatalogConnector implements CatalogConnector {
         .toList();
   }
 
+  @Override
+  public long getTableVersion(AssetLookup table, Instant timestamp, AuthContext auth) {
+    LocalCatalogFile.Asset asset = requireAsset(table, auth);
+    if (asset.type() != AssetType.TABLE || asset.tableVersion() == null) {
+      throw new UnsupportedAssetTypeException(
+          "the " + NAME + " catalog has no version for table '" + table.identifier() + "'");
+    }
+    if (timestamp != null) {
+      throw new UnsupportedAssetTypeException(
+          "the " + NAME + " catalog has no table version history");
+    }
+    return asset.tableVersion();
+  }
+
   private static boolean isChildOf(String identifier, String schemaPrefix) {
     String folded = identifier.toLowerCase(Locale.ROOT);
     return folded.startsWith(schemaPrefix) && !folded.substring(schemaPrefix.length()).contains(".");

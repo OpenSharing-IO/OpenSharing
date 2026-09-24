@@ -52,6 +52,7 @@ public record LocalCatalogFile(
       String schema,
       List<String> partitionColumns,
       String catalogAssetId,
+      Long tableVersion,
       List<String> auxiliaryLocations,
       List<String> sharableBy) {
 
