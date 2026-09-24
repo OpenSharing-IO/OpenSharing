@@ -18,6 +18,8 @@ import io.opensharing.recipient.RecipientStore;
 import io.opensharing.share.ShareEntity;
 import io.opensharing.share.SharePermissionStore;
 import io.opensharing.share.ShareStore;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -26,6 +28,7 @@ import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -84,13 +87,20 @@ public class ProtocolTableController {
         maxResults, pageToken, pageable -> listInSchema(entity, schema, pageable), listed -> listed);
   }
 
-  @GetMapping("/schemas/{schema}/tables/{table}")
-  public TableResponse get(
+  @GetMapping("/schemas/{schema}/tables/{table}/version")
+  public ResponseEntity<Void> version(
       RecipientPrincipal principal,
       @PathVariable String share,
       @PathVariable String schema,
-      @PathVariable String table) {
-    return getTable(requireGrantedShare(principal, share), schema, table);
+      @PathVariable String table,
+      @RequestParam(required = false) String startingTimestamp) {
+    long version =
+        getTableVersion(
+            requireGrantedShare(principal, share),
+            schema,
+            table,
+            parseTimestamp(startingTimestamp));
+    return ResponseEntity.ok().header("Delta-Table-Version", Long.toString(version)).build();
   }
 
   private ShareEntity requireGrantedShare(RecipientPrincipal principal, String share) {
@@ -117,7 +127,8 @@ public class ProtocolTableController {
                     .map(table -> fromStored(share, table)));
   }
 
-  private TableResponse getTable(ShareEntity share, String schema, String table) {
+  private long getTableVersion(
+      ShareEntity share, String schema, String table, Instant startingTimestamp) {
     String schemaName = ObjectNames.normalize(schema);
     String tableName = ObjectNames.normalize(table);
     if (!objects.existsInSchema(share, schemaName)) {
@@ -126,69 +137,54 @@ public class ProtocolTableController {
     }
     return objects
         .findSchemaGrant(share, schemaName)
-        .map(grant -> getChild(share, grant, table, tableName))
-        .orElseGet(() -> getStored(share, schema, schemaName, table, tableName));
+        .map(grant -> findChild(share, grant, tableName))
+        .map(asset -> catalog.getTableVersion(asset, startingTimestamp, owner(share)))
+        .orElseGet(
+            () -> {
+              SharedDataObjectEntity object =
+                  objects
+                      .findTable(share, schemaName, tableName)
+                      .orElseThrow(() -> tableNotFound(share, schema, table));
+              return catalog.getTableVersion(
+                  AssetLookup.of(object.getType(), object.getName()),
+                  startingTimestamp,
+                  owner(share));
+            });
   }
 
-  private TableResponse getStored(
-      ShareEntity share, String schema, String schemaName, String table, String tableName) {
-    SharedDataObjectEntity object =
-        objects
-            .findTable(share, schemaName, tableName)
-            .orElseThrow(
-                () ->
-                    ApiException.notFound(
-                        "table '"
-                            + schema
-                            + "."
-                            + table
-                            + "' does not exist in share '"
-                            + share.getName()
-                            + "'"));
-    return getInfo(share, object.getSharedAsTable(), object.getSharedAsSchema(), object, null);
-  }
-
-  private TableResponse getChild(
-      ShareEntity share, SharedDataObjectEntity grant, String table, String tableName) {
+  private AssetLookup findChild(
+      ShareEntity share, SharedDataObjectEntity grant, String tableName) {
     for (ResolvedAsset child :
-        catalog.listChildren(AssetLookup.of(AssetType.SCHEMA, grant.getName()), owner(share))) {
+        catalog.listChildren(
+            AssetLookup.of(AssetType.SCHEMA, grant.getName()), owner(share))) {
       if (child.type() == AssetType.TABLE
           && tableName.equals(ObjectNames.normalize(lastSegment(child.identifier())))) {
-        return getInfo(share, lastSegment(child.identifier()), grant.getSharedAsSchema(), null, child);
+        return AssetLookup.of(AssetType.TABLE, child.identifier());
       }
     }
-    throw ApiException.notFound(
+    throw tableNotFound(share, grant.getSharedAsSchema(), tableName);
+  }
+
+  private static Instant parseTimestamp(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return Instant.parse(value);
+    } catch (DateTimeParseException invalid) {
+      throw ApiException.invalidParameter("startingTimestamp must be an ISO8601 UTC timestamp");
+    }
+  }
+
+  private static ApiException tableNotFound(ShareEntity share, String schema, String table) {
+    return ApiException.notFound(
         "table '"
-            + grant.getSharedAsSchema()
+            + schema
             + "."
             + table
             + "' does not exist in share '"
             + share.getName()
             + "'");
-  }
-
-  private TableResponse getInfo(
-      ShareEntity share,
-      String name,
-      String schemaName,
-      SharedDataObjectEntity stored,
-      ResolvedAsset child) {
-    ResolvedAsset resolved =
-        child != null
-            ? child
-            : catalog.resolveAsset(
-                AssetLookup.of(stored.getType(), stored.getName()), owner(share));
-    String id = child != null ? child.catalogAssetId() : stored.getSourceAssetId();
-    return new TableResponse(
-        name,
-        schemaName,
-        share.getName(),
-        share.getId(),
-        id,
-        null,
-        null,
-        null,
-        format(resolved));
   }
 
   private Page<TableResponse> listAll(ShareEntity share, Pageable pageable) {
@@ -256,8 +252,7 @@ public class ProtocolTableController {
         object.getSourceAssetId(),
         resolved.storageLocation(),
         emptyToNull(resolved.auxiliaryLocations()),
-        accessModes(resolved),
-        null);
+        accessModes(resolved));
   }
 
   private static TableResponse fromChild(
@@ -270,8 +265,7 @@ public class ProtocolTableController {
         child.catalogAssetId(),
         child.storageLocation(),
         emptyToNull(child.auxiliaryLocations()),
-        accessModes(child),
-        null);
+        accessModes(child));
   }
 
   private static AuthContext owner(ShareEntity share) {
@@ -303,7 +297,4 @@ public class ProtocolTableController {
     return null;
   }
 
-  private static String format(ResolvedAsset asset) {
-    return asset.format() == null ? null : asset.format().wireName();
-  }
 }
