@@ -40,8 +40,10 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(jsonPath("$.items[0].schema").value("sales"))
         .andExpect(jsonPath("$.items[0].share").value("table-share"))
         .andExpect(jsonPath("$.items[0].shareId").exists())
-        .andExpect(jsonPath("$.items[0].id").exists())
+        .andExpect(jsonPath("$.items[0].id").value("catalog.sales.customers"))
         .andExpect(jsonPath("$.items[0].location").value("s3://test/catalog.sales.customers/"))
+        .andExpect(jsonPath("$.items[0].accessModes[0]").value("url"))
+        .andExpect(jsonPath("$.items[0].accessModes[1]").value("dir"))
         .andExpect(jsonPath("$.items[1].name").value("orders"))
         .andExpect(jsonPath("$.nextPageToken").doesNotExist());
 
@@ -53,10 +55,9 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
   }
 
   @Test
-  void listsCatalogChildrenOfASharedSchemaAndPrefersAnExplicitTable() throws Exception {
+  void listsCatalogChildrenOfASharedSchema() throws Exception {
     createShare("schema-tables");
     addObject("schema-tables", "SCHEMA", "catalog.hr", "hr");
-    addObject("schema-tables", "TABLE", "catalog.other.orders", "hr.employees");
     createShare("hidden-share");
     addObject("hidden-share", "TABLE", "catalog.sales.orders", "sales.orders");
     String bearer = createAndActivateRecipient("schema-tables-partner");
@@ -68,11 +69,13 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items.length()").value(2))
         .andExpect(jsonPath("$.items[0].name").value("employees"))
-        .andExpect(jsonPath("$.items[0].location").value("s3://test/catalog.other.orders/"))
-        .andExpect(jsonPath("$.items[0].id").exists())
+        .andExpect(jsonPath("$.items[0].location").value("s3://test/catalog.hr.employees/"))
+        .andExpect(jsonPath("$.items[0].id").value("catalog.hr.employees"))
         .andExpect(jsonPath("$.items[1].name").value("salaries"))
         .andExpect(jsonPath("$.items[1].location").value("s3://test/catalog.hr.salaries/"))
-        .andExpect(jsonPath("$.items[1].id").doesNotExist());
+        .andExpect(jsonPath("$.items[1].id").value("catalog.hr.salaries"))
+        .andExpect(jsonPath("$.items[1].accessModes[0]").value("url"))
+        .andExpect(jsonPath("$.items[1].accessModes[1]").value("dir"));
 
     mvc.perform(
             get(PROTOCOL + "/shares/hidden-share/schemas/sales/tables")
