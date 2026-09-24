@@ -245,6 +245,25 @@ class ShareAdminControllerTest {
   }
 
   @Test
+  void rejectsATableUnderASharedSchema() throws Exception {
+    createShare("edge-schema-table");
+    patchShare(
+            "edge-schema-table",
+            """
+            {"updates":[{"action":"ADD","dataObject":{"name":"Main.Sales","type":"SCHEMA"}}]}
+            """)
+        .andExpect(status().isOk());
+    patchShare(
+            "edge-schema-table",
+            """
+            {"updates":[{"action":"ADD","dataObject":{"name":"Main.Sales.Orders","type":"TABLE"}}]}
+            """)
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_CONFLICT));
+    deleteShare("edge-schema-table");
+  }
+
+  @Test
   void rejectsDuplicateAliasAndSource() throws Exception {
     // First ADD of the catalog table succeeds.
     createShare("edge-dup");
