@@ -12,12 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 
-@SpringBootTest(
-    properties = {
-      "spring.datasource.url=jdbc:h2:mem:protocol-schemas;DB_CLOSE_DELAY=-1",
-      "opensharing.catalog.type=local",
-      "opensharing.catalog.local.file=classpath:local-catalog.yml"
-    })
+@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:protocol-schemas;DB_CLOSE_DELAY=-1")
 class ProtocolSchemaControllerTest extends ProtocolApiSupport {
 
   @Test
