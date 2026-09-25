@@ -33,6 +33,9 @@ opensharing:
     # standalone: run as its own Spring Boot process.
     # embedded: host registers a CatalogConnector bean.
     mode: standalone
+  provider:
+    # Provider-admin API. Its bearer tokens are authorized by the configured catalog.
+    base-path: /api/1.0/opensharing/provider
   recipient-tokens:
     default-ttl: 90d
     rotation-grace: 24h
