@@ -15,12 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 
-@SpringBootTest(
-    properties = {
-      "spring.datasource.url=jdbc:h2:mem:protocol-shares;DB_CLOSE_DELAY=-1",
-      "opensharing.catalog.type=local",
-      "opensharing.catalog.local.file=classpath:local-catalog.yml"
-    })
+@SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:protocol-shares;DB_CLOSE_DELAY=-1")
 class ProtocolShareControllerTest extends ProtocolApiSupport {
 
   private static final String SHARES = PROTOCOL + "/shares";

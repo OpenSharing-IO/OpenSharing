@@ -6,28 +6,23 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
-import io.opensharing.auth.AuthContext;
-import io.opensharing.auth.UserContext;
-import io.opensharing.catalog.AssetLookup;
-import io.opensharing.catalog.CatalogConnector;
-import io.opensharing.catalog.CredentialRequest;
-import io.opensharing.catalog.ResolvedAsset;
-import io.opensharing.catalog.StorageCredentials;
-import io.opensharing.exception.CatalogAuthorizationException;
 import java.net.URI;
-import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
-/** Provider setup shared by recipient protocol API tests. */
+/**
+ * Provider setup shared by recipient protocol API tests. Catalog lookup and provider auth go
+ * through {@code LocalCatalogConnector} and {@code classpath:local-catalog-protocol.yml}.
+ */
 @AutoConfigureMockMvc
-@Import(ProtocolApiSupport.CatalogAuthorization.class)
+@TestPropertySource(
+    properties = {
+      "opensharing.catalog.type=local",
+      "opensharing.catalog.local.file=classpath:local-catalog-protocol.yml"
+    })
 public abstract class ProtocolApiSupport {
 
   protected static final String PROVIDER = "/api/1.0/opensharing/provider";
@@ -103,40 +98,5 @@ public abstract class ProtocolApiSupport {
                     """
                         .formatted(recipient)))
         .andExpect(status().isOk());
-  }
-
-  @TestConfiguration
-  static class CatalogAuthorization {
-
-    @Bean
-    @Primary
-    CatalogConnector testCatalogConnector() {
-      return new CatalogConnector() {
-        @Override
-        public String name() {
-          return "test";
-        }
-
-        @Override
-        public ResolvedAsset resolveAsset(AssetLookup lookup, AuthContext auth) {
-          return ResolvedAsset.builder(lookup.type(), lookup.identifier()).build();
-        }
-
-        @Override
-        public List<StorageCredentials> getStorageCredentials(
-            CredentialRequest request, AuthContext auth) {
-          return List.of();
-        }
-
-        @Override
-        public UserContext authorize(AuthContext auth, String privilege) {
-          String token = auth.user() == null ? null : auth.user().bearerToken();
-          if (ALICE.equals(token)) {
-            return new UserContext("catalog-alice-id", "alice");
-          }
-          throw new CatalogAuthorizationException("invalid bearer token");
-        }
-      };
-    }
   }
 }
