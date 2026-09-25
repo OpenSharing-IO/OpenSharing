@@ -22,7 +22,8 @@ public record LocalCatalogFile(
 
   public enum CredentialMode {
     FAKE,
-    STATIC
+    STATIC,
+    ENV
   }
 
   /** Provider identity the local catalog accepts for admin APIs. */
