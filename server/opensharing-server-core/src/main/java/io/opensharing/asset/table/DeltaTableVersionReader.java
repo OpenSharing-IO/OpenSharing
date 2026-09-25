@@ -3,6 +3,7 @@ package io.opensharing.asset.table;
 import io.delta.kernel.Table;
 import io.delta.kernel.defaults.engine.DefaultEngine;
 import io.delta.kernel.engine.Engine;
+import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.internal.TableImpl;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.AssetType;
@@ -71,7 +72,7 @@ public class DeltaTableVersionReader {
     }
     try {
       return table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
-    } catch (IllegalArgumentException invalid) {
+    } catch (IllegalArgumentException | KernelException invalid) {
       throw ApiException.invalidParameter(
           "startingTimestamp is after the latest table version timestamp");
     }

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.engine.Engine;
+import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.internal.TableImpl;
 import io.opensharing.http.ApiException;
 import java.time.Instant;
@@ -34,7 +35,7 @@ class DeltaTableVersionReaderTest {
     when(table.getVersionAtOrAfterTimestamp(engine, 2000)).thenReturn(1L);
     when(table.getVersionAtOrAfterTimestamp(engine, 2500)).thenReturn(2L);
     when(table.getVersionAtOrAfterTimestamp(engine, 6000))
-        .thenThrow(new IllegalArgumentException("timestamp after latest"));
+        .thenThrow(new KernelException("timestamp after latest"));
 
     assertEquals(
         0, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(500)));

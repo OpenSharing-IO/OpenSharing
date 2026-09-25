@@ -1,0 +1,27 @@
+# Local catalog used by the S3 table-version API test.
+# Credentials come from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (GitHub Actions secrets).
+credentials:
+  provider: AWS
+  mode: ENV
+  ttlSeconds: 900
+
+principals:
+  - bearerToken: alice-token
+    userId: catalog-alice-id
+    userName: alice
+
+assets:
+  - identifier: main.sales
+    type: SCHEMA
+
+  - identifier: main.sales.table1
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+    format: delta
+
+  - identifier: main.sales.startingtimestamp
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: s3://delta-exchange-test/delta-exchange-test/table_startingtimestamp_test/
+    format: delta

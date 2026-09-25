@@ -159,9 +159,11 @@ public final class LocalCatalogConnector implements CatalogConnector {
     Instant expiration = Instant.now().plus(ttl);
     CloudProvider provider = credentials.provider();
     Map<String, String> values =
-        credentials.mode() == LocalCatalogFile.CredentialMode.STATIC
-            ? staticValues(provider)
-            : fakeValues(provider, expiration);
+        switch (credentials.mode()) {
+          case STATIC -> staticValues(provider);
+          case ENV -> envValues(provider);
+          case FAKE -> fakeValues(provider, expiration);
+        };
     return List.of(new StorageCredentials(location, provider, values, expiration));
   }
 
@@ -194,6 +196,44 @@ public final class LocalCatalogConnector implements CatalogConnector {
   private Duration configuredTtl() {
     Integer seconds = credentials.ttlSeconds();
     return seconds == null ? DEFAULT_TTL : Duration.ofSeconds(seconds);
+  }
+
+  private Map<String, String> envValues(CloudProvider provider) {
+    if (provider != CloudProvider.AWS && provider != CloudProvider.R2) {
+      throw new CatalogException(
+          "local catalog credentials.mode is ENV, which only vends AWS or R2 keys");
+    }
+    Map<String, String> values = new LinkedHashMap<>();
+    values.put(StorageCredentials.ACCESS_KEY_ID, requireEnv("AWS_ACCESS_KEY_ID"));
+    values.put(StorageCredentials.SECRET_ACCESS_KEY, requireEnv("AWS_SECRET_ACCESS_KEY"));
+    String region = firstEnv("AWS_REGION", "AWS_DEFAULT_REGION");
+    if (region != null) {
+      values.put(StorageCredentials.REGION, region);
+    }
+    String session = System.getenv("AWS_SESSION_TOKEN");
+    if (session != null && !session.isBlank()) {
+      values.put(StorageCredentials.SESSION_TOKEN, session);
+    }
+    return values;
+  }
+
+  private static String requireEnv(String name) {
+    String value = System.getenv(name);
+    if (value == null || value.isBlank()) {
+      throw new CatalogException(
+          "local catalog credentials.mode is ENV but environment variable '" + name + "' is unset");
+    }
+    return value;
+  }
+
+  private static String firstEnv(String... names) {
+    for (String name : names) {
+      String value = System.getenv(name);
+      if (value != null && !value.isBlank()) {
+        return value;
+      }
+    }
+    return null;
   }
 
   private Map<String, String> staticValues(CloudProvider provider) {
