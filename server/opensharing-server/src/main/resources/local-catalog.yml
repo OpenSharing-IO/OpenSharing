@@ -5,6 +5,14 @@ credentials:
   mode: FAKE
   ttlSeconds: 3600
 
+principals:
+  - bearerToken: alice-token
+    userId: catalog-alice-id
+    userName: alice
+  - bearerToken: bob-token
+    userId: catalog-bob-id
+    userName: bob
+
 assets:
   - identifier: main.sales
     type: SCHEMA
