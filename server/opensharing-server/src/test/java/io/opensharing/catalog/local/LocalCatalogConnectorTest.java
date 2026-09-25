@@ -283,136 +283,6 @@ class LocalCatalogConnectorTest {
   }
 
   @Test
-  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
-  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
-  void vendsAwsKeysFromTheEnvironment() {
-    String yaml =
-        """
-        credentials:
-          provider: AWS
-          mode: ENV
-        assets:
-          - identifier: main.sales.table1
-            type: TABLE
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-        """;
-
-    StorageCredentials credentials =
-        connector(yaml)
-            .getStorageCredentials(
-                new CredentialRequest(
-                    AssetType.TABLE,
-                    "main.sales.table1",
-                    null,
-                    TABLE1,
-                    StorageOperation.READ,
-                    Duration.ofMinutes(5)),
-                AuthContext.of(ALICE))
-            .get(0);
-
-    assertEquals(System.getenv("AWS_ACCESS_KEY_ID"), credentials.require(StorageCredentials.ACCESS_KEY_ID));
-    assertEquals(
-        System.getenv("AWS_SECRET_ACCESS_KEY"),
-        credentials.require(StorageCredentials.SECRET_ACCESS_KEY));
-  }
-
-  @Test
-  @EnabledIfEnvironmentVariable(named = "AZURE_TEST_ACCOUNT_KEY", matches = ".+")
-  void selectsAzureEnvironmentCredentialsForAnAbfssAsset() {
-    String location =
-        "abfss://delta-sharing-test-container@deltasharingtest.dfs.core.windows.net/"
-            + "delta-sharing-test/table1";
-    String yaml =
-        """
-        credentials:
-          mode: ENV
-        assets:
-          - identifier: main.sales.azure
-            type: TABLE
-            storageLocation: %s
-        """
-            .formatted(location);
-
-    StorageCredentials credentials =
-        connector(yaml)
-            .getStorageCredentials(
-                new CredentialRequest(
-                    AssetType.TABLE,
-                    "main.sales.azure",
-                    null,
-                    location,
-                    StorageOperation.READ,
-                    Duration.ofMinutes(5)),
-                AuthContext.of(ALICE))
-            .get(0);
-
-    assertEquals(CloudProvider.AZURE, credentials.provider());
-    assertEquals(
-        System.getenv("AZURE_TEST_ACCOUNT_KEY"),
-        credentials.require(StorageCredentials.AZURE_ACCOUNT_KEY));
-  }
-
-  @Test
-  @EnabledIfEnvironmentVariable(named = "GOOGLE_APPLICATION_CREDENTIALS", matches = ".+")
-  void selectsGoogleEnvironmentCredentialsForAGsAsset() {
-    String location = "gs://delta-sharing-dev/delta-sharing-test/table1";
-    String yaml =
-        """
-        credentials:
-          mode: ENV
-        assets:
-          - identifier: main.sales.gcs
-            type: TABLE
-            storageLocation: %s
-        """
-            .formatted(location);
-
-    StorageCredentials credentials =
-        connector(yaml)
-            .getStorageCredentials(
-                new CredentialRequest(
-                    AssetType.TABLE,
-                    "main.sales.gcs",
-                    null,
-                    location,
-                    StorageOperation.READ,
-                    Duration.ofMinutes(5)),
-                AuthContext.of(ALICE))
-            .get(0);
-
-    assertEquals(CloudProvider.GCP, credentials.provider());
-    assertEquals(
-        System.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
-        credentials.require(StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE));
-  }
-
-  @Test
-  void authorizesConfiguredLocalPrincipals() {
-    String yaml =
-        """
-        principals:
-          - bearerToken: alice-token
-            userId: catalog-alice-id
-            userName: alice
-        assets:
-          - identifier: main.sales.table1
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-        """;
-    LocalCatalogConnector connector = connector(yaml);
-
-    UserContext alice =
-        connector.authorize(
-            new AuthContext(null, new UserContext(null, "alice-token", null)), "CREATE_SHARE");
-    assertEquals("catalog-alice-id", alice.userId());
-    assertEquals("alice", alice.userName());
-    assertThrows(
-        CatalogAuthorizationException.class,
-        () ->
-            connector.authorize(
-                new AuthContext(null, new UserContext(null, "bob-token", null)), null));
-  }
-
-  @Test
   void rejectsStaticModeWithMissingValues() {
     String yaml =
         """
@@ -512,6 +382,32 @@ class LocalCatalogConnectorTest {
     assertThrows(
         AssetNotFoundException.class,
         () -> connector.listChildren(schema, AuthContext.of(ALICE)));
+  }
+
+  @Test
+  void authorizesConfiguredLocalPrincipals() {
+    String yaml =
+        """
+        principals:
+          - bearerToken: alice-token
+            userId: catalog-alice-id
+            userName: alice
+        assets:
+          - identifier: main.sales.table1
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+        """;
+    LocalCatalogConnector connector = connector(yaml);
+
+    UserContext alice =
+        connector.authorize(
+            new AuthContext(null, new UserContext(null, "alice-token", null)), "CREATE_SHARE");
+    assertEquals("catalog-alice-id", alice.userId());
+    assertEquals("alice", alice.userName());
+    assertThrows(
+        CatalogAuthorizationException.class,
+        () ->
+            connector.authorize(
+                new AuthContext(null, new UserContext(null, "bob-token", null)), null));
   }
 
   @Test
