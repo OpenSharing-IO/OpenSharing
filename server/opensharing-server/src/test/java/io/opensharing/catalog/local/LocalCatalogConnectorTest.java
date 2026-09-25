@@ -317,6 +317,76 @@ class LocalCatalogConnectorTest {
   }
 
   @Test
+  @EnabledIfEnvironmentVariable(named = "AZURE_TEST_ACCOUNT_KEY", matches = ".+")
+  void selectsAzureEnvironmentCredentialsForAnAbfssAsset() {
+    String location =
+        "abfss://delta-sharing-test-container@deltasharingtest.dfs.core.windows.net/"
+            + "delta-sharing-test/table1";
+    String yaml =
+        """
+        credentials:
+          mode: ENV
+        assets:
+          - identifier: main.sales.azure
+            type: TABLE
+            storageLocation: %s
+        """
+            .formatted(location);
+
+    StorageCredentials credentials =
+        connector(yaml)
+            .getStorageCredentials(
+                new CredentialRequest(
+                    AssetType.TABLE,
+                    "main.sales.azure",
+                    null,
+                    location,
+                    StorageOperation.READ,
+                    Duration.ofMinutes(5)),
+                AuthContext.of(ALICE))
+            .get(0);
+
+    assertEquals(CloudProvider.AZURE, credentials.provider());
+    assertEquals(
+        System.getenv("AZURE_TEST_ACCOUNT_KEY"),
+        credentials.require(StorageCredentials.AZURE_ACCOUNT_KEY));
+  }
+
+  @Test
+  @EnabledIfEnvironmentVariable(named = "GOOGLE_APPLICATION_CREDENTIALS", matches = ".+")
+  void selectsGoogleEnvironmentCredentialsForAGsAsset() {
+    String location = "gs://delta-sharing-dev/delta-sharing-test/table1";
+    String yaml =
+        """
+        credentials:
+          mode: ENV
+        assets:
+          - identifier: main.sales.gcs
+            type: TABLE
+            storageLocation: %s
+        """
+            .formatted(location);
+
+    StorageCredentials credentials =
+        connector(yaml)
+            .getStorageCredentials(
+                new CredentialRequest(
+                    AssetType.TABLE,
+                    "main.sales.gcs",
+                    null,
+                    location,
+                    StorageOperation.READ,
+                    Duration.ofMinutes(5)),
+                AuthContext.of(ALICE))
+            .get(0);
+
+    assertEquals(CloudProvider.GCP, credentials.provider());
+    assertEquals(
+        System.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
+        credentials.require(StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE));
+  }
+
+  @Test
   void authorizesConfiguredLocalPrincipals() {
     String yaml =
         """

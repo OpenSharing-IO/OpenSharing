@@ -1,5 +1,6 @@
 package io.opensharing.asset.table;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -15,22 +16,22 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
- * Recipient Query Table Version through the local catalog, Kernel, and a real Delta log.
- * Skipped unless same-repository cloud credentials are present.
+ * Recipient Query Table Version through the local catalog, Kernel, and real cloud Delta logs.
+ * Individual cloud cases are skipped unless their repository credentials are present.
  */
 @SpringBootTest(
     properties = {
       "spring.datasource.url=jdbc:h2:mem:protocol-table-version;DB_CLOSE_DELAY=-1",
       "opensharing.catalog.type=local",
-      "opensharing.catalog.local.file=classpath:local-catalog-s3.yml",
+      "opensharing.catalog.local.file=classpath:local-catalog-cloud.yml",
       "opensharing.test.stub-protocol-dependencies=false"
     })
-@EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
-@EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
 @Timeout(60)
-class ProtocolTableVersionIT extends ProtocolApiSupport {
+class ProtocolTableVersionIntegrationTest extends ProtocolApiSupport {
 
   @Test
+  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
+  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
   void queriesLatestAndTimestampVersionsForTable1() throws Exception {
     String bearer = shareTable("table1-version", "main.sales.table1", "sales.table1");
     String endpoint = PROTOCOL + "/shares/table1-version/schemas/sales/tables/table1/version";
@@ -52,6 +53,8 @@ class ProtocolTableVersionIT extends ProtocolApiSupport {
   }
 
   @Test
+  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
+  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
   void queriesAtOrAfterTimestampsOnTheStartingTimestampTable() throws Exception {
     String bearer =
         shareTable("ts-version", "main.sales.startingtimestamp", "sales.startingtimestamp");
@@ -79,6 +82,8 @@ class ProtocolTableVersionIT extends ProtocolApiSupport {
   }
 
   @Test
+  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
+  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
   void queriesVersionThroughASchemaGrant() throws Exception {
     createShare("schema-version");
     addObject("schema-version", "SCHEMA", "main.sales", "sales");
@@ -98,6 +103,18 @@ class ProtocolTableVersionIT extends ProtocolApiSupport {
             "2023-05-09T08:32:00Z")
         .andExpect(status().isOk())
         .andExpect(header().string("Delta-Table-Version", "2"));
+  }
+
+  @Test
+  @EnabledIfEnvironmentVariable(named = "AZURE_TEST_ACCOUNT_KEY", matches = ".+")
+  void queriesAzureTableVersions() throws Exception {
+    queryCloudTableVersions("azure-version", "main.sales.azure", "sales.azure");
+  }
+
+  @Test
+  @EnabledIfEnvironmentVariable(named = "GOOGLE_APPLICATION_CREDENTIALS", matches = ".+")
+  void queriesGoogleTableVersions() throws Exception {
+    queryCloudTableVersions("gcs-version", "main.sales.gcs", "sales.gcs");
   }
 
   @Test
@@ -126,6 +143,38 @@ class ProtocolTableVersionIT extends ProtocolApiSupport {
     String bearer = createAndActivateRecipient(share + "-partner");
     grant(share, share + "-partner");
     return bearer;
+  }
+
+  private void queryCloudTableVersions(String share, String catalogName, String sharedAs)
+      throws Exception {
+    String bearer = shareTable(share, catalogName, sharedAs);
+    String[] alias = sharedAs.split("\\.");
+    String endpoint =
+        PROTOCOL
+            + "/shares/"
+            + share
+            + "/schemas/"
+            + alias[0]
+            + "/tables/"
+            + alias[1]
+            + "/version";
+
+    String latest =
+        version(endpoint, bearer, null)
+            .andExpect(status().isOk())
+            .andExpect(header().exists("Delta-Table-Version"))
+            .andExpect(content().string(""))
+            .andReturn()
+            .getResponse()
+            .getHeader("Delta-Table-Version");
+    assertTrue(Long.parseLong(latest) >= 0, "latest version was " + latest);
+
+    version(endpoint, bearer, "1970-01-01T00:00:00Z")
+        .andExpect(status().isOk())
+        .andExpect(header().string("Delta-Table-Version", "0"));
+    version(endpoint, bearer, "2099-01-01T00:00:00Z")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
   }
 
   private ResultActions version(String endpoint, String bearer, String startingTimestamp)
