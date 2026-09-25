@@ -10,6 +10,7 @@ class ObjectNamesTest {
   @Test
   void lowercasesShareNames() {
     assertEquals("vaccine_share", ObjectNames.validateShareName("Vaccine_Share"));
+    assertEquals("acme_partner", ObjectNames.validateRecipientName("Acme_Partner"));
   }
 
   @Test
