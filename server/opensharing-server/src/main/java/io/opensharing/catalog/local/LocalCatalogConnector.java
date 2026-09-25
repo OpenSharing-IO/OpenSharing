@@ -7,6 +7,7 @@ import io.opensharing.catalog.AssetLookup;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
@@ -38,11 +39,13 @@ public final class LocalCatalogConnector implements CatalogConnector {
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".toCharArray();
 
   private final Map<String, LocalCatalogFile.Asset> assetsByIdentifier;
+  private final List<LocalCatalogFile.Principal> principals;
   private final LocalCatalogFile.Credentials credentials;
   private final SecureRandom random = new SecureRandom();
 
   public LocalCatalogConnector(LocalCatalogFile file) {
     this.credentials = file.credentials();
+    this.principals = file.principals();
     this.assetsByIdentifier =
         file.assets().stream()
             .collect(
@@ -160,6 +163,25 @@ public final class LocalCatalogConnector implements CatalogConnector {
             ? staticValues(provider)
             : fakeValues(provider, expiration);
     return List.of(new StorageCredentials(location, provider, values, expiration));
+  }
+
+  @Override
+  public UserContext authorize(AuthContext auth, String privilege) {
+    if (principals.isEmpty()) {
+      throw new UnsupportedOperationException(
+          "the " + NAME + " catalog has no principals configured to authorize");
+    }
+    String token = auth == null || auth.user() == null ? null : auth.user().bearerToken();
+    if (token == null || token.isBlank()) {
+      throw new CatalogAuthorizationException("missing bearer token");
+    }
+    return principals.stream()
+        .filter(principal -> token.equals(principal.bearerToken()))
+        .findFirst()
+        .map(
+            principal ->
+                new UserContext(principal.userId(), principal.bearerToken(), principal.userName()))
+        .orElseThrow(() -> new CatalogAuthorizationException("invalid bearer token"));
   }
 
   private static boolean covers(LocalCatalogFile.Asset asset, String location) {

@@ -10,6 +10,7 @@ import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.AssetLookup;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
@@ -381,6 +382,32 @@ class LocalCatalogConnectorTest {
     assertThrows(
         AssetNotFoundException.class,
         () -> connector.listChildren(schema, AuthContext.of(ALICE)));
+  }
+
+  @Test
+  void authorizesConfiguredLocalPrincipals() {
+    String yaml =
+        """
+        principals:
+          - bearerToken: alice-token
+            userId: catalog-alice-id
+            userName: alice
+        assets:
+          - identifier: main.sales.table1
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+        """;
+    LocalCatalogConnector connector = connector(yaml);
+
+    UserContext alice =
+        connector.authorize(
+            new AuthContext(null, new UserContext(null, "alice-token", null)), "CREATE_SHARE");
+    assertEquals("catalog-alice-id", alice.userId());
+    assertEquals("alice", alice.userName());
+    assertThrows(
+        CatalogAuthorizationException.class,
+        () ->
+            connector.authorize(
+                new AuthContext(null, new UserContext(null, "bob-token", null)), null));
   }
 
   @Test
