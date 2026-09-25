@@ -3,8 +3,9 @@ package io.opensharing;
 import java.util.Locale;
 
 /**
- * Name rules from {@code spec/protocols/OVERVIEW.md}. Object names are compared case-insensitively,
- * so callers persist {@link #normalize(String)} alongside the name as provided.
+ * Name rules from {@code spec/protocols/OVERVIEW.md}. Object names are compared case-insensitively.
+ * Share names are stored lowercase; other names persist the original casing plus {@link
+ * #normalize(String)} for lookups.
  */
 public final class ObjectNames {
 
@@ -12,9 +13,9 @@ public final class ObjectNames {
 
   private ObjectNames() {}
 
-  /** Validates a share name. */
+  /** Validates a share name and returns it lowercased. */
   public static String validateShareName(String name) {
-    return validate(name, "share name", false);
+    return normalize(validate(name, "share name", false));
   }
 
   /** Validates a schema name, which additionally disallows {@code .}. */

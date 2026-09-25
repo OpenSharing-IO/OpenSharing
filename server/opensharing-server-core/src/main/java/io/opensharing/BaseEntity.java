@@ -13,7 +13,7 @@ import java.util.UUID;
 public abstract class BaseEntity {
 
   @Id
-  @Column(name = "id", length = 36, nullable = false, updatable = false)
+  @Column(length = 36, nullable = false, updatable = false)
   private String id = UUID.randomUUID().toString();
 
   @Column(name = "created_at", nullable = false, updatable = false)
