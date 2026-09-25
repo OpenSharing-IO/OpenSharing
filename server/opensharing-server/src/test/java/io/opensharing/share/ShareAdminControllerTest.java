@@ -7,23 +7,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import io.opensharing.auth.AuthContext;
-import io.opensharing.auth.UserContext;
-import io.opensharing.catalog.AssetLookup;
-import io.opensharing.catalog.CatalogConnector;
-import io.opensharing.catalog.CredentialRequest;
-import io.opensharing.catalog.ResolvedAsset;
-import io.opensharing.catalog.StorageCredentials;
-import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.http.ErrorCodes;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -97,41 +85,5 @@ class ShareAdminControllerTest {
     mvc.perform(get(SHARES + "/sales").header("Authorization", "Bearer alice-token"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
-  }
-
-  @TestConfiguration
-  static class CatalogAuthorization {
-
-    @Bean
-    @Primary
-    CatalogConnector testCatalogConnector() {
-      return new CatalogConnector() {
-        @Override
-        public String name() {
-          return "test";
-        }
-
-        @Override
-        public ResolvedAsset resolveAsset(AssetLookup lookup, AuthContext auth) {
-          throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<StorageCredentials> getStorageCredentials(
-            CredentialRequest request, AuthContext auth) {
-          return List.of();
-        }
-
-        @Override
-        public UserContext authorize(AuthContext auth, String privilege) {
-          String token = auth.user() == null ? null : auth.user().bearerToken();
-          return switch (token) {
-            case "alice-token" -> new UserContext("catalog-alice-id", "alice");
-            case "bob-token" -> new UserContext("catalog-bob-id", "bob");
-            default -> throw new CatalogAuthorizationException("invalid bearer token");
-          };
-        }
-      };
-    }
   }
 }

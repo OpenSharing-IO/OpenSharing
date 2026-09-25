@@ -21,3 +21,9 @@ assets:
     subtype: MANAGED
     storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
     format: delta
+
+  - identifier: main.sales.orders
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: s3://test/main.sales.orders/
+    format: delta
