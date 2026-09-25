@@ -1,7 +1,6 @@
-# Local catalog used by the S3 table-version API test.
-# Credentials come from AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (GitHub Actions secrets).
+# Local catalog used by cloud-backed table-version integration tests.
+# ENV mode chooses AWS, Azure, or GCP credentials from each asset's URI scheme.
 credentials:
-  provider: AWS
   mode: ENV
   ttlSeconds: 900
 
@@ -24,4 +23,16 @@ assets:
     type: TABLE
     subtype: MANAGED
     storageLocation: s3://delta-exchange-test/delta-exchange-test/table_startingtimestamp_test/
+    format: delta
+
+  - identifier: main.sales.azure
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: abfss://delta-sharing-test-container@deltasharingtest.dfs.core.windows.net/delta-sharing-test/table1
+    format: delta
+
+  - identifier: main.sales.gcs
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: gs://delta-sharing-dev/delta-sharing-test/table1
     format: delta

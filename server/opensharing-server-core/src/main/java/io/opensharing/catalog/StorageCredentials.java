@@ -11,7 +11,9 @@ public record StorageCredentials(
   public static final String ACCESS_KEY_ID = "accessKeyId";
   public static final String SECRET_ACCESS_KEY = "secretAccessKey";
   public static final String SESSION_TOKEN = "sessionToken";
+  public static final String AZURE_ACCOUNT_KEY = "azureAccountKey";
   public static final String SAS_TOKEN = "sasToken";
+  public static final String GOOGLE_SERVICE_ACCOUNT_KEY_FILE = "googleServiceAccountKeyFile";
   public static final String OAUTH_TOKEN = "oauthToken";
   public static final String REGION = "region";
 

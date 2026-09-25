@@ -121,6 +121,13 @@ public class DeltaTableVersionReader {
     if (host == null || host.isBlank()) {
       throw new CatalogException("Azure table location has no storage account host");
     }
+    String accountKey =
+        credentials.credentials().get(StorageCredentials.AZURE_ACCOUNT_KEY);
+    if (accountKey != null && !accountKey.isBlank()) {
+      configuration.set("fs.azure.account.auth.type." + host, "SharedKey");
+      configuration.set("fs.azure.account.key." + host, accountKey);
+      return;
+    }
     configuration.set("fs.azure.account.auth.type." + host, "SAS");
     configuration.set(
         "fs.azure.sas.token.provider.type." + host,
@@ -132,6 +139,13 @@ public class DeltaTableVersionReader {
 
   private static void configureGcs(
       Configuration configuration, StorageCredentials credentials) {
+    String keyFile =
+        credentials.credentials().get(StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE);
+    if (keyFile != null && !keyFile.isBlank()) {
+      configuration.set("fs.gs.auth.type", "SERVICE_ACCOUNT_JSON_KEYFILE");
+      configuration.set("fs.gs.auth.service.account.json.keyfile", keyFile);
+      return;
+    }
     configuration.set("fs.gs.auth.type", "ACCESS_TOKEN_PROVIDER");
     configuration.set(
         "fs.gs.auth.access.token.provider.impl", GcsAccessTokenProvider.class.getName());
