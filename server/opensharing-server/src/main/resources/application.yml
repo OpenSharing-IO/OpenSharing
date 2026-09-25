@@ -1,0 +1,59 @@
+# Defaults for a local run. Any key here can be overridden per environment without editing the file:
+# pass --the.key.path=value as an argument, or set the upper-case underscored form of the path.
+spring:
+  application:
+    name: opensharing-server
+  datasource:
+    # The driver is derived from the URL, so pointing this at Postgres or MySQL is the only change
+    # needed to move the metadata store there.
+    url: jdbc:h2:file:./data/opensharing;AUTO_SERVER=TRUE
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  jackson:
+    default-property-inclusion: non_null
+    mapper:
+      accept-case-insensitive-enums: true
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+  error:
+    whitelabel:
+      enabled: false
+
+opensharing:
+  # Prefix the protocol-serving endpoints are mounted under; this is what goes in a profile file.
+  protocol-prefix: /api/1.0/opensharing
+  hosting:
+    # standalone: run as its own Spring Boot process.
+    # embedded: host registers a CatalogConnector bean.
+    mode: standalone
+  recipient-tokens:
+    default-ttl: 90d
+    rotation-grace: 24h
+  asset-credentials:
+    ttl: 1h
+  pagination:
+    default-max-results: 500
+    max-max-results: 1000
+  storage:
+    # Service-account key used to sign GCS URLs.
+    gcs-service-account-key-file: ""
+  delta:
+    url-access-enabled: true
+    url-ttl: 1h
+  catalog:
+    type: local
+    local:
+      file: classpath:local-catalog.yml
+
+logging:
+  level:
+    io.opensharing: INFO
+    # Delta Kernel narrates every log segment it loads, which is a line per request.
+    io.delta: WARN

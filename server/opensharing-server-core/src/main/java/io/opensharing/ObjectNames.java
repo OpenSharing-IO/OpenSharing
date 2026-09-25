@@ -1,0 +1,65 @@
+package io.opensharing;
+
+import java.util.Locale;
+
+/**
+ * Name rules from {@code spec/protocols/OVERVIEW.md}. Object names are compared case-insensitively.
+ * Share names, recipient names, and shared-as schema/table names are stored lowercase; catalog
+ * identifiers persist original casing.
+ */
+public final class ObjectNames {
+
+  public static final int MAX_LENGTH = 255;
+
+  private ObjectNames() {}
+
+  /** Validates a share name and returns it lowercased. */
+  public static String validateShareName(String name) {
+    return normalize(validate(name, "share name", false));
+  }
+
+  /** Validates a schema name, which additionally disallows {@code .}. */
+  public static String validateSchemaName(String name) {
+    return validate(name, "schema name", true);
+  }
+
+  /** Validates a shared asset name, which additionally disallows {@code .}. */
+  public static String validateAssetName(String name) {
+    return validate(name, "asset name", true);
+  }
+
+  /** Validates a recipient name and returns it lowercased. */
+  public static String validateRecipientName(String name) {
+    return normalize(validate(name, "recipient name", false));
+  }
+
+  /** Lower-cases a name for case-insensitive lookups and uniqueness checks. */
+  public static String normalize(String name) {
+    return name == null ? null : name.toLowerCase(Locale.ROOT);
+  }
+
+  private static String validate(String name, String what, boolean rejectPeriod) {
+    if (name == null || name.isEmpty()) {
+      throw new IllegalArgumentException(what + " must not be empty");
+    }
+    if (name.length() > MAX_LENGTH) {
+      throw new IllegalArgumentException(what + " must not exceed " + MAX_LENGTH + " characters");
+    }
+    for (int i = 0; i < name.length(); i++) {
+      char c = name.charAt(i);
+      if (c == ' ') {
+        throw new IllegalArgumentException(what + " must not contain a space");
+      }
+      if (c == '/') {
+        throw new IllegalArgumentException(what + " must not contain a forward slash");
+      }
+      if (c <= 0x1F || c == 0x7F) {
+        throw new IllegalArgumentException(what + " must not contain control characters");
+      }
+      if (rejectPeriod && c == '.') {
+        throw new IllegalArgumentException(what + " must not contain a period");
+      }
+    }
+    return name;
+  }
+}
