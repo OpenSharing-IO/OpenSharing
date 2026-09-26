@@ -175,10 +175,10 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
   @Test
   void queriesAGrantedTableVersion() throws Exception {
     createShare("table-version");
-    addObject("table-version", "TABLE", "catalog.sales.orders", "sales.orders");
-    addObject("table-version", "SCHEMA", "catalog.hr", "hr");
+    addObject("table-version", "TABLE", "main.sales.orders", "sales.orders");
+    addObject("table-version", "TABLE", "main.sales.table1", "hr.table1");
     createShare("hidden-version");
-    addObject("hidden-version", "TABLE", "catalog.sales.customers", "sales.customers");
+    addObject("hidden-version", "TABLE", "main.sales.table1", "sales.customers");
     String bearer = createAndActivateRecipient("table-version-partner");
     grant("table-version", "table-version-partner");
 
@@ -190,7 +190,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(content().string(""));
 
     mvc.perform(
-            get(PROTOCOL + "/shares/table-version/schemas/hr/tables/SALARIES/version")
+            get(PROTOCOL + "/shares/table-version/schemas/hr/tables/TABLE1/version")
                 .param("startingTimestamp", "2022-01-01T00:00:00Z")
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isOk())
