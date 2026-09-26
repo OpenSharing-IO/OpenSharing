@@ -4,7 +4,11 @@ import io.opensharing.catalog.AssetType;
 import io.opensharing.share.ShareEntity;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /** JPA access to objects included in shares. */
 public interface SharedDataObjectRepository
@@ -28,4 +32,14 @@ public interface SharedDataObjectRepository
 
   List<SharedDataObjectEntity> findByShareOrderBySharedAsSchemaAscSharedAsTableAsc(
       ShareEntity share);
+
+  @Query(
+      value =
+          "select distinct o.sharedAsSchema from SharedDataObjectEntity o "
+              + "where o.share = :share order by o.sharedAsSchema asc",
+      countQuery =
+          "select count(distinct o.sharedAsSchema) from SharedDataObjectEntity o "
+              + "where o.share = :share")
+  Page<String> findDistinctSharedAsSchemasByShare(
+      @Param("share") ShareEntity share, Pageable pageable);
 }

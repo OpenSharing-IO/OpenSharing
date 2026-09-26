@@ -27,3 +27,12 @@ assets:
     subtype: MANAGED
     storageLocation: s3://test/main.sales.orders/
     format: delta
+
+  - identifier: main.hr
+    type: SCHEMA
+
+  - identifier: main.ops.people
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: s3://test/main.ops.people/
+    format: delta
