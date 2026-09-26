@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
-import io.opensharing.asset.table.DeltaTableVersionReader;
+import io.opensharing.asset.table.DeltaKernel;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
@@ -27,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * through {@code LocalCatalogConnector} and {@code classpath:local-catalog.yml}.
  */
 @AutoConfigureMockMvc
-@Import(ProtocolApiSupport.StubTableVersionReader.class)
+@Import(ProtocolApiSupport.StubDeltaKernel.class)
 public abstract class ProtocolApiSupport {
 
   protected static final String PROVIDER = "/api/1.0/opensharing/provider";
@@ -110,7 +110,7 @@ public abstract class ProtocolApiSupport {
    * opensharing.test.stub-protocol-dependencies=false} to use the real reader.
    */
   @TestConfiguration
-  static class StubTableVersionReader {
+  static class StubDeltaKernel {
 
     @Bean
     @Primary
@@ -118,8 +118,8 @@ public abstract class ProtocolApiSupport {
         name = "opensharing.test.stub-protocol-dependencies",
         havingValue = "true",
         matchIfMissing = true)
-    DeltaTableVersionReader testDeltaTableVersionReader(CatalogConnector catalog) {
-      return new DeltaTableVersionReader(catalog) {
+    DeltaKernel testDeltaKernel(CatalogConnector catalog) {
+      return new DeltaKernel(catalog) {
         @Override
         public long getVersion(ResolvedAsset table, Instant timestamp, AuthContext auth) {
           return timestamp == null ? 123 : 45;

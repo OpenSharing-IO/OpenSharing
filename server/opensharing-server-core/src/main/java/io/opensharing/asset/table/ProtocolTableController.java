@@ -47,7 +47,7 @@ public class ProtocolTableController {
   private final SharePermissionStore permissions;
   private final SharedDataObjectStore objects;
   private final CatalogConnector catalog;
-  private final DeltaTableVersionReader versions;
+  private final DeltaKernel kernel;
   private final Listings listings;
 
   public ProtocolTableController(
@@ -56,14 +56,14 @@ public class ProtocolTableController {
       SharePermissionStore permissions,
       SharedDataObjectStore objects,
       CatalogConnector catalog,
-      DeltaTableVersionReader versions,
+      DeltaKernel kernel,
       Listings listings) {
     this.recipients = recipients;
     this.shares = shares;
     this.permissions = permissions;
     this.objects = objects;
     this.catalog = catalog;
-    this.versions = versions;
+    this.kernel = kernel;
     this.listings = listings;
   }
 
@@ -151,7 +151,7 @@ public class ProtocolTableController {
                   return catalog.resolveAsset(
                       AssetLookup.of(object.getType(), object.getName()), owner(share));
                 });
-    return versions.getVersion(resolved, startingTimestamp, owner(share));
+    return kernel.getVersion(resolved, startingTimestamp, owner(share));
   }
 
   private ResolvedAsset findChild(
