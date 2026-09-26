@@ -68,6 +68,13 @@ public class RecipientStore {
   }
 
   @Transactional(readOnly = true)
+  public RecipientEntity requireById(String id) {
+    return recipients
+        .findById(id)
+        .orElseThrow(() -> ApiException.unauthenticated("recipient no longer exists"));
+  }
+
+  @Transactional(readOnly = true)
   public RecipientEntity requireOwned(String name, UserContext user) {
     RecipientEntity recipient = require(name);
     user.requireOwner(recipient.getOwnerId(), "recipient '" + recipient.getName() + "'");
@@ -106,6 +113,16 @@ public class RecipientStore {
     token.setActivationCode(null);
     token.setActivated(true);
     return tokens.save(token);
+  }
+
+  @Transactional(readOnly = true)
+  public Optional<RecipientTokenEntity> findUsableToken(String tokenHash, Instant now) {
+    return tokens
+        .findByTokenHash(tokenHash)
+        .filter(
+            token ->
+                token.isActivated()
+                    && (token.getExpiresAt() == null || token.getExpiresAt().isAfter(now)));
   }
 
   /**
