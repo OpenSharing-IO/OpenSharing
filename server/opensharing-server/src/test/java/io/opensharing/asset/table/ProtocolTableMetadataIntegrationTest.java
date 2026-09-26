@@ -48,6 +48,16 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     assertTrue(latest.contains("\"metaData\""), latest);
     assertTrue(latest.contains("eventTime") || latest.contains("date"), latest);
 
+    String delta =
+        metadata(endpoint, bearer, null, null, "responseformat=delta")
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "2"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(delta.contains("\"deltaProtocol\""), delta);
+    assertTrue(delta.contains("\"deltaMetadata\""), delta);
+
     metadata(endpoint, bearer, 0L, null)
         .andExpect(status().isOk())
         .andExpect(header().string("Delta-Table-Version", "0"));
@@ -102,7 +112,16 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
 
   private ResultActions metadata(String endpoint, String bearer, Long version, String timestamp)
       throws Exception {
+    return metadata(endpoint, bearer, version, timestamp, null);
+  }
+
+  private ResultActions metadata(
+      String endpoint, String bearer, Long version, String timestamp, String capabilities)
+      throws Exception {
     var request = get(endpoint).header("Authorization", "Bearer " + bearer);
+    if (capabilities != null) {
+      request = request.header("delta-sharing-capabilities", capabilities);
+    }
     if (version != null) {
       request = request.param("version", Long.toString(version));
     }
