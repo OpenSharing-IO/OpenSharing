@@ -42,4 +42,47 @@ public interface SharedDataObjectRepository
               + "where o.share = :share")
   Page<String> findDistinctSharedAsSchemasByShare(
       @Param("share") ShareEntity share, Pageable pageable);
+
+  boolean existsByShareAndSharedAsSchema(ShareEntity share, String sharedAsSchema);
+
+  Optional<SharedDataObjectEntity> findByShareAndSharedAsSchemaAndTypeAndSharedAsTable(
+      ShareEntity share, String sharedAsSchema, AssetType type, String sharedAsTable);
+
+  @Query(
+      value =
+          "select o from SharedDataObjectEntity o "
+              + "where o.share = :share and o.sharedAsSchema = :schema "
+              + "and o.type = :type and o.sharedAsTable <> '' "
+              + "order by o.sharedAsTable asc",
+      countQuery =
+          "select count(o) from SharedDataObjectEntity o "
+              + "where o.share = :share and o.sharedAsSchema = :schema "
+              + "and o.type = :type and o.sharedAsTable <> ''")
+  Page<SharedDataObjectEntity> findTablesInSchema(
+      @Param("share") ShareEntity share,
+      @Param("schema") String schema,
+      @Param("type") AssetType type,
+      Pageable pageable);
+
+  List<SharedDataObjectEntity>
+      findByShareAndSharedAsSchemaAndTypeAndSharedAsTableNotOrderBySharedAsTableAsc(
+          ShareEntity share, String sharedAsSchema, AssetType type, String sharedAsTable);
+
+  @Query(
+      value =
+          "select o from SharedDataObjectEntity o "
+              + "where o.share = :share and o.type = :type and o.sharedAsTable <> '' "
+              + "order by o.sharedAsSchema asc, o.sharedAsTable asc",
+      countQuery =
+          "select count(o) from SharedDataObjectEntity o "
+              + "where o.share = :share and o.type = :type and o.sharedAsTable <> ''")
+  Page<SharedDataObjectEntity> findTables(
+      @Param("share") ShareEntity share, @Param("type") AssetType type, Pageable pageable);
+
+  List<SharedDataObjectEntity>
+      findByShareAndTypeAndSharedAsTableNotOrderBySharedAsSchemaAscSharedAsTableAsc(
+          ShareEntity share, AssetType type, String sharedAsTable);
+
+  List<SharedDataObjectEntity> findByShareAndTypeAndSharedAsTableOrderBySharedAsSchemaAsc(
+      ShareEntity share, AssetType type, String sharedAsTable);
 }

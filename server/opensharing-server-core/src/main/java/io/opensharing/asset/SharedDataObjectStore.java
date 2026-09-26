@@ -5,6 +5,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.http.ApiException;
 import io.opensharing.share.ShareEntity;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -80,6 +81,46 @@ public class SharedDataObjectStore {
   @Transactional(readOnly = true)
   public Page<String> listSchemas(ShareEntity share, Pageable pageable) {
     return objects.findDistinctSharedAsSchemasByShare(share, pageable);
+  }
+
+  @Transactional(readOnly = true)
+  public boolean existsInSchema(ShareEntity share, String schema) {
+    return objects.existsByShareAndSharedAsSchema(share, schema);
+  }
+
+  @Transactional(readOnly = true)
+  public Optional<SharedDataObjectEntity> findSchemaGrant(ShareEntity share, String schema) {
+    return objects.findByShareAndSharedAsSchemaAndTypeAndSharedAsTable(
+        share, schema, AssetType.SCHEMA, "");
+  }
+
+  @Transactional(readOnly = true)
+  public Page<SharedDataObjectEntity> listTablesInSchema(
+      ShareEntity share, String schema, Pageable pageable) {
+    return objects.findTablesInSchema(share, schema, AssetType.TABLE, pageable);
+  }
+
+  @Transactional(readOnly = true)
+  public List<SharedDataObjectEntity> listTablesInSchema(ShareEntity share, String schema) {
+    return objects.findByShareAndSharedAsSchemaAndTypeAndSharedAsTableNotOrderBySharedAsTableAsc(
+        share, schema, AssetType.TABLE, "");
+  }
+
+  @Transactional(readOnly = true)
+  public Page<SharedDataObjectEntity> listTables(ShareEntity share, Pageable pageable) {
+    return objects.findTables(share, AssetType.TABLE, pageable);
+  }
+
+  @Transactional(readOnly = true)
+  public List<SharedDataObjectEntity> listTables(ShareEntity share) {
+    return objects.findByShareAndTypeAndSharedAsTableNotOrderBySharedAsSchemaAscSharedAsTableAsc(
+        share, AssetType.TABLE, "");
+  }
+
+  @Transactional(readOnly = true)
+  public List<SharedDataObjectEntity> listSchemaGrants(ShareEntity share) {
+    return objects.findByShareAndTypeAndSharedAsTableOrderBySharedAsSchemaAsc(
+        share, AssetType.SCHEMA, "");
   }
 
   public void removeByAlias(
