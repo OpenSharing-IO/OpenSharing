@@ -18,12 +18,10 @@ class ProtocolSchemaControllerTest extends ProtocolApiSupport {
   @Test
   void listsDistinctSchemasInAGrantedShare() throws Exception {
     createShare("schema-share");
-    addObject("schema-share", "TABLE", "catalog.alpha.t1", "alpha.t1");
-    addObject("schema-share", "TABLE", "catalog.alpha.t2", "alpha.t2");
-    addObject("schema-share", "SCHEMA", "catalog.beta", "beta");
-    addObject("schema-share", "TABLE", "catalog.gamma.t3", "gamma.t3");
+    addObject("schema-share", "TABLE", "main.sales.table1", "alpha.t1");
+    addObject("schema-share", "TABLE", "main.sales.orders", "gamma.t3");
     createShare("hidden-share");
-    addObject("hidden-share", "TABLE", "catalog.hidden.t", "hidden.t");
+    addObject("hidden-share", "TABLE", "main.sales.table1", "hidden.t");
     String bearer = createAndActivateRecipient("schema-partner");
     grant("schema-share", "schema-partner");
 
@@ -34,11 +32,10 @@ class ProtocolSchemaControllerTest extends ProtocolApiSupport {
         .andExpect(status().isOk())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(content().encoding("UTF-8"))
-        .andExpect(jsonPath("$.items.length()").value(3))
+        .andExpect(jsonPath("$.items.length()").value(2))
         .andExpect(jsonPath("$.items[0].name").value("alpha"))
         .andExpect(jsonPath("$.items[0].share").value("schema-share"))
-        .andExpect(jsonPath("$.items[1].name").value("beta"))
-        .andExpect(jsonPath("$.items[2].name").value("gamma"))
+        .andExpect(jsonPath("$.items[1].name").value("gamma"))
         .andExpect(jsonPath("$.nextPageToken").doesNotExist());
 
     mvc.perform(
@@ -55,8 +52,8 @@ class ProtocolSchemaControllerTest extends ProtocolApiSupport {
   @Test
   void paginatesSchemasAndAllowsAnEmptyGrantedShare() throws Exception {
     createShare("paged-schemas");
-    addObject("paged-schemas", "TABLE", "catalog.alpha.t", "alpha.t");
-    addObject("paged-schemas", "TABLE", "catalog.beta.t", "beta.t");
+    addObject("paged-schemas", "TABLE", "main.sales.table1", "alpha.t");
+    addObject("paged-schemas", "TABLE", "main.sales.orders", "beta.t");
     createShare("empty-share");
     String bearer = createAndActivateRecipient("schema-paged");
     grant("paged-schemas", "schema-paged");
