@@ -1,5 +1,6 @@
 package io.opensharing.asset.table;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -44,19 +45,30 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
             .andReturn()
             .getResponse()
             .getContentAsString();
-    assertTrue(latest.contains("\"protocol\""), latest);
-    assertTrue(latest.contains("\"metaData\""), latest);
+    assertParquetMetadata(latest);
     assertTrue(latest.contains("eventTime") || latest.contains("date"), latest);
 
-    String delta =
+    assertParquetMetadata(
+        metadata(endpoint, bearer, null, null, "responseformat=parquet")
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "2"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString());
+    assertParquetMetadata(
+        metadata(endpoint, bearer, null, null, "responseformat=delta,parquet")
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "2"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString());
+    assertDeltaMetadata(
         metadata(endpoint, bearer, null, null, "responseformat=delta")
             .andExpect(status().isOk())
             .andExpect(header().string("Delta-Table-Version", "2"))
             .andReturn()
             .getResponse()
-            .getContentAsString();
-    assertTrue(delta.contains("\"deltaProtocol\""), delta);
-    assertTrue(delta.contains("\"deltaMetadata\""), delta);
+            .getContentAsString());
 
     metadata(endpoint, bearer, 0L, null)
         .andExpect(status().isOk())
@@ -67,6 +79,35 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     metadata(endpoint, bearer, 1L, "1970-01-01T00:00:00Z")
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+  }
+
+  @Test
+  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
+  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
+  void queriesDeltaMetadataForDeletionVectorsTable() throws Exception {
+    String bearer =
+        shareTable("dv-metadata", "main.sales.deletionvectors", "sales.deletionvectors");
+    String endpoint =
+        PROTOCOL + "/shares/dv-metadata/schemas/sales/tables/deletionvectors/metadata";
+
+    String delta =
+        metadata(endpoint, bearer, null, null, "responseformat=delta")
+            .andExpect(status().isOk())
+            .andExpect(header().exists("Delta-Table-Version"))
+            .andExpect(content().contentTypeCompatibleWith("application/x-ndjson"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertDeltaMetadata(delta);
+    assertTrue(delta.contains("deletionVectors"), delta);
+
+    String both =
+        metadata(endpoint, bearer, null, null, "responseformat=delta,parquet")
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertDeltaMetadata(both);
   }
 
   @Test
@@ -100,6 +141,19 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
             null)
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
+
+  private static void assertParquetMetadata(String ndjson) {
+    assertTrue(ndjson.contains("\"protocol\""), ndjson);
+    assertTrue(ndjson.contains("\"metaData\""), ndjson);
+    assertTrue(ndjson.contains("\"schemaString\""), ndjson);
+    assertFalse(ndjson.contains("\"deltaProtocol\""), ndjson);
+    assertFalse(ndjson.contains("\"deltaMetadata\""), ndjson);
+  }
+
+  private static void assertDeltaMetadata(String ndjson) {
+    assertTrue(ndjson.contains("\"deltaProtocol\""), ndjson);
+    assertTrue(ndjson.contains("\"deltaMetadata\""), ndjson);
   }
 
   private String shareTable(String share, String catalogName, String sharedAs) throws Exception {
