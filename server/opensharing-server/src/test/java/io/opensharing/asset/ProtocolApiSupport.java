@@ -7,9 +7,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import io.opensharing.asset.table.DeltaKernel;
+import io.opensharing.asset.table.DeltaSharingCapabilities;
+import io.opensharing.asset.table.DeltaTableMetadataReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.http.ApiException;
 import java.net.URI;
 import java.time.Instant;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -106,11 +109,26 @@ public abstract class ProtocolApiSupport {
   }
 
   /**
-   * In-process Query Table Version tests stub Kernel. Cloud integration tests set {@code
-   * opensharing.test.stub-protocol-dependencies=false} to use the real reader.
+   * In-process Query Table Version and Metadata tests stub Kernel. Cloud integration tests set
+   * {@code opensharing.test.stub-protocol-dependencies=false} to use the real readers.
    */
   @TestConfiguration
   static class StubDeltaKernel {
+
+    private static final String STUB_SCHEMA =
+        "{\\\"type\\\":\\\"struct\\\",\\\"fields\\\":[{\\\"name\\\":\\\"id\\\",\\\"type\\\":\\\"long\\\",\\\"nullable\\\":true,\\\"metadata\\\":{}}]}";
+    private static final String STUB_PARQUET =
+        """
+        {"protocol":{"minReaderVersion":1}}
+        {"metaData":{"id":"stub-table","format":{"provider":"parquet"},"schemaString":"%s","partitionColumns":[],"location":"s3://test/main.sales.orders/","accessModes":["url","dir"]}}
+        """
+            .formatted(STUB_SCHEMA);
+    private static final String STUB_DELTA =
+        """
+        {"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}
+        {"metaData":{"location":"s3://test/main.sales.orders/","accessModes":["url","dir"],"deltaMetadata":{"id":"stub-table","format":{"provider":"parquet"},"schemaString":"%s","partitionColumns":[]}}}
+        """
+            .formatted(STUB_SCHEMA);
 
     @Bean
     @Primary
@@ -123,6 +141,33 @@ public abstract class ProtocolApiSupport {
         @Override
         public long getVersion(ResolvedAsset table, Instant timestamp, AuthContext auth) {
           return timestamp == null ? 123 : 45;
+        }
+      };
+    }
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(
+        name = "opensharing.test.stub-protocol-dependencies",
+        havingValue = "true",
+        matchIfMissing = true)
+    DeltaTableMetadataReader testDeltaTableMetadataReader(DeltaKernel kernel) {
+      return new DeltaTableMetadataReader(kernel) {
+        @Override
+        public DeltaTableMetadataReader.Result read(
+            ResolvedAsset table,
+            Long version,
+            Instant timestamp,
+            AuthContext auth,
+            String capabilities) {
+          if (version != null && timestamp != null) {
+            throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
+          }
+          boolean delta =
+              DeltaSharingCapabilities.choose(capabilities, false)
+                  == DeltaSharingCapabilities.ResponseFormat.DELTA;
+          return new DeltaTableMetadataReader.Result(
+              version == null && timestamp == null ? 123 : 45, delta ? STUB_DELTA : STUB_PARQUET);
         }
       };
     }
