@@ -28,6 +28,7 @@ import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,6 +49,7 @@ public class ProtocolTableController {
   private final SharedDataObjectStore objects;
   private final CatalogConnector catalog;
   private final DeltaKernel kernel;
+  private final DeltaTableMetadataReader metadataReader;
   private final Listings listings;
 
   public ProtocolTableController(
@@ -57,6 +59,7 @@ public class ProtocolTableController {
       SharedDataObjectStore objects,
       CatalogConnector catalog,
       DeltaKernel kernel,
+      DeltaTableMetadataReader metadataReader,
       Listings listings) {
     this.recipients = recipients;
     this.shares = shares;
@@ -64,6 +67,7 @@ public class ProtocolTableController {
     this.objects = objects;
     this.catalog = catalog;
     this.kernel = kernel;
+    this.metadataReader = metadataReader;
     this.listings = listings;
   }
 
@@ -102,6 +106,29 @@ public class ProtocolTableController {
         kernel.getVersion(
             resolveTable(entity, schema, table), parseTimestamp(startingTimestamp), owner(entity));
     return ResponseEntity.ok().header("Delta-Table-Version", Long.toString(version)).build();
+  }
+
+  @GetMapping(
+      value = "/schemas/{schema}/tables/{table}/metadata",
+      produces = "application/x-ndjson;charset=UTF-8")
+  public ResponseEntity<String> metadata(
+      RecipientPrincipal principal,
+      @PathVariable String share,
+      @PathVariable String schema,
+      @PathVariable String table,
+      @RequestParam(required = false) Long version,
+      @RequestParam(required = false) String timestamp) {
+    ShareEntity entity = requireGrantedShare(principal, share);
+    DeltaTableMetadataReader.Result result =
+        metadataReader.read(
+            resolveTable(entity, schema, table),
+            version,
+            parseTimestamp(timestamp),
+            owner(entity));
+    return ResponseEntity.ok()
+        .header("Delta-Table-Version", Long.toString(result.version()))
+        .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"))
+        .body(result.ndjson());
   }
 
   private ShareEntity requireGrantedShare(RecipientPrincipal principal, String share) {

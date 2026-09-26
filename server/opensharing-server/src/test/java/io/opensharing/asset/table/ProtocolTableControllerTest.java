@@ -1,5 +1,6 @@
 package io.opensharing.asset.table;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -210,6 +211,56 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
     mvc.perform(
             get(PROTOCOL + "/shares/hidden-version/schemas/sales/tables/customers/version")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
+
+  @Test
+  void queriesGrantedTableMetadata() throws Exception {
+    createShare("table-metadata");
+    addObject("table-metadata", "TABLE", "main.sales.orders", "sales.orders");
+    addObject("table-metadata", "SCHEMA", "main.hr", "hr");
+    createShare("hidden-metadata");
+    addObject("hidden-metadata", "TABLE", "main.sales.customers", "sales.customers");
+    String bearer = createAndActivateRecipient("table-metadata-partner");
+    grant("table-metadata", "table-metadata-partner");
+
+    String latest =
+        mvc.perform(
+                get(PROTOCOL + "/shares/TABLE-METADATA/schemas/SALES/tables/ORDERS/metadata")
+                    .header("Authorization", "Bearer " + bearer))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "123"))
+            .andExpect(content().contentTypeCompatibleWith("application/x-ndjson"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(latest.contains("\"protocol\""));
+    assertTrue(latest.contains("\"metaData\""));
+    assertTrue(latest.contains("\"schemaString\""));
+
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/hr/tables/SALARIES/metadata")
+                .param("timestamp", "2022-01-01T00:00:00Z")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Delta-Table-Version", "45"));
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                .param("version", "1")
+                .param("timestamp", "2022-01-01T00:00:00Z")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                .param("timestamp", "not-a-timestamp")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    mvc.perform(
+            get(PROTOCOL + "/shares/hidden-metadata/schemas/sales/tables/customers/metadata")
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
