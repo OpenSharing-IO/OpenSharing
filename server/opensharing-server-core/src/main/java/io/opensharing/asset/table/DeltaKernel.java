@@ -20,19 +20,19 @@ import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
-/** Reads Delta table versions directly from storage with catalog-vended credentials. */
+/** Opens a Kernel session against catalog-vended credentials for a Delta table root. */
 @Component
-public class DeltaTableVersionReader {
+public class DeltaKernel {
 
   private static final Duration CREDENTIAL_TTL = Duration.ofMinutes(5);
 
   private final CatalogConnector catalog;
 
-  public DeltaTableVersionReader(CatalogConnector catalog) {
+  public DeltaKernel(CatalogConnector catalog) {
     this.catalog = catalog;
   }
 
-  public long getVersion(ResolvedAsset table, Instant startingTimestamp, AuthContext auth) {
+  public Session open(ResolvedAsset table, AuthContext auth) {
     if (table.format() != TableFormat.DELTA) {
       throw ApiException.invalidParameter(
           "table '" + table.identifier() + "' is not a Delta table");
@@ -61,10 +61,13 @@ public class DeltaTableVersionReader {
                         "catalog returned no credentials for table root '" + location + "'"));
     Engine engine =
         DefaultEngine.create(HadoopStorageConfiguration.from(rootCredentials, location));
-    return versionAtOrAfter(
-        (TableImpl) Table.forPath(engine, HadoopStorageConfiguration.kernelPath(location)),
-        engine,
-        startingTimestamp);
+    return new Session(
+        engine, Table.forPath(engine, HadoopStorageConfiguration.kernelPath(location)), location);
+  }
+
+  public long getVersion(ResolvedAsset table, Instant startingTimestamp, AuthContext auth) {
+    Session session = open(table, auth);
+    return versionAtOrAfter((TableImpl) session.table(), session.engine(), startingTimestamp);
   }
 
   static long versionAtOrAfter(TableImpl table, Engine engine, Instant startingTimestamp) {
@@ -86,4 +89,6 @@ public class DeltaTableVersionReader {
     String normalized = prefix.endsWith("/") ? prefix : prefix + "/";
     return location.equals(prefix) || location.startsWith(normalized);
   }
+
+  public record Session(Engine engine, Table table, String location) {}
 }

@@ -14,7 +14,7 @@ import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
-class DeltaTableVersionReaderTest {
+class DeltaKernelTest {
 
   @Test
   void returnsLatestVersionWithoutATimestamp() {
@@ -24,7 +24,7 @@ class DeltaTableVersionReaderTest {
     when(latest.getVersion()).thenReturn(7L);
     when(table.getLatestSnapshot(engine)).thenReturn(latest);
 
-    assertEquals(7, DeltaTableVersionReader.versionAtOrAfter(table, engine, null));
+    assertEquals(7, DeltaKernel.versionAtOrAfter(table, engine, null));
   }
 
   @Test
@@ -37,19 +37,14 @@ class DeltaTableVersionReaderTest {
     when(table.getVersionAtOrAfterTimestamp(engine, 6000))
         .thenThrow(new KernelException("timestamp after latest"));
 
-    assertEquals(
-        0, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(500)));
-    assertEquals(
-        1, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(2000)));
-    assertEquals(
-        2, DeltaTableVersionReader.versionAtOrAfter(table, engine, Instant.ofEpochMilli(2500)));
+    assertEquals(0, DeltaKernel.versionAtOrAfter(table, engine, Instant.ofEpochMilli(500)));
+    assertEquals(1, DeltaKernel.versionAtOrAfter(table, engine, Instant.ofEpochMilli(2000)));
+    assertEquals(2, DeltaKernel.versionAtOrAfter(table, engine, Instant.ofEpochMilli(2500)));
 
     ApiException afterLatest =
         assertThrows(
             ApiException.class,
-            () ->
-                DeltaTableVersionReader.versionAtOrAfter(
-                    table, engine, Instant.ofEpochMilli(6000)));
+            () -> DeltaKernel.versionAtOrAfter(table, engine, Instant.ofEpochMilli(6000)));
     assertEquals(HttpStatus.BAD_REQUEST, afterLatest.getStatus());
   }
 }
