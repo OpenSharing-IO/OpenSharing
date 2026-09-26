@@ -19,7 +19,9 @@ class ProtocolSchemaControllerTest extends ProtocolApiSupport {
   void listsDistinctSchemasInAGrantedShare() throws Exception {
     createShare("schema-share");
     addObject("schema-share", "TABLE", "main.sales.table1", "alpha.t1");
-    addObject("schema-share", "TABLE", "main.sales.orders", "gamma.t3");
+    addObject("schema-share", "TABLE", "main.sales.orders", "alpha.t2");
+    addObject("schema-share", "SCHEMA", "main.hr", "beta");
+    addObject("schema-share", "TABLE", "main.ops.people", "gamma.t3");
     createShare("hidden-share");
     addObject("hidden-share", "TABLE", "main.sales.table1", "hidden.t");
     String bearer = createAndActivateRecipient("schema-partner");
@@ -32,10 +34,11 @@ class ProtocolSchemaControllerTest extends ProtocolApiSupport {
         .andExpect(status().isOk())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(content().encoding("UTF-8"))
-        .andExpect(jsonPath("$.items.length()").value(2))
+        .andExpect(jsonPath("$.items.length()").value(3))
         .andExpect(jsonPath("$.items[0].name").value("alpha"))
         .andExpect(jsonPath("$.items[0].share").value("schema-share"))
-        .andExpect(jsonPath("$.items[1].name").value("gamma"))
+        .andExpect(jsonPath("$.items[1].name").value("beta"))
+        .andExpect(jsonPath("$.items[2].name").value("gamma"))
         .andExpect(jsonPath("$.nextPageToken").doesNotExist());
 
     mvc.perform(
