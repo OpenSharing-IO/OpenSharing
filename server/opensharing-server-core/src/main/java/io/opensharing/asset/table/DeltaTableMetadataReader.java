@@ -18,11 +18,13 @@ import io.opensharing.http.ApiException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import org.springframework.stereotype.Component;
 
 /**
- * Reads Query Table Metadata from a Delta log. The parquet response is two NDJSON lines: protocol,
- * then metaData.
+ * Reads Query Table Metadata from a Delta log. The parquet or delta response is two NDJSON lines:
+ * protocol, then metaData.
  */
 @Component
 public class DeltaTableMetadataReader {
@@ -37,7 +39,11 @@ public class DeltaTableMetadataReader {
   }
 
   public Result read(
-      ResolvedAsset table, Long version, Instant timestamp, AuthContext auth) {
+      ResolvedAsset table,
+      Long version,
+      Instant timestamp,
+      AuthContext auth,
+      String capabilities) {
     if (version != null && timestamp != null) {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
@@ -48,7 +54,12 @@ public class DeltaTableMetadataReader {
     try {
       return new Result(
           snapshot.getVersion(),
-          ndjson(impl.getProtocol(), impl.getMetadata(), table, historical ? snapshot.getVersion() : null));
+          ndjson(
+              impl.getProtocol(),
+              impl.getMetadata(),
+              table,
+              historical ? snapshot.getVersion() : null,
+              capabilities));
     } catch (JsonProcessingException e) {
       throw new IllegalStateException("failed to encode table metadata", e);
     }
@@ -64,34 +75,79 @@ public class DeltaTableMetadataReader {
       }
       return session.table().getLatestSnapshot(session.engine());
     } catch (TableNotFoundException missing) {
-      throw ApiException.invalidParameter(
-          "table '" + session.location() + "' has no Delta log");
+      throw ApiException.invalidParameter("table '" + session.location() + "' has no Delta log");
     } catch (KernelException | IllegalArgumentException invalid) {
       throw ApiException.invalidParameter(invalid.getMessage());
     }
   }
 
   private static String ndjson(
-      Protocol protocol, Metadata metadata, ResolvedAsset table, Long historicalVersion)
+      Protocol protocol,
+      Metadata metadata,
+      ResolvedAsset table,
+      Long historicalVersion,
+      String capabilities)
       throws JsonProcessingException {
+    boolean requiresDelta =
+        protocol.getMinReaderVersion() > 1
+            || (protocol.getReaderFeatures() != null && !protocol.getReaderFeatures().isEmpty());
+    if (DeltaSharingCapabilities.choose(capabilities, requiresDelta)
+        == DeltaSharingCapabilities.ResponseFormat.DELTA) {
+      return line(new ProtocolLine(new DeltaProtocolWrapper(deltaProtocol(protocol))))
+          + line(
+              new MetadataLine(
+                  new DeltaMetadataBody(
+                      historicalVersion,
+                      table.storageLocation(),
+                      emptyToNull(table.auxiliaryLocations()),
+                      accessModes(table),
+                      deltaMetadata(metadata))));
+    }
     Format format = metadata.getFormat();
-    MetadataBody body =
-        new MetadataBody(
-            metadata.getId(),
-            metadata.getName().orElse(null),
-            metadata.getDescription().orElse(null),
-            table.storageLocation(),
-            emptyToNull(table.auxiliaryLocations()),
-            accessModes(table),
-            new FormatBody(format.getProvider()),
-            metadata.getSchemaString(),
-            VectorUtils.toJavaList(metadata.getPartitionColumns()),
-            emptyMapToNull(metadata.getConfiguration()),
-            historicalVersion);
-    return JSON.writeValueAsString(new ProtocolLine(new ProtocolBody(protocol.getMinReaderVersion())))
-        + "\n"
-        + JSON.writeValueAsString(new MetadataLine(body))
-        + "\n";
+    return line(new ProtocolLine(new ParquetProtocolBody(1)))
+        + line(
+            new MetadataLine(
+                new ParquetMetadataBody(
+                    metadata.getId(),
+                    metadata.getName().orElse(null),
+                    metadata.getDescription().orElse(null),
+                    table.storageLocation(),
+                    emptyToNull(table.auxiliaryLocations()),
+                    accessModes(table),
+                    new FormatBody(format.getProvider(), emptyMapToNull(format.getOptions())),
+                    metadata.getSchemaString(),
+                    VectorUtils.toJavaList(metadata.getPartitionColumns()),
+                    emptyMapToNull(metadata.getConfiguration()),
+                    historicalVersion)));
+  }
+
+  private static String line(Object value) throws JsonProcessingException {
+    return JSON.writeValueAsString(value) + "\n";
+  }
+
+  private static DeltaProtocolBody deltaProtocol(Protocol protocol) {
+    return new DeltaProtocolBody(
+        protocol.getMinReaderVersion(),
+        protocol.getMinWriterVersion(),
+        features(protocol.getReaderFeatures()),
+        features(protocol.getWriterFeatures()));
+  }
+
+  private static DeltaLogMetadata deltaMetadata(Metadata metadata) {
+    Format format = metadata.getFormat();
+    return new DeltaLogMetadata(
+        metadata.getId(),
+        metadata.getName().orElse(null),
+        metadata.getDescription().orElse(null),
+        new FormatBody(format.getProvider(), emptyMapToNull(format.getOptions())),
+        metadata.getSchemaString(),
+        VectorUtils.toJavaList(metadata.getPartitionColumns()),
+        metadata.getCreatedTime().orElse(null),
+        emptyMapToNull(metadata.getConfiguration()));
+  }
+
+  private static Set<String> features(Set<String> values) {
+    return values == null || values.isEmpty() ? null : new TreeSet<>(values);
   }
 
   private static List<String> accessModes(ResolvedAsset asset) {
@@ -115,14 +171,23 @@ public class DeltaTableMetadataReader {
 
   public record Result(long version, String ndjson) {}
 
-  private record ProtocolLine(ProtocolBody protocol) {}
+  private record ProtocolLine(Object protocol) {}
 
-  private record ProtocolBody(int minReaderVersion) {}
+  private record MetadataLine(Object metaData) {}
 
-  private record MetadataLine(MetadataBody metaData) {}
+  private record ParquetProtocolBody(int minReaderVersion) {}
+
+  private record DeltaProtocolWrapper(DeltaProtocolBody deltaProtocol) {}
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
-  private record MetadataBody(
+  private record DeltaProtocolBody(
+      int minReaderVersion,
+      int minWriterVersion,
+      Set<String> readerFeatures,
+      Set<String> writerFeatures) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  private record ParquetMetadataBody(
       String id,
       String name,
       String description,
@@ -135,5 +200,25 @@ public class DeltaTableMetadataReader {
       Map<String, String> configuration,
       Long version) {}
 
-  private record FormatBody(String provider) {}
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  private record DeltaMetadataBody(
+      Long version,
+      String location,
+      List<String> auxiliaryLocations,
+      List<String> accessModes,
+      DeltaLogMetadata deltaMetadata) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  private record DeltaLogMetadata(
+      String id,
+      String name,
+      String description,
+      FormatBody format,
+      String schemaString,
+      List<String> partitionColumns,
+      Long createdTime,
+      Map<String, String> configuration) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  private record FormatBody(String provider, Map<String, String> options) {}
 }

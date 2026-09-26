@@ -32,6 +32,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -117,14 +118,16 @@ public class ProtocolTableController {
       @PathVariable String schema,
       @PathVariable String table,
       @RequestParam(required = false) Long version,
-      @RequestParam(required = false) String timestamp) {
+      @RequestParam(required = false) String timestamp,
+      @RequestHeader(value = "delta-sharing-capabilities", required = false) String capabilities) {
     ShareEntity entity = requireGrantedShare(principal, share);
     DeltaTableMetadataReader.Result result =
         metadataReader.read(
             resolveTable(entity, schema, table),
             version,
             parseTimestamp(timestamp),
-            owner(entity));
+            owner(entity),
+            capabilities);
     return ResponseEntity.ok()
         .header("Delta-Table-Version", Long.toString(result.version()))
         .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"))

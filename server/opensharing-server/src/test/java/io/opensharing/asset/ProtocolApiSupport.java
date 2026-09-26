@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import io.opensharing.asset.table.DeltaKernel;
+import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaTableMetadataReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.CatalogConnector;
@@ -114,11 +115,20 @@ public abstract class ProtocolApiSupport {
   @TestConfiguration
   static class StubDeltaKernel {
 
-    private static final String STUB_METADATA =
+    private static final String STUB_SCHEMA =
+        "{\\\"type\\\":\\\"struct\\\",\\\"fields\\\":[{\\\"name\\\":\\\"id\\\",\\\"type\\\":\\\"long\\\",\\\"nullable\\\":true,\\\"metadata\\\":{}}]}";
+    private static final String STUB_PARQUET =
         """
         {"protocol":{"minReaderVersion":1}}
-        {"metaData":{"id":"stub-table","format":{"provider":"parquet"},"schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[{\\"name\\":\\"id\\",\\"type\\":\\"long\\",\\"nullable\\":true,\\"metadata\\":{}}]}","partitionColumns":[],"location":"s3://test/main.sales.orders/","accessModes":["url","dir"]}}
-        """;
+        {"metaData":{"id":"stub-table","format":{"provider":"parquet"},"schemaString":"%s","partitionColumns":[],"location":"s3://test/main.sales.orders/","accessModes":["url","dir"]}}
+        """
+            .formatted(STUB_SCHEMA);
+    private static final String STUB_DELTA =
+        """
+        {"protocol":{"deltaProtocol":{"minReaderVersion":1,"minWriterVersion":2}}}
+        {"metaData":{"location":"s3://test/main.sales.orders/","accessModes":["url","dir"],"deltaMetadata":{"id":"stub-table","format":{"provider":"parquet"},"schemaString":"%s","partitionColumns":[]}}}
+        """
+            .formatted(STUB_SCHEMA);
 
     @Bean
     @Primary
@@ -145,11 +155,19 @@ public abstract class ProtocolApiSupport {
       return new DeltaTableMetadataReader(kernel) {
         @Override
         public DeltaTableMetadataReader.Result read(
-            ResolvedAsset table, Long version, Instant timestamp, AuthContext auth) {
+            ResolvedAsset table,
+            Long version,
+            Instant timestamp,
+            AuthContext auth,
+            String capabilities) {
           if (version != null && timestamp != null) {
             throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
           }
-          return new DeltaTableMetadataReader.Result(version == null && timestamp == null ? 123 : 45, STUB_METADATA);
+          boolean delta =
+              DeltaSharingCapabilities.choose(capabilities, false)
+                  == DeltaSharingCapabilities.ResponseFormat.DELTA;
+          return new DeltaTableMetadataReader.Result(
+              version == null && timestamp == null ? 123 : 45, delta ? STUB_DELTA : STUB_PARQUET);
         }
       };
     }

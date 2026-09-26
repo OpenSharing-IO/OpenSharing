@@ -27,7 +27,9 @@ class DeltaTableMetadataReaderTest {
     ApiException error =
         assertThrows(
             ApiException.class,
-            () -> reader.read(table, 1L, Instant.parse("2022-01-01T00:00:00Z"), AuthContext.of(null)));
+            () ->
+                reader.read(
+                    table, 1L, Instant.parse("2022-01-01T00:00:00Z"), AuthContext.of(null), null));
     assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
   }
 }

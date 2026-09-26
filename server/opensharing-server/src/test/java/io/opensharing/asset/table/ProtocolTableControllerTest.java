@@ -1,5 +1,6 @@
 package io.opensharing.asset.table;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -239,6 +240,20 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
     assertTrue(latest.contains("\"protocol\""));
     assertTrue(latest.contains("\"metaData\""));
     assertTrue(latest.contains("\"schemaString\""));
+    assertFalse(latest.contains("\"deltaMetadata\""));
+
+    String delta =
+        mvc.perform(
+                get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                    .header("Authorization", "Bearer " + bearer)
+                    .header("delta-sharing-capabilities", "responseformat=delta"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "123"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(delta.contains("\"deltaProtocol\""), delta);
+    assertTrue(delta.contains("\"deltaMetadata\""), delta);
 
     mvc.perform(
             get(PROTOCOL + "/shares/table-metadata/schemas/hr/tables/SALARIES/metadata")
