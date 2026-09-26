@@ -7,9 +7,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import io.opensharing.asset.table.DeltaKernel;
+import io.opensharing.asset.table.DeltaTableMetadataReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.http.ApiException;
 import java.net.URI;
 import java.time.Instant;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -106,11 +108,17 @@ public abstract class ProtocolApiSupport {
   }
 
   /**
-   * In-process Query Table Version tests stub Kernel. Cloud integration tests set {@code
-   * opensharing.test.stub-protocol-dependencies=false} to use the real reader.
+   * In-process Query Table Version and Metadata tests stub Kernel. Cloud integration tests set
+   * {@code opensharing.test.stub-protocol-dependencies=false} to use the real readers.
    */
   @TestConfiguration
   static class StubDeltaKernel {
+
+    private static final String STUB_METADATA =
+        """
+        {"protocol":{"minReaderVersion":1}}
+        {"metaData":{"id":"stub-table","format":{"provider":"parquet"},"schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[{\\"name\\":\\"id\\",\\"type\\":\\"long\\",\\"nullable\\":true,\\"metadata\\":{}}]}","partitionColumns":[],"location":"s3://test/main.sales.orders/","accessModes":["url","dir"]}}
+        """;
 
     @Bean
     @Primary
@@ -123,6 +131,25 @@ public abstract class ProtocolApiSupport {
         @Override
         public long getVersion(ResolvedAsset table, Instant timestamp, AuthContext auth) {
           return timestamp == null ? 123 : 45;
+        }
+      };
+    }
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(
+        name = "opensharing.test.stub-protocol-dependencies",
+        havingValue = "true",
+        matchIfMissing = true)
+    DeltaTableMetadataReader testDeltaTableMetadataReader(DeltaKernel kernel) {
+      return new DeltaTableMetadataReader(kernel) {
+        @Override
+        public DeltaTableMetadataReader.Result read(
+            ResolvedAsset table, Long version, Instant timestamp, AuthContext auth) {
+          if (version != null && timestamp != null) {
+            throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
+          }
+          return new DeltaTableMetadataReader.Result(version == null && timestamp == null ? 123 : 45, STUB_METADATA);
         }
       };
     }
