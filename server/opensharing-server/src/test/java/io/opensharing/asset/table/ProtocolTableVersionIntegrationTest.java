@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.ResultActions;
 
 /**
@@ -22,10 +23,10 @@ import org.springframework.test.web.servlet.ResultActions;
 @SpringBootTest(
     properties = {
       "spring.datasource.url=jdbc:h2:mem:protocol-table-version;DB_CLOSE_DELAY=-1",
-      "opensharing.catalog.type=local",
-      "opensharing.catalog.local.file=classpath:local-catalog-cloud.yml",
       "opensharing.test.stub-protocol-dependencies=false"
     })
+@TestPropertySource(
+    properties = "opensharing.catalog.local.file=classpath:local-catalog-cloud.yml")
 @Timeout(60)
 class ProtocolTableVersionIntegrationTest extends ProtocolApiSupport {
 
