@@ -6,9 +6,19 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import io.opensharing.asset.table.DeltaKernel;
+import io.opensharing.auth.AuthContext;
+import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.ResolvedAsset;
 import java.net.URI;
+import java.time.Instant;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -17,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * through {@code LocalCatalogConnector} and {@code classpath:local-catalog.yml}.
  */
 @AutoConfigureMockMvc
+@Import(ProtocolApiSupport.StubDeltaKernel.class)
 public abstract class ProtocolApiSupport {
 
   protected static final String PROVIDER = "/api/1.0/opensharing/provider";
@@ -92,5 +103,28 @@ public abstract class ProtocolApiSupport {
                     """
                         .formatted(recipient)))
         .andExpect(status().isOk());
+  }
+
+  /**
+   * In-process Query Table Version tests stub Kernel. Cloud integration tests set {@code
+   * opensharing.test.stub-protocol-dependencies=false} to use the real reader.
+   */
+  @TestConfiguration
+  static class StubDeltaKernel {
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(
+        name = "opensharing.test.stub-protocol-dependencies",
+        havingValue = "true",
+        matchIfMissing = true)
+    DeltaKernel testDeltaKernel(CatalogConnector catalog) {
+      return new DeltaKernel(catalog) {
+        @Override
+        public long getVersion(ResolvedAsset table, Instant timestamp, AuthContext auth) {
+          return timestamp == null ? 123 : 45;
+        }
+      };
+    }
   }
 }

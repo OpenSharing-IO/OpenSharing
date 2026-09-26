@@ -18,6 +18,8 @@ import io.opensharing.recipient.RecipientStore;
 import io.opensharing.share.ShareEntity;
 import io.opensharing.share.SharePermissionStore;
 import io.opensharing.share.ShareStore;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -26,13 +28,14 @@ import java.util.Map;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Recipient protocol API for listing tables in a SELECT-granted share. */
+/** Recipient protocol API for tables in a SELECT-granted share. */
 @RestController
 @RequestMapping(
     value = "${opensharing.protocol-prefix}/shares/{share}",
@@ -44,6 +47,7 @@ public class ProtocolTableController {
   private final SharePermissionStore permissions;
   private final SharedDataObjectStore objects;
   private final CatalogConnector catalog;
+  private final DeltaKernel kernel;
   private final Listings listings;
 
   public ProtocolTableController(
@@ -52,12 +56,14 @@ public class ProtocolTableController {
       SharePermissionStore permissions,
       SharedDataObjectStore objects,
       CatalogConnector catalog,
+      DeltaKernel kernel,
       Listings listings) {
     this.recipients = recipients;
     this.shares = shares;
     this.permissions = permissions;
     this.objects = objects;
     this.catalog = catalog;
+    this.kernel = kernel;
     this.listings = listings;
   }
 
@@ -84,6 +90,20 @@ public class ProtocolTableController {
         maxResults, pageToken, pageable -> listInSchema(entity, schema, pageable), listed -> listed);
   }
 
+  @GetMapping("/schemas/{schema}/tables/{table}/version")
+  public ResponseEntity<Void> version(
+      RecipientPrincipal principal,
+      @PathVariable String share,
+      @PathVariable String schema,
+      @PathVariable String table,
+      @RequestParam(required = false) String startingTimestamp) {
+    ShareEntity entity = requireGrantedShare(principal, share);
+    long version =
+        kernel.getVersion(
+            resolveTable(entity, schema, table), parseTimestamp(startingTimestamp), owner(entity));
+    return ResponseEntity.ok().header("Delta-Table-Version", Long.toString(version)).build();
+  }
+
   private ShareEntity requireGrantedShare(RecipientPrincipal principal, String share) {
     var recipient = recipients.requireById(principal.recipientId());
     return shares
@@ -106,6 +126,62 @@ public class ProtocolTableController {
                 objects
                     .listTablesInSchema(share, schemaName, pageable)
                     .map(table -> fromStored(share, table)));
+  }
+
+  private ResolvedAsset resolveTable(ShareEntity share, String schema, String table) {
+    String schemaName = ObjectNames.normalize(schema);
+    String tableName = ObjectNames.normalize(table);
+    if (!objects.existsInSchema(share, schemaName)) {
+      throw ApiException.notFound(
+          "schema '" + schema + "' does not exist in share '" + share.getName() + "'");
+    }
+    return objects
+        .findSchemaGrant(share, schemaName)
+        .map(grant -> findChild(share, grant, tableName))
+        .orElseGet(
+            () -> {
+              SharedDataObjectEntity object =
+                  objects
+                      .findTable(share, schemaName, tableName)
+                      .orElseThrow(() -> tableNotFound(share, schema, table));
+              return catalog.resolveAsset(
+                  AssetLookup.of(object.getType(), object.getName()), owner(share));
+            });
+  }
+
+  private ResolvedAsset findChild(
+      ShareEntity share, SharedDataObjectEntity grant, String tableName) {
+    for (ResolvedAsset child :
+        catalog.listChildren(
+            AssetLookup.of(AssetType.SCHEMA, grant.getName()), owner(share))) {
+      if (child.type() == AssetType.TABLE
+          && tableName.equals(ObjectNames.normalize(lastSegment(child.identifier())))) {
+        return child;
+      }
+    }
+    throw tableNotFound(share, grant.getSharedAsSchema(), tableName);
+  }
+
+  private static Instant parseTimestamp(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return Instant.parse(value);
+    } catch (DateTimeParseException invalid) {
+      throw ApiException.invalidParameter("startingTimestamp must be an ISO8601 UTC timestamp");
+    }
+  }
+
+  private static ApiException tableNotFound(ShareEntity share, String schema, String table) {
+    return ApiException.notFound(
+        "table '"
+            + schema
+            + "."
+            + table
+            + "' does not exist in share '"
+            + share.getName()
+            + "'");
   }
 
   private Page<TableResponse> listAll(ShareEntity share, Pageable pageable) {
@@ -217,4 +293,5 @@ public class ProtocolTableController {
     }
     return null;
   }
+
 }

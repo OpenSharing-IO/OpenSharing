@@ -2,6 +2,7 @@ package io.opensharing.asset.table;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -167,6 +168,49 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(jsonPath("$.nextPageToken").doesNotExist());
     mvc.perform(
             get(PROTOCOL + "/shares/missing/all-tables").header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
+
+  @Test
+  void queriesAGrantedTableVersion() throws Exception {
+    createShare("table-version");
+    addObject("table-version", "TABLE", "main.sales.orders", "sales.orders");
+    addObject("table-version", "SCHEMA", "main.hr", "hr");
+    createShare("hidden-version");
+    addObject("hidden-version", "TABLE", "main.sales.customers", "sales.customers");
+    String bearer = createAndActivateRecipient("table-version-partner");
+    grant("table-version", "table-version-partner");
+
+    mvc.perform(
+            get(PROTOCOL + "/shares/TABLE-VERSION/schemas/SALES/tables/ORDERS/version")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Delta-Table-Version", "123"))
+        .andExpect(content().string(""));
+
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-version/schemas/hr/tables/SALARIES/version")
+                .param("startingTimestamp", "2022-01-01T00:00:00Z")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Delta-Table-Version", "45"))
+        .andExpect(content().string(""));
+
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-version/schemas/sales/tables/orders/version")
+                .param("startingTimestamp", "not-a-timestamp")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-version/schemas/hr/tables/missing/version")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+    mvc.perform(
+            get(PROTOCOL + "/shares/hidden-version/schemas/sales/tables/customers/version")
+                .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
   }
