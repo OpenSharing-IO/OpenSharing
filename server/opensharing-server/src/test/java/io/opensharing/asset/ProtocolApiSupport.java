@@ -10,19 +10,13 @@ import java.net.URI;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
  * Provider setup shared by recipient protocol API tests. Catalog lookup and provider auth go
- * through {@code LocalCatalogConnector} and {@code classpath:local-catalog-protocol.yml}.
+ * through {@code LocalCatalogConnector} and {@code classpath:local-catalog.yml}.
  */
 @AutoConfigureMockMvc
-@TestPropertySource(
-    properties = {
-      "opensharing.catalog.type=local",
-      "opensharing.catalog.local.file=classpath:local-catalog-protocol.yml"
-    })
 public abstract class ProtocolApiSupport {
 
   protected static final String PROVIDER = "/api/1.0/opensharing/provider";
