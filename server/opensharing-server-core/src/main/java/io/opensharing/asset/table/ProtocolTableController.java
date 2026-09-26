@@ -97,12 +97,10 @@ public class ProtocolTableController {
       @PathVariable String schema,
       @PathVariable String table,
       @RequestParam(required = false) String startingTimestamp) {
+    ShareEntity entity = requireGrantedShare(principal, share);
     long version =
-        getTableVersion(
-            requireGrantedShare(principal, share),
-            schema,
-            table,
-            parseTimestamp(startingTimestamp));
+        kernel.getVersion(
+            resolveTable(entity, schema, table), parseTimestamp(startingTimestamp), owner(entity));
     return ResponseEntity.ok().header("Delta-Table-Version", Long.toString(version)).build();
   }
 
@@ -130,28 +128,25 @@ public class ProtocolTableController {
                     .map(table -> fromStored(share, table)));
   }
 
-  private long getTableVersion(
-      ShareEntity share, String schema, String table, Instant startingTimestamp) {
+  private ResolvedAsset resolveTable(ShareEntity share, String schema, String table) {
     String schemaName = ObjectNames.normalize(schema);
     String tableName = ObjectNames.normalize(table);
     if (!objects.existsInSchema(share, schemaName)) {
       throw ApiException.notFound(
           "schema '" + schema + "' does not exist in share '" + share.getName() + "'");
     }
-    ResolvedAsset resolved =
-        objects
-            .findSchemaGrant(share, schemaName)
-            .map(grant -> findChild(share, grant, tableName))
-            .orElseGet(
-                () -> {
-                  SharedDataObjectEntity object =
-                      objects
-                          .findTable(share, schemaName, tableName)
-                          .orElseThrow(() -> tableNotFound(share, schema, table));
-                  return catalog.resolveAsset(
-                      AssetLookup.of(object.getType(), object.getName()), owner(share));
-                });
-    return kernel.getVersion(resolved, startingTimestamp, owner(share));
+    return objects
+        .findSchemaGrant(share, schemaName)
+        .map(grant -> findChild(share, grant, tableName))
+        .orElseGet(
+            () -> {
+              SharedDataObjectEntity object =
+                  objects
+                      .findTable(share, schemaName, tableName)
+                      .orElseThrow(() -> tableNotFound(share, schema, table));
+              return catalog.resolveAsset(
+                  AssetLookup.of(object.getType(), object.getName()), owner(share));
+            });
   }
 
   private ResolvedAsset findChild(
