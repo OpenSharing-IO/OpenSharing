@@ -19,7 +19,8 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
   void listsGrantedTablesInASchema() throws Exception {
     createShare("table-share");
     addObject("table-share", "TABLE", "main.sales.orders", "sales.orders");
-    addObject("table-share", "TABLE", "main.sales.table1", "sales.table1");
+    addObject("table-share", "TABLE", "main.sales.customers", "sales.customers");
+    addObject("table-share", "TABLE", "main.ops.people", "ops.people");
     String bearer = createAndActivateRecipient("table-partner");
     grant("table-share", "table-partner");
 
@@ -30,15 +31,15 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
         .andExpect(content().encoding("UTF-8"))
         .andExpect(jsonPath("$.items.length()").value(2))
-        .andExpect(jsonPath("$.items[0].name").value("orders"))
+        .andExpect(jsonPath("$.items[0].name").value("customers"))
         .andExpect(jsonPath("$.items[0].schema").value("sales"))
         .andExpect(jsonPath("$.items[0].share").value("table-share"))
         .andExpect(jsonPath("$.items[0].shareId").exists())
-        .andExpect(jsonPath("$.items[0].id").value("main.sales.orders"))
-        .andExpect(jsonPath("$.items[0].location").value("s3://test/main.sales.orders/"))
+        .andExpect(jsonPath("$.items[0].id").value("main.sales.customers"))
+        .andExpect(jsonPath("$.items[0].location").value("s3://test/main.sales.customers/"))
         .andExpect(jsonPath("$.items[0].accessModes[0]").value("url"))
         .andExpect(jsonPath("$.items[0].accessModes[1]").value("dir"))
-        .andExpect(jsonPath("$.items[1].name").value("table1"))
+        .andExpect(jsonPath("$.items[1].name").value("orders"))
         .andExpect(jsonPath("$.nextPageToken").doesNotExist());
 
     mvc.perform(
@@ -51,7 +52,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
   @Test
   void listsCatalogChildrenOfASharedSchema() throws Exception {
     createShare("schema-tables");
-    addObject("schema-tables", "SCHEMA", "main.sales", "hr");
+    addObject("schema-tables", "SCHEMA", "main.hr", "hr");
     createShare("hidden-share");
     addObject("hidden-share", "TABLE", "main.sales.orders", "sales.orders");
     String bearer = createAndActivateRecipient("schema-tables-partner");
@@ -62,12 +63,12 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.items.length()").value(2))
-        .andExpect(jsonPath("$.items[0].name").value("orders"))
-        .andExpect(jsonPath("$.items[0].location").value("s3://test/main.sales.orders/"))
-        .andExpect(jsonPath("$.items[0].id").value("main.sales.orders"))
-        .andExpect(jsonPath("$.items[1].name").value("table1"))
-        .andExpect(jsonPath("$.items[1].location").value("s3://delta-exchange-test/delta-exchange-test/table1/"))
-        .andExpect(jsonPath("$.items[1].id").value("main.sales.table1"))
+        .andExpect(jsonPath("$.items[0].name").value("employees"))
+        .andExpect(jsonPath("$.items[0].location").value("s3://test/main.hr.employees/"))
+        .andExpect(jsonPath("$.items[0].id").value("main.hr.employees"))
+        .andExpect(jsonPath("$.items[1].name").value("salaries"))
+        .andExpect(jsonPath("$.items[1].location").value("s3://test/main.hr.salaries/"))
+        .andExpect(jsonPath("$.items[1].id").value("main.hr.salaries"))
         .andExpect(jsonPath("$.items[1].accessModes[0]").value("url"))
         .andExpect(jsonPath("$.items[1].accessModes[1]").value("dir"));
 
@@ -114,7 +115,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
   void listsAllTablesInAGrantedShare() throws Exception {
     createShare("all-tables");
     addObject("all-tables", "TABLE", "main.sales.orders", "sales.orders");
-    addObject("all-tables", "TABLE", "main.sales.table1", "sales.table1");
+    addObject("all-tables", "SCHEMA", "main.hr", "hr");
     createShare("empty-share");
     String bearer = createAndActivateRecipient("all-tables-partner");
     grant("all-tables", "all-tables-partner");
@@ -125,11 +126,13 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isOk())
         .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-        .andExpect(jsonPath("$.items.length()").value(2))
-        .andExpect(jsonPath("$.items[0].schema").value("sales"))
-        .andExpect(jsonPath("$.items[0].name").value("orders"))
-        .andExpect(jsonPath("$.items[1].schema").value("sales"))
-        .andExpect(jsonPath("$.items[1].name").value("table1"))
+        .andExpect(jsonPath("$.items.length()").value(3))
+        .andExpect(jsonPath("$.items[0].schema").value("hr"))
+        .andExpect(jsonPath("$.items[0].name").value("employees"))
+        .andExpect(jsonPath("$.items[1].schema").value("hr"))
+        .andExpect(jsonPath("$.items[1].name").value("salaries"))
+        .andExpect(jsonPath("$.items[2].schema").value("sales"))
+        .andExpect(jsonPath("$.items[2].name").value("orders"))
         .andExpect(jsonPath("$.nextPageToken").doesNotExist());
 
     String first =
@@ -139,7 +142,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
                     .header("Authorization", "Bearer " + bearer))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.items.length()").value(1))
-            .andExpect(jsonPath("$.items[0].name").value("orders"))
+            .andExpect(jsonPath("$.items[0].name").value("employees"))
             .andExpect(jsonPath("$.nextPageToken").exists())
             .andReturn()
             .getResponse()
@@ -147,12 +150,13 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
     String pageToken = JsonPath.read(first, "$.nextPageToken");
     mvc.perform(
             get(PROTOCOL + "/shares/all-tables/all-tables")
-                .param("maxResults", "1")
+                .param("maxResults", "2")
                 .param("pageToken", pageToken)
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.items.length()").value(1))
-        .andExpect(jsonPath("$.items[0].name").value("table1"))
+        .andExpect(jsonPath("$.items.length()").value(2))
+        .andExpect(jsonPath("$.items[0].name").value("salaries"))
+        .andExpect(jsonPath("$.items[1].name").value("orders"))
         .andExpect(jsonPath("$.nextPageToken").doesNotExist());
 
     mvc.perform(
