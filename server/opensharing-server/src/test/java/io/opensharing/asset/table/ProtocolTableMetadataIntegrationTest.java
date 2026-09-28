@@ -73,10 +73,13 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     metadata(endpoint, bearer, 0L, null)
         .andExpect(status().isOk())
         .andExpect(header().string("Delta-Table-Version", "0"));
-    metadata(endpoint, bearer, null, "1970-01-01T00:00:00Z")
+    metadata(endpoint, bearer, null, "2021-05-04T17:24:06Z")
         .andExpect(status().isOk())
         .andExpect(header().string("Delta-Table-Version", "0"));
-    metadata(endpoint, bearer, 1L, "1970-01-01T00:00:00Z")
+    metadata(endpoint, bearer, null, "1970-01-01T00:00:00Z")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    metadata(endpoint, bearer, 1L, "2021-05-04T17:24:06Z")
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
   }
@@ -119,13 +122,18 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     String bearer = createAndActivateRecipient("schema-metadata-partner");
     grant("schema-metadata", "schema-metadata-partner");
 
-    metadata(
-            PROTOCOL + "/shares/schema-metadata/schemas/SALES/tables/TABLE1/metadata",
-            bearer,
-            null,
-            null)
-        .andExpect(status().isOk())
-        .andExpect(header().string("Delta-Table-Version", "2"));
+    assertParquetMetadata(
+        metadata(
+                PROTOCOL + "/shares/schema-metadata/schemas/SALES/tables/TABLE1/metadata",
+                bearer,
+                null,
+                null)
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "2"))
+            .andExpect(content().contentTypeCompatibleWith("application/x-ndjson"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString());
   }
 
   @Test

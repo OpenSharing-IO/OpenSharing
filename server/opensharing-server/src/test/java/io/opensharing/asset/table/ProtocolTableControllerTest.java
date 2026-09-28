@@ -227,6 +227,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
     String bearer = createAndActivateRecipient("table-metadata-partner");
     grant("table-metadata", "table-metadata-partner");
 
+    // Latest metadata defaults to parquet NDJSON (protocol + metaData.schemaString).
     String latest =
         mvc.perform(
                 get(PROTOCOL + "/shares/TABLE-METADATA/schemas/SALES/tables/ORDERS/metadata")
@@ -242,6 +243,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
     assertTrue(latest.contains("\"schemaString\""));
     assertFalse(latest.contains("\"deltaMetadata\""));
 
+    // responseformat=delta wraps Kernel protocol and metadata as deltaProtocol/deltaMetadata.
     String delta =
         mvc.perform(
                 get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
@@ -255,12 +257,14 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
     assertTrue(delta.contains("\"deltaProtocol\""), delta);
     assertTrue(delta.contains("\"deltaMetadata\""), delta);
 
+    // timestamp-as-of uses the historical snapshot version from the stub Kernel.
     mvc.perform(
             get(PROTOCOL + "/shares/table-metadata/schemas/hr/tables/SALARIES/metadata")
                 .param("timestamp", "2022-01-01T00:00:00Z")
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isOk())
         .andExpect(header().string("Delta-Table-Version", "45"));
+    // version and timestamp together are mutually exclusive.
     mvc.perform(
             get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
                 .param("version", "1")
@@ -268,12 +272,14 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    // A malformed timestamp is INVALID_PARAMETER_VALUE.
     mvc.perform(
             get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
                 .param("timestamp", "not-a-timestamp")
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    // A table in an ungranted share is 404, not 403.
     mvc.perform(
             get(PROTOCOL + "/shares/hidden-metadata/schemas/sales/tables/customers/metadata")
                 .header("Authorization", "Bearer " + bearer))
