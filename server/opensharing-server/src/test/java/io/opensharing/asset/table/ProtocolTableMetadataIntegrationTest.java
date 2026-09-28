@@ -37,6 +37,7 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     String bearer = shareTable("table1-metadata", "main.sales.table1", "sales.table1");
     String endpoint = PROTOCOL + "/shares/table1-metadata/schemas/sales/tables/table1/metadata";
 
+    // Latest metadata defaults to parquet NDJSON at table1 version 2.
     String latest =
         metadata(endpoint, bearer, null, null)
             .andExpect(status().isOk())
@@ -48,6 +49,7 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     assertParquetMetadata(latest);
     assertTrue(latest.contains("eventTime") || latest.contains("date"), latest);
 
+    // Explicit parquet keeps protocol + schemaString, not delta wrappers.
     assertParquetMetadata(
         metadata(endpoint, bearer, null, null, "responseformat=parquet")
             .andExpect(status().isOk())
@@ -55,6 +57,7 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
             .andReturn()
             .getResponse()
             .getContentAsString());
+    // Dual responseformat prefers delta over parquet.
     assertDeltaMetadata(
         metadata(endpoint, bearer, null, null, "responseformat=delta,parquet")
             .andExpect(status().isOk())
@@ -62,6 +65,7 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
             .andReturn()
             .getResponse()
             .getContentAsString());
+    // Delta-only wraps Kernel protocol and metadata.
     assertDeltaMetadata(
         metadata(endpoint, bearer, null, null, "responseformat=delta")
             .andExpect(status().isOk())
@@ -70,15 +74,19 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
             .getResponse()
             .getContentAsString());
 
+    // Historical version=0 returns that snapshot.
     metadata(endpoint, bearer, 0L, null)
         .andExpect(status().isOk())
         .andExpect(header().string("Delta-Table-Version", "0"));
+    // As-of the first commit time is also version 0.
     metadata(endpoint, bearer, null, "2021-05-04T17:24:06Z")
         .andExpect(status().isOk())
         .andExpect(header().string("Delta-Table-Version", "0"));
+    // As-of before version 0 is INVALID_PARAMETER_VALUE.
     metadata(endpoint, bearer, null, "1970-01-01T00:00:00Z")
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    // version and timestamp together are mutually exclusive.
     metadata(endpoint, bearer, 1L, "2021-05-04T17:24:06Z")
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
@@ -93,6 +101,7 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     String endpoint =
         PROTOCOL + "/shares/dv-metadata/schemas/sales/tables/deletionvectors/metadata";
 
+    // Deletion-vector table metadata in delta format includes the deletionVectors feature.
     String delta =
         metadata(endpoint, bearer, null, null, "responseformat=delta")
             .andExpect(status().isOk())
@@ -104,6 +113,7 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     assertDeltaMetadata(delta);
     assertTrue(delta.contains("deletionVectors"), delta);
 
+    // Dual responseformat still prefers delta for a reader-v3 table.
     String both =
         metadata(endpoint, bearer, null, null, "responseformat=delta,parquet")
             .andExpect(status().isOk())
@@ -122,6 +132,7 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     String bearer = createAndActivateRecipient("schema-metadata-partner");
     grant("schema-metadata", "schema-metadata-partner");
 
+    // A SCHEMA grant can Query Table Metadata for catalog children (table1).
     assertParquetMetadata(
         metadata(
                 PROTOCOL + "/shares/schema-metadata/schemas/SALES/tables/TABLE1/metadata",
@@ -142,6 +153,7 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     addObject("hidden-metadata", "TABLE", "main.sales.table1", "sales.table1");
     String bearer = shareTable("granted-metadata", "main.sales.table1", "sales.table1");
 
+    // A table in an ungranted share is 404, not 403.
     metadata(
             PROTOCOL + "/shares/hidden-metadata/schemas/sales/tables/table1/metadata",
             bearer,
