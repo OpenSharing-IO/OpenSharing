@@ -55,7 +55,7 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
             .andReturn()
             .getResponse()
             .getContentAsString());
-    assertParquetMetadata(
+    assertDeltaMetadata(
         metadata(endpoint, bearer, null, null, "responseformat=delta,parquet")
             .andExpect(status().isOk())
             .andExpect(header().string("Delta-Table-Version", "2"))

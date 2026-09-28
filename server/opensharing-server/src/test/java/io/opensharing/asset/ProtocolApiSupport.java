@@ -164,7 +164,7 @@ public abstract class ProtocolApiSupport {
             throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
           }
           boolean delta =
-              DeltaSharingCapabilities.choose(capabilities, false)
+              DeltaSharingCapabilities.choose(capabilities)
                   == DeltaSharingCapabilities.ResponseFormat.DELTA;
           return new DeltaTableMetadataReader.Result(
               version == null && timestamp == null ? 123 : 45, delta ? STUB_DELTA : STUB_PARQUET);

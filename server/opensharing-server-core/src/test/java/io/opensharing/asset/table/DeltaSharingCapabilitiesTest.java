@@ -9,28 +9,23 @@ class DeltaSharingCapabilitiesTest {
 
   @Test
   void defaultsToParquetWithoutAHeader() {
-    assertEquals(ResponseFormat.PARQUET, DeltaSharingCapabilities.choose(null, true));
-    assertEquals(ResponseFormat.PARQUET, DeltaSharingCapabilities.choose("", false));
+    assertEquals(ResponseFormat.PARQUET, DeltaSharingCapabilities.choose(null));
+    assertEquals(ResponseFormat.PARQUET, DeltaSharingCapabilities.choose(""));
   }
 
   @Test
   void respectsASingleRequestedFormat() {
-    assertEquals(
-        ResponseFormat.DELTA,
-        DeltaSharingCapabilities.choose("responseformat=delta", false));
-    assertEquals(
-        ResponseFormat.PARQUET,
-        DeltaSharingCapabilities.choose("responseformat=parquet", true));
+    assertEquals(ResponseFormat.DELTA, DeltaSharingCapabilities.choose("responseformat=delta"));
+    assertEquals(ResponseFormat.PARQUET, DeltaSharingCapabilities.choose("responseformat=parquet"));
   }
 
   @Test
-  void prefersDeltaWhenBothAreListedAndTheTableNeedsIt() {
+  void prefersDeltaWhenBothAreListed() {
     assertEquals(
-        ResponseFormat.PARQUET,
-        DeltaSharingCapabilities.choose("responseFormat=delta,parquet", false));
+        ResponseFormat.DELTA, DeltaSharingCapabilities.choose("responseFormat=delta,parquet"));
     assertEquals(
         ResponseFormat.DELTA,
         DeltaSharingCapabilities.choose(
-            "RESPONSEFORMAT=DELTA,PARQUET;readerfeatures=deletionvectors", true));
+            "RESPONSEFORMAT=PARQUET,DELTA;readerfeatures=deletionvectors"));
   }
 }

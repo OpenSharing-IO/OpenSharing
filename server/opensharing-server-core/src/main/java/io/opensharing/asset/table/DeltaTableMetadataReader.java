@@ -88,10 +88,7 @@ public class DeltaTableMetadataReader {
       Long historicalVersion,
       String capabilities)
       throws JsonProcessingException {
-    boolean requiresDelta =
-        protocol.getMinReaderVersion() > 1
-            || (protocol.getReaderFeatures() != null && !protocol.getReaderFeatures().isEmpty());
-    if (DeltaSharingCapabilities.choose(capabilities, requiresDelta)
+    if (DeltaSharingCapabilities.choose(capabilities)
         == DeltaSharingCapabilities.ResponseFormat.DELTA) {
       return line(new ProtocolLine(new DeltaProtocolWrapper(deltaProtocol(protocol))))
           + line(

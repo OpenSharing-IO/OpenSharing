@@ -15,18 +15,11 @@ public final class DeltaSharingCapabilities {
   private DeltaSharingCapabilities() {}
 
   /**
-   * No header, or parquet only, defaults to parquet. Delta only must be delta. When both are listed,
-   * parquet is used unless the table needs delta-format reader features.
+   * No header, or parquet only, defaults to parquet. If delta is listed, including together with
+   * parquet, the response is delta.
    */
-  public static ResponseFormat choose(String header, boolean requiresDeltaFormat) {
-    Set<ResponseFormat> requested = responseFormats(header);
-    if (requested.isEmpty()) {
-      return ResponseFormat.PARQUET;
-    }
-    if (requested.contains(ResponseFormat.DELTA) && requested.contains(ResponseFormat.PARQUET)) {
-      return requiresDeltaFormat ? ResponseFormat.DELTA : ResponseFormat.PARQUET;
-    }
-    return requested.contains(ResponseFormat.DELTA)
+  public static ResponseFormat choose(String header) {
+    return responseFormats(header).contains(ResponseFormat.DELTA)
         ? ResponseFormat.DELTA
         : ResponseFormat.PARQUET;
   }
