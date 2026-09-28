@@ -15,8 +15,8 @@ public final class DeltaSharingCapabilities {
   private DeltaSharingCapabilities() {}
 
   /**
-   * No header, or parquet only, defaults to parquet. If delta is listed, including together with
-   * parquet, the response is delta.
+   * No header, or parquet only, defaults to parquet. Prefer delta whenever it is listed, including
+   * {@code responseformat=delta,parquet}.
    */
   public static ResponseFormat choose(String header) {
     return responseFormats(header).contains(ResponseFormat.DELTA)
