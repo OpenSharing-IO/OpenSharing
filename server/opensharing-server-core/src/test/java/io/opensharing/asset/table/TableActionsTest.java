@@ -33,63 +33,48 @@ class TableActionsTest {
 
   @Test
   void encodesParquetProtocolAndMetadata() {
-    assertEquals(
-        """
-        {"protocol":{"minReaderVersion":1}}
-        {"metaData":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","location":"s3://delta-share-demo/tables/table1","auxiliaryLocations":["s3://delta-share-demo/tables/table1-aux1"],"accessModes":["url","dir"],"format":{"provider":"parquet"},"schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[{\\"name\\":\\"eventTime\\",\\"type\\":\\"timestamp\\",\\"nullable\\":true,\\"metadata\\":{}},{\\"name\\":\\"date\\",\\"type\\":\\"date\\",\\"nullable\\":true,\\"metadata\\":{}}]}","partitionColumns":["date"],"configuration":{"enableChangeDataFeed":"true"}}}
-        """,
-        TableActions.protocol(protocol(), null, ResponseFormat.PARQUET)
-            + TableActions.metadata(metadata(), TABLE, null, null, null, ResponseFormat.PARQUET));
+    assertEquals(parquetBody(""), encode(ResponseFormat.PARQUET, null, null, null));
+    assertEquals(parquetBody(",\"version\":20"), encode(ResponseFormat.PARQUET, 20L, null, null));
   }
 
   @Test
   void encodesDeltaProtocolAndMetadataFromKernel() {
     Protocol protocol = protocol();
     Metadata metadata = metadata();
+    String deltaProtocol = JsonUtils.rowToJson(protocol.toRow());
+    String deltaMetadata = JsonUtils.rowToJson(metadata.toRow());
     assertEquals(
-        """
-        {"protocol":{"deltaProtocol":%s}}
-        {"metaData":{"location":"s3://delta-share-demo/tables/table1","auxiliaryLocations":["s3://delta-share-demo/tables/table1-aux1"],"accessModes":["url","dir"],"deltaMetadata":%s}}
-        """
-            .formatted(JsonUtils.rowToJson(protocol.toRow()), JsonUtils.rowToJson(metadata.toRow())),
-        TableActions.protocol(protocol, null, ResponseFormat.DELTA)
-            + TableActions.metadata(metadata, TABLE, null, null, null, ResponseFormat.DELTA));
-  }
-
-  @Test
-  void includesVersionOnHistoricalMetadata() {
+        deltaBody(deltaProtocol, "", deltaMetadata), encode(ResponseFormat.DELTA, null, null, null));
     assertEquals(
-        """
-        {"protocol":{"minReaderVersion":1}}
-        {"metaData":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","location":"s3://delta-share-demo/tables/table1","auxiliaryLocations":["s3://delta-share-demo/tables/table1-aux1"],"accessModes":["url","dir"],"format":{"provider":"parquet"},"schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[{\\"name\\":\\"eventTime\\",\\"type\\":\\"timestamp\\",\\"nullable\\":true,\\"metadata\\":{}},{\\"name\\":\\"date\\",\\"type\\":\\"date\\",\\"nullable\\":true,\\"metadata\\":{}}]}","partitionColumns":["date"],"configuration":{"enableChangeDataFeed":"true"},"version":20}}
-        """,
-        TableActions.protocol(protocol(), null, ResponseFormat.PARQUET)
-            + TableActions.metadata(metadata(), TABLE, 20L, null, null, ResponseFormat.PARQUET));
-  }
-
-  @Test
-  void includesSizeAndNumFiles() {
-    Protocol protocol = protocol();
-    Metadata metadata = metadata();
-    assertEquals(
-        """
-        {"protocol":{"deltaProtocol":%s}}
-        {"metaData":{"size":123456,"numFiles":5,"location":"s3://delta-share-demo/tables/table1","auxiliaryLocations":["s3://delta-share-demo/tables/table1-aux1"],"accessModes":["url","dir"],"deltaMetadata":%s}}
-        """
-            .formatted(JsonUtils.rowToJson(protocol.toRow()), JsonUtils.rowToJson(metadata.toRow())),
-        TableActions.protocol(protocol, null, ResponseFormat.DELTA)
-            + TableActions.metadata(metadata, TABLE, null, 123456L, 5L, ResponseFormat.DELTA));
-  }
-
-  @Test
-  void includesVersionOnHistoricalDeltaProtocol() {
-    Protocol protocol = protocol();
+        deltaBody(deltaProtocol, "\"size\":123456,\"numFiles\":5,", deltaMetadata),
+        encode(ResponseFormat.DELTA, null, 123456L, 5L));
     assertEquals(
         """
         {"protocol":{"version":5,"deltaProtocol":%s}}
         """
-            .formatted(JsonUtils.rowToJson(protocol.toRow())),
+            .formatted(deltaProtocol),
         TableActions.protocol(protocol, 5L, ResponseFormat.DELTA));
+  }
+
+  private static String encode(ResponseFormat format, Long version, Long size, Long numFiles) {
+    return TableActions.protocol(protocol(), null, format)
+        + TableActions.metadata(metadata(), TABLE, version, size, numFiles, format);
+  }
+
+  private static String parquetBody(String versionField) {
+    return """
+        {"protocol":{"minReaderVersion":1}}
+        {"metaData":{"id":"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2","location":"s3://delta-share-demo/tables/table1","auxiliaryLocations":["s3://delta-share-demo/tables/table1-aux1"],"accessModes":["url","dir"],"format":{"provider":"parquet"},"schemaString":"{\\"type\\":\\"struct\\",\\"fields\\":[{\\"name\\":\\"eventTime\\",\\"type\\":\\"timestamp\\",\\"nullable\\":true,\\"metadata\\":{}},{\\"name\\":\\"date\\",\\"type\\":\\"date\\",\\"nullable\\":true,\\"metadata\\":{}}]}","partitionColumns":["date"],"configuration":{"enableChangeDataFeed":"true"}%s}}
+        """
+        .formatted(versionField);
+  }
+
+  private static String deltaBody(String deltaProtocol, String stats, String deltaMetadata) {
+    return """
+        {"protocol":{"deltaProtocol":%s}}
+        {"metaData":{%s"location":"s3://delta-share-demo/tables/table1","auxiliaryLocations":["s3://delta-share-demo/tables/table1-aux1"],"accessModes":["url","dir"],"deltaMetadata":%s}}
+        """
+        .formatted(deltaProtocol, stats, deltaMetadata);
   }
 
   private static Protocol protocol() {
