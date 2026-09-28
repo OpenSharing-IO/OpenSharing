@@ -1,8 +1,11 @@
 package io.opensharing.asset.table;
 
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -298,6 +301,66 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
     mvc.perform(
             get(PROTOCOL + "/shares/hidden-metadata/schemas/sales/tables/customers/metadata")
                 .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
+
+  @Test
+  void vendsTemporaryCredentialsForAGrantedTable() throws Exception {
+    createShare("table-creds");
+    addObject("table-creds", "TABLE", "main.sales.orders", "sales.orders");
+    addObject("table-creds", "SCHEMA", "main.hr", "hr");
+    createShare("hidden-creds");
+    addObject("hidden-creds", "TABLE", "main.sales.customers", "sales.customers");
+    String bearer = createAndActivateRecipient("table-creds-partner");
+    grant("table-creds", "table-creds-partner");
+
+    // Empty body vends FAKE AWS credentials for the table root.
+    mvc.perform(
+            post(PROTOCOL
+                    + "/shares/TABLE-CREDS/schemas/SALES/tables/ORDERS/temporary-table-credentials")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.credentials.location").value("s3://test/main.sales.orders/"))
+        .andExpect(jsonPath("$.credentials.awsTempCredentials.accessKeyId").value(startsWith("ASIA")))
+        .andExpect(jsonPath("$.credentials.awsTempCredentials.secretAccessKey").exists())
+        .andExpect(jsonPath("$.credentials.awsTempCredentials.sessionToken").exists())
+        .andExpect(jsonPath("$.credentials.azureUserDelegationSas").doesNotExist())
+        .andExpect(jsonPath("$.credentials.expirationTime").value(greaterThan(0L)));
+    // Explicit location may repeat the table root.
+    mvc.perform(
+            post(PROTOCOL
+                    + "/shares/table-creds/schemas/sales/tables/orders/temporary-table-credentials")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"location\":\"s3://test/main.sales.orders/\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.credentials.location").value("s3://test/main.sales.orders/"));
+    // A SCHEMA grant can mint credentials for a catalog child.
+    mvc.perform(
+            post(PROTOCOL
+                    + "/shares/table-creds/schemas/hr/tables/employees/temporary-table-credentials")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.credentials.location").value("s3://test/main.hr.employees/"));
+    // A location outside the table root and auxiliaries is INVALID_PARAMETER_VALUE.
+    mvc.perform(
+            post(PROTOCOL
+                    + "/shares/table-creds/schemas/sales/tables/orders/temporary-table-credentials")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"location\":\"s3://other/prefix/\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    // A table in an ungranted share is 404, not 403.
+    mvc.perform(
+            post(PROTOCOL
+                    + "/shares/hidden-creds/schemas/sales/tables/customers/temporary-table-credentials")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
   }

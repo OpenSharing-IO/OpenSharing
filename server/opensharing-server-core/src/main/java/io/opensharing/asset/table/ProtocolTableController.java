@@ -10,7 +10,11 @@ import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.AssetLookup;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.catalog.StorageCredentials;
+import io.opensharing.catalog.StorageOperation;
+import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Listings;
@@ -33,6 +37,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -134,6 +140,68 @@ public class ProtocolTableController {
         .header(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(capabilities))
         .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"))
         .body(result.ndjson());
+  }
+
+  @PostMapping("/schemas/{schema}/tables/{table}/temporary-table-credentials")
+  public TemporaryTableCredentialsResponse temporaryCredentials(
+      RecipientPrincipal principal,
+      @PathVariable String share,
+      @PathVariable String schema,
+      @PathVariable String table,
+      @RequestBody(required = false) TemporaryTableCredentialsRequest request) {
+    ShareEntity entity = requireGrantedShare(principal, share);
+    ResolvedAsset resolved = resolveTable(entity, schema, table);
+    List<String> accessModes = TableAccessModes.forTable(resolved);
+    if (accessModes == null || !accessModes.contains("dir")) {
+      throw ApiException.invalidParameter(
+          "table '" + schema + "." + table + "' does not support directory access");
+    }
+    String location = credentialLocation(resolved, request);
+    List<StorageCredentials> minted =
+        catalog.getStorageCredentials(
+            new CredentialRequest(
+                AssetType.TABLE,
+                resolved.identifier(),
+                resolved.catalogAssetId(),
+                location,
+                StorageOperation.READ,
+                null),
+            owner(entity));
+    StorageCredentials matching =
+        minted.stream()
+            .filter(candidate -> covers(candidate.prefix(), location))
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new CatalogException(
+                        "catalog returned no credentials for table root '" + location + "'"));
+    return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(matching));
+  }
+
+  private static String credentialLocation(
+      ResolvedAsset table, TemporaryTableCredentialsRequest request) {
+    String location = request == null ? null : request.location();
+    if (location == null || location.isBlank()) {
+      if (table.storageLocation() == null || table.storageLocation().isBlank()) {
+        throw ApiException.invalidParameter(
+            "table '" + table.identifier() + "' has no storage location");
+      }
+      return table.storageLocation();
+    }
+    if (location.equals(table.storageLocation())
+        || table.auxiliaryLocations().contains(location)) {
+      return location;
+    }
+    throw ApiException.invalidParameter(
+        "location '" + location + "' is not part of table '" + table.identifier() + "'");
+  }
+
+  private static boolean covers(String prefix, String location) {
+    if (prefix == null || prefix.isBlank()) {
+      return false;
+    }
+    String normalized = prefix.endsWith("/") ? prefix : prefix + "/";
+    return location.equals(prefix) || location.startsWith(normalized);
   }
 
   private ShareEntity requireGrantedShare(RecipientPrincipal principal, String share) {
