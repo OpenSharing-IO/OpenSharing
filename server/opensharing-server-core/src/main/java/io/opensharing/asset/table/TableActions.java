@@ -1,0 +1,149 @@
+package io.opensharing.asset.table;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import io.delta.kernel.defaults.internal.json.JsonUtils;
+import io.delta.kernel.internal.actions.Format;
+import io.delta.kernel.internal.actions.Metadata;
+import io.delta.kernel.internal.actions.Protocol;
+import io.delta.kernel.internal.util.VectorUtils;
+import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
+import io.opensharing.catalog.ResolvedAsset;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+/** Protocol and metadata NDJSON actions shared by Query Table Metadata and Query Table. */
+public final class TableActions {
+
+  private static final ObjectMapper JSON =
+      new ObjectMapper().setSerializationInclusion(JsonInclude.Include.NON_NULL);
+
+  private TableActions() {}
+
+  public static String protocol(Protocol protocol, Long version, ResponseFormat format) {
+    return line(
+        new ProtocolLine(
+            format == ResponseFormat.DELTA
+                ? new DeltaProtocol(version, protocol)
+                : new ParquetProtocol(1)));
+  }
+
+  public static String metadata(
+      Metadata metadata,
+      ResolvedAsset table,
+      Long version,
+      Long size,
+      Long numFiles,
+      ResponseFormat format) {
+    if (format == ResponseFormat.DELTA) {
+      return line(
+          new MetadataLine(
+              new DeltaMetadata(
+                  version,
+                  size,
+                  numFiles,
+                  table.storageLocation(),
+                  emptyToNull(table.auxiliaryLocations()),
+                  TableAccessModes.forTable(table),
+                  metadata)));
+    }
+    Format tableFormat = metadata.getFormat();
+    return line(
+        new MetadataLine(
+            new ParquetMetadata(
+                metadata.getId(),
+                metadata.getName().orElse(null),
+                metadata.getDescription().orElse(null),
+                table.storageLocation(),
+                emptyToNull(table.auxiliaryLocations()),
+                TableAccessModes.forTable(table),
+                new FormatBody(tableFormat.getProvider()),
+                metadata.getSchemaString(),
+                VectorUtils.toJavaList(metadata.getPartitionColumns()),
+                emptyMapToNull(metadata.getConfiguration()),
+                version,
+                size,
+                numFiles)));
+  }
+
+  private static String line(Object value) {
+    try {
+      return JSON.writeValueAsString(value) + "\n";
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("failed to encode table action", e);
+    }
+  }
+
+  private static List<String> emptyToNull(List<String> values) {
+    return values == null || values.isEmpty() ? null : values;
+  }
+
+  private static Map<String, String> emptyMapToNull(Map<String, String> values) {
+    return values == null || values.isEmpty() ? null : values;
+  }
+
+  /** Writes Kernel protocol/metadata rows as Delta log JSON. */
+  public static final class KernelActionSerializer extends JsonSerializer<Object> {
+    @Override
+    public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers)
+        throws IOException {
+      gen.writeRawValue(
+          JsonUtils.rowToJson(
+              value instanceof Protocol protocol
+                  ? protocol.toRow()
+                  : ((Metadata) value).toRow()));
+    }
+  }
+
+  public record ProtocolLine(ProtocolBody protocol) {}
+
+  public sealed interface ProtocolBody permits ParquetProtocol, DeltaProtocol {}
+
+  public record ParquetProtocol(int minReaderVersion) implements ProtocolBody {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record DeltaProtocol(
+      Long version,
+      @JsonSerialize(using = KernelActionSerializer.class) Protocol deltaProtocol)
+      implements ProtocolBody {}
+
+  public record MetadataLine(MetadataBody metaData) {}
+
+  public sealed interface MetadataBody permits ParquetMetadata, DeltaMetadata {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record ParquetMetadata(
+      String id,
+      String name,
+      String description,
+      String location,
+      List<String> auxiliaryLocations,
+      List<String> accessModes,
+      FormatBody format,
+      String schemaString,
+      List<String> partitionColumns,
+      Map<String, String> configuration,
+      Long version,
+      Long size,
+      Long numFiles)
+      implements MetadataBody {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record DeltaMetadata(
+      Long version,
+      Long size,
+      Long numFiles,
+      String location,
+      List<String> auxiliaryLocations,
+      List<String> accessModes,
+      @JsonSerialize(using = KernelActionSerializer.class) Metadata deltaMetadata)
+      implements MetadataBody {}
+
+  public record FormatBody(String provider) {}
+}
