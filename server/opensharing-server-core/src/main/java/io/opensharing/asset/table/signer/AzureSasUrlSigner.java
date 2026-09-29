@@ -2,7 +2,6 @@ package io.opensharing.asset.table.signer;
 
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.http.ApiException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -49,24 +48,20 @@ public class AzureSasUrlSigner implements UrlSigner {
   }
 
   private static String httpsUrl(String path) {
-    URI uri = URI.create(path);
-    String container = uri.getUserInfo();
-    String host = uri.getHost();
-    if (container == null || host == null) {
-      throw ApiException.invalidParameter(
-          "'" + path + "' is not an Azure path of the form scheme://container@account.host/blob");
-    }
-    String blob = uri.getPath() == null ? "" : uri.getPath();
-    return "https://" + host.replace(".dfs.", ".blob.") + "/" + container + blob;
+    StoragePaths.AzureBlob parsed = StoragePaths.azureBlob(path);
+    return "https://"
+        + parsed.host().replace(".dfs.", ".blob.")
+        + "/"
+        + parsed.container()
+        + S3UrlSigner.canonicalPath(parsed.blob());
   }
 
   private static String blobSas(String path, String accountKey, Instant expiration) {
-    URI uri = URI.create(path);
-    String account = uri.getHost().split("\\.")[0];
-    String container = uri.getUserInfo();
-    String blob = uri.getPath() == null ? "" : uri.getPath().replaceFirst("^/", "");
+    StoragePaths.AzureBlob parsed = StoragePaths.azureBlob(path);
+    String account = parsed.host().split("\\.")[0];
     String se = EXPIRY.format(expiration);
-    String canonicalizedResource = "/blob/" + account + "/" + container + "/" + blob;
+    String canonicalizedResource =
+        "/blob/" + account + "/" + parsed.container() + "/" + parsed.blob();
     String stringToSign =
         String.join(
             "\n",

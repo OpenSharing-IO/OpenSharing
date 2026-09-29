@@ -60,7 +60,7 @@ class S3UrlSignerTest {
 
     SignedUrl signed = signer.sign("s3://bucket/key.parquet", credentials, Duration.ofMinutes(5));
 
-    assertTrue(signed.url().startsWith("https://bucket.s3.us-east-1.amazonaws.com/key.parquet?"));
+    assertTrue(signed.url().startsWith("https://bucket.s3.us-west-2.amazonaws.com/key.parquet?"));
     assertFalse(signed.url().contains("X-Amz-Security-Token"));
   }
 }

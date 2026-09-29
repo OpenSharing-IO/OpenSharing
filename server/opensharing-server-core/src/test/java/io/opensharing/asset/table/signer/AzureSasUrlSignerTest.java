@@ -59,4 +59,23 @@ class AzureSasUrlSignerTest {
     assertTrue(signed.url().contains("sr=b"));
     assertTrue(signed.url().contains("sig="));
   }
+
+  @Test
+  void encodesSpacesInBlobPaths() {
+    String accountKey = Base64.getEncoder().encodeToString(new byte[64]);
+    StorageCredentials credentials =
+        new StorageCredentials(
+            "abfss://container@account.dfs.core.windows.net/",
+            CloudProvider.AZURE,
+            Map.of(StorageCredentials.AZURE_ACCOUNT_KEY, accountKey),
+            Instant.now().plus(Duration.ofHours(1)));
+
+    SignedUrl signed =
+        signer.sign(
+            "abfss://container@account.dfs.core.windows.net/table/c2=foo bar/part.parquet",
+            credentials,
+            Duration.ofMinutes(15));
+
+    assertTrue(signed.url().contains("/table/c2%3Dfoo%20bar/part.parquet?"), signed.url());
+  }
 }

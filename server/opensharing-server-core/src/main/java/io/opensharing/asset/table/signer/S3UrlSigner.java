@@ -2,8 +2,6 @@ package io.opensharing.asset.table.signer;
 
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.config.OpenSharingProperties;
-import io.opensharing.http.ApiException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -51,12 +49,9 @@ public class S3UrlSigner implements UrlSigner {
 
   @Override
   public SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
-    URI uri = URI.create(path);
-    String bucket = uri.getHost();
-    String key = uri.getPath() == null ? "" : uri.getPath().replaceFirst("^/", "");
-    if (bucket == null || bucket.isBlank() || key.isBlank()) {
-      throw ApiException.invalidParameter("'" + path + "' is not an S3 object path");
-    }
+    String[] bucketAndKey = StoragePaths.bucketAndKey(path);
+    String bucket = bucketAndKey[0];
+    String key = bucketAndKey[1];
     String region = credentials.credentials().get(StorageCredentials.REGION);
     if (region == null || region.isBlank()) {
       region = defaultRegion;

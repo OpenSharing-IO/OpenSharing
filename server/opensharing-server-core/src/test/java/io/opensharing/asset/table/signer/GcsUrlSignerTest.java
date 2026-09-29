@@ -39,6 +39,25 @@ class GcsUrlSignerTest {
     assertTrue(signed.url().contains("X-Goog-Signature="));
   }
 
+  @Test
+  void encodesSpacesInObjectPaths() throws Exception {
+    Path keyFile = writeServiceAccount(tempDir.resolve("sa.json"));
+    GcsUrlSigner signer = new GcsUrlSigner((GcsSigningKey) null);
+    StorageCredentials credentials =
+        new StorageCredentials(
+            "gs://bucket/",
+            CloudProvider.GCP,
+            Map.of(StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE, keyFile.toString()),
+            Instant.now().plus(Duration.ofHours(1)));
+
+    SignedUrl signed =
+        signer.sign("gs://bucket/c2=foo bar/file.parquet", credentials, Duration.ofMinutes(10));
+
+    assertTrue(
+        signed.url().startsWith("https://storage.googleapis.com/bucket/c2%3Dfoo%20bar/file.parquet?"),
+        signed.url());
+  }
+
   private static Path writeServiceAccount(Path file) throws Exception {
     KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
     generator.initialize(2048);

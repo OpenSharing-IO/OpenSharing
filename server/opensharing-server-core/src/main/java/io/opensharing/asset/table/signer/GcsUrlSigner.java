@@ -3,7 +3,6 @@ package io.opensharing.asset.table.signer;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.config.OpenSharingProperties;
 import io.opensharing.http.ApiException;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
@@ -56,12 +55,9 @@ public class GcsUrlSigner implements UrlSigner {
   @Override
   public SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
     GcsSigningKey signingKey = keyFor(credentials);
-    URI uri = URI.create(path);
-    String bucket = uri.getHost();
-    String object = uri.getPath() == null ? "" : uri.getPath().replaceFirst("^/", "");
-    if (bucket == null || bucket.isBlank() || object.isBlank()) {
-      throw ApiException.invalidParameter("'" + path + "' is not a Google storage object path");
-    }
+    String[] bucketAndObject = StoragePaths.bucketAndKey(path);
+    String bucket = bucketAndObject[0];
+    String object = bucketAndObject[1];
     Instant now = Instant.now();
     String scope = DATE_STAMP.format(now) + SCOPE_SUFFIX;
 
