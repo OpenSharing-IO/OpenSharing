@@ -14,6 +14,7 @@ import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
+import io.opensharing.config.OpenSharingProperties;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
@@ -59,6 +60,7 @@ public class ProtocolTableController {
   private final DeltaKernel kernel;
   private final DeltaTableMetadataReader metadataReader;
   private final Listings listings;
+  private final OpenSharingProperties properties;
 
   public ProtocolTableController(
       RecipientStore recipients,
@@ -68,7 +70,8 @@ public class ProtocolTableController {
       CatalogConnector catalog,
       DeltaKernel kernel,
       DeltaTableMetadataReader metadataReader,
-      Listings listings) {
+      Listings listings,
+      OpenSharingProperties properties) {
     this.recipients = recipients;
     this.shares = shares;
     this.permissions = permissions;
@@ -77,6 +80,7 @@ public class ProtocolTableController {
     this.kernel = kernel;
     this.metadataReader = metadataReader;
     this.listings = listings;
+    this.properties = properties;
   }
 
   @GetMapping("/all-tables")
@@ -165,7 +169,7 @@ public class ProtocolTableController {
                 resolved.catalogAssetId(),
                 location,
                 StorageOperation.READ,
-                null),
+                properties.getAssetCredentials().getTtl()),
             owner(entity));
     StorageCredentials matching =
         minted.stream()
