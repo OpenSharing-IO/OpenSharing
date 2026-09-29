@@ -9,7 +9,7 @@ import com.jayway.jsonpath.JsonPath;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
-import io.opensharing.asset.table.DeltaTableQueryReader;
+import io.opensharing.asset.table.delta.DeltaTableQueryReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;

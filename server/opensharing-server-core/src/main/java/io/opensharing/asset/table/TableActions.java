@@ -111,7 +111,7 @@ public final class TableActions {
   }
 
   /** Keep the Kernel add action and replace path with the file URL. */
-  static AddFile withPath(AddFile add, String path) {
+  public static AddFile withPath(AddFile add, String path) {
     Row row = add.toRow();
     return new AddFile(
         new DelegateRow(row, Map.of(row.getSchema().indexOf("path"), (Object) path)));

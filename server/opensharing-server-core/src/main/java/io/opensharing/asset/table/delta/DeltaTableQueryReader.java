@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.asset.table.delta;
 
 import io.delta.kernel.Scan;
 import io.delta.kernel.Snapshot;
@@ -10,7 +10,10 @@ import io.delta.kernel.internal.actions.AddFile;
 import io.delta.kernel.internal.checksum.CRCInfo;
 import io.delta.kernel.utils.CloseableIterator;
 import io.delta.kernel.utils.FileStatus;
+import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
+import io.opensharing.asset.table.FileIdHash;
+import io.opensharing.asset.table.TableActions;
 import io.opensharing.asset.table.signer.SignedUrl;
 import io.opensharing.asset.table.signer.UrlSigners;
 import io.opensharing.auth.AuthContext;
