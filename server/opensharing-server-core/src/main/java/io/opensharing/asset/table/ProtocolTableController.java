@@ -59,6 +59,7 @@ public class ProtocolTableController {
   private final CatalogConnector catalog;
   private final DeltaKernel kernel;
   private final DeltaTableMetadataReader metadataReader;
+  private final DeltaTableQueryReader queryReader;
   private final Listings listings;
   private final OpenSharingProperties properties;
 
@@ -70,6 +71,7 @@ public class ProtocolTableController {
       CatalogConnector catalog,
       DeltaKernel kernel,
       DeltaTableMetadataReader metadataReader,
+      DeltaTableQueryReader queryReader,
       Listings listings,
       OpenSharingProperties properties) {
     this.recipients = recipients;
@@ -79,6 +81,7 @@ public class ProtocolTableController {
     this.catalog = catalog;
     this.kernel = kernel;
     this.metadataReader = metadataReader;
+    this.queryReader = queryReader;
     this.listings = listings;
     this.properties = properties;
   }
@@ -182,6 +185,54 @@ public class ProtocolTableController {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(matching));
   }
 
+  // Snapshot Query Table only. Predicate/limit pushdown and startingVersion/endingVersion are NOT_IMPLEMENTED.
+  @PostMapping(
+      value = "/schemas/{schema}/tables/{table}/query",
+      produces = "application/x-ndjson;charset=UTF-8")
+  public ResponseEntity<String> query(
+      RecipientPrincipal principal,
+      @PathVariable String share,
+      @PathVariable String schema,
+      @PathVariable String table,
+      @RequestBody(required = false) QueryTableRequest request,
+      @RequestHeader(value = "delta-sharing-capabilities", required = false) String capabilities,
+      @RequestHeader(value = FileIdHash.HEADER, required = false) String fileIdHashHeader) {
+    ShareEntity entity = requireGrantedShare(principal, share);
+    ResolvedAsset resolved = resolveTable(entity, schema, table);
+    List<String> accessModes = TableAccessModes.forTable(resolved);
+    if (accessModes == null || !accessModes.contains("url")) {
+      throw ApiException.invalidParameter(
+          "table '" + schema + "." + table + "' does not support url access");
+    }
+    if (!properties.getDelta().isUrlAccessEnabled()) {
+      throw ApiException.invalidParameter("url access is disabled");
+    }
+    QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
+    if (body.startingVersion() != null || body.endingVersion() != null) {
+      throw ApiException.notImplemented("startingVersion queries are not supported");
+    }
+    if (hasPushdownHint(body)) {
+      throw ApiException.notImplemented("predicate and limit pushdown is not supported");
+    }
+    String fileIdHash = FileIdHash.parse(fileIdHashHeader);
+    DeltaTableQueryReader.Result result =
+        queryReader.read(
+            resolved,
+            body.version(),
+            parseTimestamp(body.timestamp()),
+            owner(entity),
+            capabilities,
+            fileIdHash);
+    var response =
+        ResponseEntity.ok()
+            .header("Delta-Table-Version", Long.toString(result.version()))
+            .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"));
+    if (fileIdHash != null) {
+      response = response.header(FileIdHash.HEADER, fileIdHash);
+    }
+    return response.body(result.ndjson());
+  }
+
   private static String credentialLocation(
       ResolvedAsset table, TemporaryTableCredentialsRequest request) {
     String location = request == null ? null : request.location();
@@ -273,8 +324,14 @@ public class ProtocolTableController {
     try {
       return Instant.parse(value);
     } catch (DateTimeParseException invalid) {
-      throw ApiException.invalidParameter("startingTimestamp must be an ISO8601 UTC timestamp");
+      throw ApiException.invalidParameter("timestamp must be an ISO8601 UTC timestamp");
     }
+  }
+
+  private static boolean hasPushdownHint(QueryTableRequest body) {
+    return (body.predicateHints() != null && !body.predicateHints().isEmpty())
+        || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank())
+        || body.limitHint() != null;
   }
 
   private static ApiException tableNotFound(ShareEntity share, String schema, String table) {

@@ -364,4 +364,110 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
   }
+
+  @Test
+  void queriesGrantedTable() throws Exception {
+    createShare("table-query");
+    addObject("table-query", "TABLE", "main.sales.orders", "sales.orders");
+    addObject("table-query", "SCHEMA", "main.hr", "hr");
+    createShare("hidden-query");
+    addObject("hidden-query", "TABLE", "main.sales.customers", "sales.customers");
+    String bearer = createAndActivateRecipient("table-query-partner");
+    grant("table-query", "table-query-partner");
+
+    // Latest snapshot query defaults to parquet NDJSON (protocol + metaData + file).
+    String latest =
+        mvc.perform(
+                post(PROTOCOL + "/shares/TABLE-QUERY/schemas/SALES/tables/ORDERS/query")
+                    .header("Authorization", "Bearer " + bearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{}"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "123"))
+            .andExpect(content().contentTypeCompatibleWith("application/x-ndjson"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(latest.contains("\"protocol\""), latest);
+    assertTrue(latest.contains("\"metaData\""), latest);
+    assertTrue(latest.contains("\"schemaString\""), latest);
+    assertTrue(latest.contains("\"file\""), latest);
+    assertTrue(latest.contains("https://example.invalid/stub.parquet"), latest);
+    assertFalse(latest.contains("\"deltaSingleAction\""), latest);
+
+    // fileidhash=parquet is echoed; unsupported values are INVALID_PARAMETER_VALUE.
+    mvc.perform(
+            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                .header("Authorization", "Bearer " + bearer)
+                .header(FileIdHash.HEADER, "PARQUET")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isOk())
+        .andExpect(header().string(FileIdHash.HEADER, "parquet"));
+    mvc.perform(
+            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                .header("Authorization", "Bearer " + bearer)
+                .header(FileIdHash.HEADER, "md5")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+
+    // responseformat=delta wraps each file as deltaSingleAction.add with path as the URL.
+    String delta =
+        mvc.perform(
+                post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                    .header("Authorization", "Bearer " + bearer)
+                    .header("delta-sharing-capabilities", "responseformat=delta")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{}"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "123"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(delta.contains("\"deltaProtocol\""), delta);
+    assertTrue(delta.contains("\"deltaSingleAction\""), delta);
+
+    // timestamp-as-of uses the historical snapshot version from the stub Kernel.
+    mvc.perform(
+            post(PROTOCOL + "/shares/table-query/schemas/hr/tables/SALARIES/query")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"timestamp\":\"2022-01-01T00:00:00Z\"}"))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Delta-Table-Version", "45"));
+    // version and timestamp together are mutually exclusive.
+    mvc.perform(
+            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"version\":1,\"timestamp\":\"2022-01-01T00:00:00Z\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    // Streaming startingVersion is not implemented.
+    mvc.perform(
+            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"startingVersion\":0}"))
+        .andExpect(status().isNotImplemented())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.NOT_IMPLEMENTED));
+    // Predicate and limit pushdown is not implemented.
+    mvc.perform(
+            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"predicateHints\":[\"date >= '2021-01-01'\"],\"limitHint\":1000}"))
+        .andExpect(status().isNotImplemented())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.NOT_IMPLEMENTED));
+    // A table in an ungranted share is 404, not 403.
+    mvc.perform(
+            post(PROTOCOL + "/shares/hidden-query/schemas/sales/tables/customers/query")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
 }

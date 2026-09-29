@@ -14,6 +14,7 @@ public class OpenSharingProperties {
   private final RecipientTokens recipientTokens = new RecipientTokens();
   private final AssetCredentials assetCredentials = new AssetCredentials();
   private final Storage storage = new Storage();
+  private final Delta delta = new Delta();
   private final Pagination pagination = new Pagination();
   private final Catalog catalog = new Catalog();
 
@@ -51,6 +52,10 @@ public class OpenSharingProperties {
 
   public Storage getStorage() {
     return storage;
+  }
+
+  public Delta getDelta() {
+    return delta;
   }
 
   public Pagination getPagination() {
@@ -139,6 +144,29 @@ public class OpenSharingProperties {
 
     public void setGcsServiceAccountKeyFile(String gcsServiceAccountKeyFile) {
       this.gcsServiceAccountKeyFile = gcsServiceAccountKeyFile;
+    }
+  }
+
+  /** Query Table URL access and signed file URL TTL. */
+  public static class Delta {
+
+    private boolean urlAccessEnabled = true;
+    private Duration urlTtl = Duration.ofHours(1);
+
+    public boolean isUrlAccessEnabled() {
+      return urlAccessEnabled;
+    }
+
+    public void setUrlAccessEnabled(boolean urlAccessEnabled) {
+      this.urlAccessEnabled = urlAccessEnabled;
+    }
+
+    public Duration getUrlTtl() {
+      return urlTtl;
+    }
+
+    public void setUrlTtl(Duration urlTtl) {
+      this.urlTtl = urlTtl;
     }
   }
 

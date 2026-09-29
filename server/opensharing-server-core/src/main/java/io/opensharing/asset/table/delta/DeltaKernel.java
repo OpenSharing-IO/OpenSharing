@@ -33,6 +33,10 @@ public class DeltaKernel {
   }
 
   public Session open(ResolvedAsset table, AuthContext auth) {
+    return open(table, auth, CREDENTIAL_TTL);
+  }
+
+  public Session open(ResolvedAsset table, AuthContext auth, Duration ttl) {
     if (table.format() != TableFormat.DELTA) {
       throw ApiException.invalidParameter(
           "table '" + table.identifier() + "' is not a Delta table");
@@ -49,7 +53,7 @@ public class DeltaKernel {
                 table.catalogAssetId(),
                 location,
                 StorageOperation.READ,
-                CREDENTIAL_TTL),
+                ttl),
             auth);
     StorageCredentials rootCredentials =
         credentials.stream()
@@ -62,7 +66,10 @@ public class DeltaKernel {
     Engine engine =
         DefaultEngine.create(HadoopStorageConfiguration.from(rootCredentials, location));
     return new Session(
-        engine, Table.forPath(engine, HadoopStorageConfiguration.kernelPath(location)), location);
+        engine,
+        Table.forPath(engine, HadoopStorageConfiguration.kernelPath(location)),
+        location,
+        rootCredentials);
   }
 
   public long getVersion(ResolvedAsset table, Instant startingTimestamp, AuthContext auth) {
@@ -90,5 +97,6 @@ public class DeltaKernel {
     return location.equals(prefix) || location.startsWith(normalized);
   }
 
-  public record Session(Engine engine, Table table, String location) {}
+  public record Session(
+      Engine engine, Table table, String location, StorageCredentials credentials) {}
 }

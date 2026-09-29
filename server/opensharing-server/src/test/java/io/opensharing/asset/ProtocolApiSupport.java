@@ -9,6 +9,7 @@ import com.jayway.jsonpath.JsonPath;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
+import io.opensharing.asset.table.DeltaTableQueryReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
@@ -109,8 +110,8 @@ public abstract class ProtocolApiSupport {
   }
 
   /**
-   * In-process Query Table Version and Metadata tests stub Kernel. Cloud integration tests set
-   * {@code opensharing.test.stub-protocol-dependencies=false} to use the real readers.
+   * In-process Query Table Version, Metadata, and Query tests stub Kernel. Cloud integration tests
+   * set {@code opensharing.test.stub-protocol-dependencies=false} to use the real readers.
    */
   @TestConfiguration
   static class StubDeltaKernel {
@@ -129,6 +130,16 @@ public abstract class ProtocolApiSupport {
         {"metaData":{"location":"s3://test/main.sales.orders/","accessModes":["url","dir"],"deltaMetadata":{"id":"stub-table","format":{"provider":"parquet"},"schemaString":"%s","partitionColumns":[]}}}
         """
             .formatted(STUB_SCHEMA);
+    private static final String STUB_QUERY_PARQUET =
+        STUB_PARQUET
+            + """
+            {"file":{"url":"https://example.invalid/stub.parquet","id":"stub-file","partitionValues":{},"size":1,"expirationTimestamp":4102444800000}}
+            """;
+    private static final String STUB_QUERY_DELTA =
+        STUB_DELTA
+            + """
+            {"file":{"id":"stub-file","size":1,"expirationTimestamp":4102444800000,"deltaSingleAction":{"add":{"path":"https://example.invalid/stub.parquet","partitionValues":{},"size":1,"modificationTime":0,"dataChange":true}}}}
+            """;
 
     @Bean
     @Primary
@@ -168,6 +179,35 @@ public abstract class ProtocolApiSupport {
                   == DeltaSharingCapabilities.ResponseFormat.DELTA;
           return new DeltaTableMetadataReader.Result(
               version == null && timestamp == null ? 123 : 45, delta ? STUB_DELTA : STUB_PARQUET);
+        }
+      };
+    }
+
+    @Bean
+    @Primary
+    @ConditionalOnProperty(
+        name = "opensharing.test.stub-protocol-dependencies",
+        havingValue = "true",
+        matchIfMissing = true)
+    DeltaTableQueryReader testDeltaTableQueryReader(DeltaKernel kernel) {
+      return new DeltaTableQueryReader(kernel, null, null) {
+        @Override
+        public DeltaTableQueryReader.Result read(
+            ResolvedAsset table,
+            Long version,
+            Instant timestamp,
+            AuthContext auth,
+            String capabilities,
+            String fileIdHash) {
+          if (version != null && timestamp != null) {
+            throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
+          }
+          boolean delta =
+              DeltaSharingCapabilities.choose(capabilities)
+                  == DeltaSharingCapabilities.ResponseFormat.DELTA;
+          return new DeltaTableQueryReader.Result(
+              version == null && timestamp == null ? 123 : 45,
+              delta ? STUB_QUERY_DELTA : STUB_QUERY_PARQUET);
         }
       };
     }

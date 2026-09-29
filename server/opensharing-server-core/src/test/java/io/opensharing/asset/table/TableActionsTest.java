@@ -3,6 +3,7 @@ package io.opensharing.asset.table;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.delta.kernel.defaults.internal.json.JsonUtils;
+import io.delta.kernel.internal.actions.AddFile;
 import io.delta.kernel.internal.actions.Format;
 import io.delta.kernel.internal.actions.Metadata;
 import io.delta.kernel.internal.actions.Protocol;
@@ -35,6 +36,50 @@ class TableActionsTest {
   void encodesParquetProtocolAndMetadata() {
     assertEquals(parquetBody(""), encode(ResponseFormat.PARQUET, null, null, null));
     assertEquals(parquetBody(",\"version\":20"), encode(ResponseFormat.PARQUET, 20L, null, null));
+  }
+
+  @Test
+  void encodesParquetAndDeltaFiles() {
+    assertEquals(
+        """
+        {"file":{"url":"https://example.invalid/part.parquet","id":"file-1","partitionValues":{"date":"2021-04-28"},"size":573,"stats":"{\\"numRecords\\":1}","expirationTimestamp":1652140800000}}
+        """,
+        TableActions.parquetFile(
+            "https://example.invalid/part.parquet",
+            "file-1",
+            Map.of("date", "2021-04-28"),
+            573,
+            "{\"numRecords\":1}",
+            null,
+            null,
+            1652140800000L));
+    assertEquals(
+        """
+        {"file":{"url":"https://example.invalid/part.parquet","id":"file-1","partitionValues":{},"size":1,"expirationTimestamp":1}}
+        """,
+        TableActions.parquetFile(
+            "https://example.invalid/part.parquet", "file-1", Map.of(), 1, null, null, null, 1L));
+    AddFile add =
+        new AddFile(
+            AddFile.createAddFileRow(
+                AddFile.FULL_SCHEMA,
+                "https://example.invalid/part.parquet",
+                VectorUtils.stringStringMapValue(Map.of("date", "2021-04-28")),
+                573,
+                1,
+                true,
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty()));
+    String addJson = JsonUtils.rowToJson(add.toRow());
+    assertEquals(
+        """
+        {"file":{"id":"file-1","size":573,"expirationTimestamp":1652140800000,"deltaSingleAction":{"add":%s}}}
+        """
+            .formatted(addJson),
+        TableActions.deltaFile("file-1", 573L, 1652140800000L, null, null, add));
   }
 
   @Test

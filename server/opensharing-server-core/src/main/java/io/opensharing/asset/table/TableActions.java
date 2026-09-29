@@ -7,10 +7,13 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import io.delta.kernel.data.Row;
 import io.delta.kernel.defaults.internal.json.JsonUtils;
+import io.delta.kernel.internal.actions.AddFile;
 import io.delta.kernel.internal.actions.Format;
 import io.delta.kernel.internal.actions.Metadata;
 import io.delta.kernel.internal.actions.Protocol;
+import io.delta.kernel.internal.data.DelegateRow;
 import io.delta.kernel.internal.util.VectorUtils;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.catalog.ResolvedAsset;
@@ -18,7 +21,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/** Protocol and metadata NDJSON actions shared by Query Table Metadata and Query Table. */
+/** Protocol, metadata, and file NDJSON actions shared by Query Table Metadata and Query Table. */
 public final class TableActions {
 
   private static final ObjectMapper JSON =
@@ -72,6 +75,48 @@ public final class TableActions {
                 numFiles)));
   }
 
+  public static String parquetFile(
+      String url,
+      String id,
+      Map<String, String> partitionValues,
+      long size,
+      String stats,
+      Long version,
+      Long timestamp,
+      Long expirationTimestamp) {
+    return line(
+        new FileLine(
+            new ParquetFile(
+                url,
+                id,
+                partitionValues == null ? Map.of() : partitionValues,
+                size,
+                stats,
+                version,
+                timestamp,
+                expirationTimestamp)));
+  }
+
+  public static String deltaFile(
+      String id,
+      Long size,
+      Long expirationTimestamp,
+      Long version,
+      Long timestamp,
+      AddFile add) {
+    return line(
+        new FileLine(
+            new DeltaFile(
+                id, size, expirationTimestamp, version, timestamp, new DeltaSingleAction(add))));
+  }
+
+  /** Keep the Kernel add action and replace path with the file URL. */
+  static AddFile withPath(AddFile add, String path) {
+    Row row = add.toRow();
+    return new AddFile(
+        new DelegateRow(row, Map.of(row.getSchema().indexOf("path"), (Object) path)));
+  }
+
   private static String line(Object value) {
     try {
       return JSON.writeValueAsString(value) + "\n";
@@ -93,11 +138,16 @@ public final class TableActions {
     @Override
     public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      gen.writeRawValue(
-          JsonUtils.rowToJson(
-              value instanceof Protocol protocol
-                  ? protocol.toRow()
-                  : ((Metadata) value).toRow()));
+      Row row =
+          switch (value) {
+            case Protocol protocol -> protocol.toRow();
+            case Metadata metadata -> metadata.toRow();
+            case AddFile add -> add.toRow();
+            default ->
+                throw new IllegalArgumentException(
+                    "unsupported Kernel action: " + value.getClass().getName());
+          };
+      gen.writeRawValue(JsonUtils.rowToJson(row));
     }
   }
 
@@ -146,4 +196,33 @@ public final class TableActions {
       implements MetadataBody {}
 
   public record FormatBody(String provider) {}
+
+  public record FileLine(FileBody file) {}
+
+  public sealed interface FileBody permits ParquetFile, DeltaFile {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record ParquetFile(
+      String url,
+      String id,
+      Map<String, String> partitionValues,
+      long size,
+      String stats,
+      Long version,
+      Long timestamp,
+      Long expirationTimestamp)
+      implements FileBody {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record DeltaFile(
+      String id,
+      Long size,
+      Long expirationTimestamp,
+      Long version,
+      Long timestamp,
+      DeltaSingleAction deltaSingleAction)
+      implements FileBody {}
+
+  public record DeltaSingleAction(
+      @JsonSerialize(using = KernelActionSerializer.class) AddFile add) {}
 }
