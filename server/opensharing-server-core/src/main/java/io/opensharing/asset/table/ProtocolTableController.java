@@ -4,6 +4,7 @@ import io.opensharing.ObjectNames;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.table.delta.DeltaKernel;
+import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.AssetLookup;

@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.asset.table.delta;
 
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.exceptions.KernelException;

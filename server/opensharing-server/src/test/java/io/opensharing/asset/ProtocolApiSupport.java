@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
-import io.opensharing.asset.table.DeltaTableMetadataReader;
+import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;

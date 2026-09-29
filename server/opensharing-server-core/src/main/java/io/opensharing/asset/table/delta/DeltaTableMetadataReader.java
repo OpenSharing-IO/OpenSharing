@@ -1,9 +1,11 @@
-package io.opensharing.asset.table;
+package io.opensharing.asset.table.delta;
 
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.internal.checksum.CRCInfo;
+import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
+import io.opensharing.asset.table.TableActions;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.http.ApiException;
