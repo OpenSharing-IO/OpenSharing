@@ -28,6 +28,7 @@ class CatalogConfigurationTest {
   void loadsTheConfiguredLocalCatalog() {
     assertEquals(OpenSharingProperties.Hosting.Mode.STANDALONE, properties.getHosting().getMode());
     assertEquals(Duration.ofHours(1), properties.getAssetCredentials().getTtl());
+    assertEquals("us-east-1", properties.getStorage().getS3Region());
 
     UserContext user = new UserContext("alice@example.com", "alice@example.com");
 
