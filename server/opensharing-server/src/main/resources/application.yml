@@ -47,7 +47,6 @@ opensharing:
     default-max-results: 500
     max-max-results: 1000
   storage:
-    s3-region: us-west-2
     # Service-account key used to sign GCS URLs.
     gcs-service-account-key-file: ""
   delta:

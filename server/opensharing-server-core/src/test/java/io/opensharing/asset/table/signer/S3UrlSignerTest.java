@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.StorageCredentials;
-import io.opensharing.config.OpenSharingProperties;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -13,7 +12,7 @@ import org.junit.jupiter.api.Test;
 
 class S3UrlSignerTest {
 
-  private final S3UrlSigner signer = new S3UrlSigner(new OpenSharingProperties());
+  private final S3UrlSigner signer = new S3UrlSigner();
 
   @Test
   void signsS3aPathsWithOptionalSessionTokenAndCredentialRegion() {
@@ -48,14 +47,15 @@ class S3UrlSignerTest {
   }
 
   @Test
-  void omitsSessionTokenAndUsesDefaultRegionWhenCatalogOmitsThem() {
+  void omitsSessionTokenWhenCatalogOmitsIt() {
     StorageCredentials credentials =
         new StorageCredentials(
             "s3://bucket/",
             CloudProvider.AWS,
             Map.of(
                 StorageCredentials.ACCESS_KEY_ID, "AKIATEST",
-                StorageCredentials.SECRET_ACCESS_KEY, "secret"),
+                StorageCredentials.SECRET_ACCESS_KEY, "secret",
+                StorageCredentials.REGION, "us-west-2"),
             Instant.now().plus(Duration.ofHours(1)));
 
     SignedUrl signed = signer.sign("s3://bucket/key.parquet", credentials, Duration.ofMinutes(5));

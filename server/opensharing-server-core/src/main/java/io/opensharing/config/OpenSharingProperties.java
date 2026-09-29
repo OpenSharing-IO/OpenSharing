@@ -131,16 +131,7 @@ public class OpenSharingProperties {
   /** Storage settings used to sign recipient-readable file URLs. */
   public static class Storage {
 
-    private String s3Region = "us-west-2";
     private String gcsServiceAccountKeyFile;
-
-    public String getS3Region() {
-      return s3Region;
-    }
-
-    public void setS3Region(String s3Region) {
-      this.s3Region = s3Region;
-    }
 
     public String getGcsServiceAccountKeyFile() {
       return gcsServiceAccountKeyFile;

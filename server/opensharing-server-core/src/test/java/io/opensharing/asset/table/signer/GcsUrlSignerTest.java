@@ -23,7 +23,7 @@ class GcsUrlSignerTest {
   @Test
   void signsGsPathsWithCatalogServiceAccountKey() throws Exception {
     Path keyFile = writeServiceAccount(tempDir.resolve("sa.json"));
-    GcsUrlSigner signer = new GcsUrlSigner((GcsSigningKey) null);
+    GcsUrlSigner signer = new GcsUrlSigner((String) null);
     StorageCredentials credentials =
         new StorageCredentials(
             "gs://bucket/",
@@ -42,7 +42,7 @@ class GcsUrlSignerTest {
   @Test
   void encodesSpacesInObjectPaths() throws Exception {
     Path keyFile = writeServiceAccount(tempDir.resolve("sa.json"));
-    GcsUrlSigner signer = new GcsUrlSigner((GcsSigningKey) null);
+    GcsUrlSigner signer = new GcsUrlSigner((String) null);
     StorageCredentials credentials =
         new StorageCredentials(
             "gs://bucket/",
@@ -54,8 +54,7 @@ class GcsUrlSignerTest {
         signer.sign("gs://bucket/c2=foo bar/file.parquet", credentials, Duration.ofMinutes(10));
 
     assertTrue(
-        signed.url().startsWith("https://storage.googleapis.com/bucket/c2%3Dfoo%20bar/file.parquet?"),
-        signed.url());
+        signed.url().contains("/bucket/c2%3Dfoo%20bar/file.parquet?"), signed.url());
   }
 
   private static Path writeServiceAccount(Path file) throws Exception {
@@ -64,12 +63,21 @@ class GcsUrlSignerTest {
     KeyPair pair = generator.generateKeyPair();
     String keyType = "PRIVATE" + " KEY";
     String pem =
-        "-----BEGIN " + keyType + "-----\n"
+        "-----BEGIN "
+            + keyType
+            + "-----\n"
             + Base64.getEncoder().encodeToString(pair.getPrivate().getEncoded())
-            + "\n-----END " + keyType + "-----\n";
+            + "\n-----END "
+            + keyType
+            + "-----\n";
     ObjectNode json = new ObjectMapper().createObjectNode();
-    json.put("client_email", "signer@example.iam.gserviceaccount.com");
+    json.put("type", "service_account");
+    json.put("project_id", "example");
+    json.put("private_key_id", "test");
     json.put("private_key", pem);
+    json.put("client_email", "signer@example.iam.gserviceaccount.com");
+    json.put("client_id", "123");
+    json.put("token_uri", "https://oauth2.googleapis.com/token");
     new ObjectMapper().writeValue(file.toFile(), json);
     return file;
   }

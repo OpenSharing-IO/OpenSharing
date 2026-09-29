@@ -1,30 +1,31 @@
 package io.opensharing.asset.table.signer;
 
+import com.microsoft.azure.storage.CloudStorageAccount;
+import com.microsoft.azure.storage.SharedAccessProtocols;
+import com.microsoft.azure.storage.StorageCredentialsSharedAccessSignature;
+import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.blob.CloudBlockBlob;
+import com.microsoft.azure.storage.blob.SharedAccessBlobPermissions;
+import com.microsoft.azure.storage.blob.SharedAccessBlobPolicy;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.http.ApiException;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.util.Base64;
+import java.util.Date;
+import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Set;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import org.springframework.stereotype.Component;
 
 /**
- * Azure blob URLs: append a catalog SAS when present, otherwise mint a read-only blob SAS from an
- * account key (local integration tests).
+ * Azure blob URLs: append a catalog SAS when present, otherwise mint a read-only HTTPS blob SAS
+ * from an account key.
  */
 @Component
 public class AzureSasUrlSigner implements UrlSigner {
-
-  private static final String SAS_VERSION = "2020-12-06";
-  private static final DateTimeFormatter EXPIRY =
-      DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'").withZone(ZoneOffset.UTC);
 
   @Override
   public Set<String> schemes() {
@@ -44,61 +45,85 @@ public class AzureSasUrlSigner implements UrlSigner {
       throw ApiException.invalidParameter(
           "Azure credentials have neither a SAS token nor an account key");
     }
-    return new SignedUrl(httpsUrl(path) + "?" + blobSas(path, accountKey, expiration), expiration);
+    try {
+      return new SignedUrl(signedBlobUrl(path, accountKey, expiration), expiration);
+    } catch (URISyntaxException | InvalidKeyException | StorageException | RuntimeException e) {
+      throw ApiException.invalidParameter("Azure account key cannot sign a blob SAS");
+    }
+  }
+
+  private static String signedBlobUrl(String path, String accountKey, Instant expiration)
+      throws URISyntaxException, InvalidKeyException, StorageException {
+    StoragePaths.AzureBlob parsed = StoragePaths.azureBlob(path);
+    String[] hostParts = parsed.host().split("\\.", 3);
+    if (hostParts.length != 3) {
+      throw ApiException.invalidParameter(
+          "Azure host is not account.endpoint.suffix: " + parsed.host());
+    }
+    CloudStorageAccount account =
+        CloudStorageAccount.parse(
+            String.join(
+                ";",
+                "DefaultEndpointsProtocol=https",
+                "AccountName=" + hostParts[0],
+                "AccountKey=" + accountKey,
+                "EndpointSuffix=" + hostParts[2]));
+    CloudBlockBlob blob =
+        account
+            .createCloudBlobClient()
+            .getContainerReference(parsed.container())
+            .getBlockBlobReference(parsed.blob());
+    SharedAccessBlobPolicy policy = new SharedAccessBlobPolicy();
+    policy.setPermissions(EnumSet.of(SharedAccessBlobPermissions.READ));
+    policy.setSharedAccessExpiryTime(Date.from(expiration));
+    String token =
+        blob.generateSharedAccessSignature(
+            policy,
+            /* headers */ null,
+            /* groupPolicyIdentifier */ null,
+            /* ipRange */ null,
+            SharedAccessProtocols.HTTPS_ONLY);
+    return new StorageCredentialsSharedAccessSignature(token)
+        .transformUri(blob.getUri())
+        .toString();
   }
 
   private static String httpsUrl(String path) {
     StoragePaths.AzureBlob parsed = StoragePaths.azureBlob(path);
+    String encodedBlob = encodePath(parsed.blob());
     return "https://"
         + parsed.host().replace(".dfs.", ".blob.")
         + "/"
         + parsed.container()
-        + S3UrlSigner.canonicalPath(parsed.blob());
+        + encodedBlob;
   }
 
-  private static String blobSas(String path, String accountKey, Instant expiration) {
-    StoragePaths.AzureBlob parsed = StoragePaths.azureBlob(path);
-    String account = parsed.host().split("\\.")[0];
-    String se = EXPIRY.format(expiration);
-    String canonicalizedResource =
-        "/blob/" + account + "/" + parsed.container() + "/" + parsed.blob();
-    String stringToSign =
-        String.join(
-            "\n",
-            "r",
-            "",
-            se,
-            canonicalizedResource,
-            "",
-            "",
-            "https",
-            SAS_VERSION,
-            "b",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "");
-    String sig = S3UrlSigner.encode(hmac(accountKey, stringToSign));
-    return "sv="
-        + SAS_VERSION
-        + "&spr=https&se="
-        + S3UrlSigner.encode(se)
-        + "&sr=b&sp=r&sig="
-        + sig;
-  }
-
-  private static String hmac(String accountKey, String stringToSign) {
-    try {
-      Mac mac = Mac.getInstance("HmacSHA256");
-      mac.init(new SecretKeySpec(Base64.getDecoder().decode(accountKey), "HmacSHA256"));
-      return Base64.getEncoder()
-          .encodeToString(mac.doFinal(stringToSign.getBytes(StandardCharsets.UTF_8)));
-    } catch (NoSuchAlgorithmException | InvalidKeyException | IllegalArgumentException e) {
-      throw ApiException.invalidParameter("Azure account key cannot sign a blob SAS");
+  /** Percent-encode blob path segments the way a blob HTTPS URL does. */
+  static String encodePath(String blob) {
+    StringBuilder path = new StringBuilder();
+    for (String segment : blob.split("/", -1)) {
+      path.append('/').append(percentEncode(segment));
     }
+    return path.toString();
+  }
+
+  private static String percentEncode(String value) {
+    StringBuilder encoded = new StringBuilder(value.length());
+    for (byte b : value.getBytes(StandardCharsets.UTF_8)) {
+      char c = (char) (b & 0xFF);
+      if ((c >= 'A' && c <= 'Z')
+          || (c >= 'a' && c <= 'z')
+          || (c >= '0' && c <= '9')
+          || c == '-'
+          || c == '.'
+          || c == '_'
+          || c == '~') {
+        encoded.append(c);
+      } else {
+        encoded.append('%').append(String.format(Locale.ROOT, "%02X", b & 0xFF));
+      }
+    }
+    return encoded.toString();
   }
 
   private static String queryPrefix(String sas) {

@@ -1,50 +1,41 @@
 package io.opensharing.asset.table.signer;
 
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.BlobInfo;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.config.OpenSharingProperties;
 import io.opensharing.http.ApiException;
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.Signature;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.util.HexFormat;
-import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
+import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-/** V4 query-string signing for {@code gs://} objects. */
+/** GCS V4 signed URLs via {@code Storage.signUrl}. */
 @Component
 public class GcsUrlSigner implements UrlSigner {
 
-  private static final String ALGORITHM = "GOOG4-RSA-SHA256";
-  private static final String SCOPE_SUFFIX = "/auto/storage/goog4_request";
-  private static final String UNSIGNED_PAYLOAD = "UNSIGNED-PAYLOAD";
-  private static final String HOST = "storage.googleapis.com";
-  private static final DateTimeFormatter GOOG_DATE =
-      DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC);
-  private static final DateTimeFormatter DATE_STAMP =
-      DateTimeFormatter.ofPattern("yyyyMMdd").withZone(ZoneOffset.UTC);
-
-  private final GcsSigningKey key;
+  private final String configuredKeyFile;
 
   @Autowired
   public GcsUrlSigner(OpenSharingProperties properties) {
     this(
-        GcsSigningKey.configured(
+        firstNonBlank(
             properties.getStorage().getGcsServiceAccountKeyFile(),
             System.getenv("GOOGLE_APPLICATION_CREDENTIALS")));
   }
 
-  GcsUrlSigner(GcsSigningKey key) {
-    this.key = key;
+  GcsUrlSigner(String configuredKeyFile) {
+    this.configuredKeyFile = configuredKeyFile;
   }
 
   @Override
@@ -54,87 +45,56 @@ public class GcsUrlSigner implements UrlSigner {
 
   @Override
   public SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
-    GcsSigningKey signingKey = keyFor(credentials);
     String[] bucketAndObject = StoragePaths.bucketAndKey(path);
-    String bucket = bucketAndObject[0];
-    String object = bucketAndObject[1];
-    Instant now = Instant.now();
-    String scope = DATE_STAMP.format(now) + SCOPE_SUFFIX;
-
-    Map<String, String> query = new TreeMap<>();
-    query.put("X-Goog-Algorithm", ALGORITHM);
-    query.put("X-Goog-Credential", signingKey.clientEmail() + "/" + scope);
-    query.put("X-Goog-Date", GOOG_DATE.format(now));
-    query.put("X-Goog-Expires", Long.toString(ttl.toSeconds()));
-    query.put("X-Goog-SignedHeaders", "host");
-
-    String canonicalQuery = canonicalQuery(query);
-    String resource = "/" + bucket + S3UrlSigner.canonicalPath(object);
-    String canonicalRequest =
-        String.join(
-            "\n",
-            "GET",
-            resource,
-            canonicalQuery,
-            "host:" + HOST,
-            "",
-            "host",
-            UNSIGNED_PAYLOAD);
-    String stringToSign =
-        String.join("\n", ALGORITHM, GOOG_DATE.format(now), scope, hex(sha256(canonicalRequest)));
+    Instant expiration = Instant.now().plus(ttl);
     String url =
-        "https://"
-            + HOST
-            + resource
-            + "?"
-            + canonicalQuery
-            + "&X-Goog-Signature="
-            + hex(rsaSha256(signingKey, stringToSign));
-    return new SignedUrl(url, now.plus(ttl));
+        storage(credentials)
+            .signUrl(
+                BlobInfo.newBuilder(BlobId.of(bucketAndObject[0], bucketAndObject[1])).build(),
+                ttl.toSeconds(),
+                TimeUnit.SECONDS,
+                Storage.SignUrlOption.withV4Signature())
+            .toString();
+    return new SignedUrl(url, expiration);
   }
 
-  private GcsSigningKey keyFor(StorageCredentials credentials) {
-    if (key != null) {
-      return key;
-    }
+  private Storage storage(StorageCredentials credentials) {
     String file =
-        credentials == null
-            ? null
-            : credentials.credentials().get(StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE);
-    GcsSigningKey fromCatalog = GcsSigningKey.fromFile(file);
-    if (fromCatalog == null) {
+        firstNonBlank(
+            configuredKeyFile,
+            credentials == null
+                ? null
+                : credentials.credentials().get(StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE));
+    if (file != null) {
+      return StorageOptions.newBuilder()
+          .setCredentials(credentialsFromFile(file))
+          .build()
+          .getService();
+    }
+    try {
+      return StorageOptions.getDefaultInstance().getService();
+    } catch (RuntimeException e) {
       throw ApiException.notImplemented(
           "no Google service account key is configured to sign gs urls");
     }
-    return fromCatalog;
   }
 
-  private static byte[] rsaSha256(GcsSigningKey signingKey, String data) {
-    try {
-      Signature signature = Signature.getInstance("SHA256withRSA");
-      signature.initSign(signingKey.privateKey());
-      signature.update(data.getBytes(StandardCharsets.UTF_8));
-      return signature.sign();
-    } catch (GeneralSecurityException e) {
-      throw new IllegalStateException("the configured key cannot sign a Google storage url", e);
+  private static GoogleCredentials credentialsFromFile(String file) {
+    try (InputStream in = Files.newInputStream(Path.of(file))) {
+      return ServiceAccountCredentials.fromStream(in);
+    } catch (IOException | RuntimeException e) {
+      throw new IllegalStateException(
+          "the Google service account key file '" + file + "' cannot be read", e);
     }
   }
 
-  private static String canonicalQuery(Map<String, String> query) {
-    return query.entrySet().stream()
-        .map(e -> S3UrlSigner.encode(e.getKey()) + "=" + S3UrlSigner.encode(e.getValue()))
-        .collect(Collectors.joining("&"));
-  }
-
-  private static byte[] sha256(String data) {
-    try {
-      return MessageDigest.getInstance("SHA-256").digest(data.getBytes(StandardCharsets.UTF_8));
-    } catch (NoSuchAlgorithmException e) {
-      throw new IllegalStateException("SHA-256 is required to sign Google storage urls", e);
+  private static String firstNonBlank(String first, String second) {
+    if (first != null && !first.isBlank()) {
+      return first.trim();
     }
-  }
-
-  private static String hex(byte[] bytes) {
-    return HexFormat.of().formatHex(bytes);
+    if (second != null && !second.isBlank()) {
+      return second.trim();
+    }
+    return null;
   }
 }

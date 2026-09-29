@@ -33,7 +33,8 @@ class AzureSasUrlSignerTest {
         signed
             .url()
             .startsWith(
-                "https://account.blob.core.windows.net/container/table/part.parquet?sv=2020-12-06&sig=catalog"));
+                "https://account.blob.core.windows.net/container/table/part.parquet?sv=2020-12-06&sig=catalog"),
+        signed.url());
   }
 
   @Test
@@ -53,11 +54,11 @@ class AzureSasUrlSignerTest {
             Duration.ofMinutes(15));
 
     assertTrue(
-        signed.url().startsWith("https://account.blob.core.windows.net/container/table/part.parquet?"));
-    assertTrue(signed.url().contains("sv=2020-12-06"));
-    assertTrue(signed.url().contains("sp=r"));
-    assertTrue(signed.url().contains("sr=b"));
-    assertTrue(signed.url().contains("sig="));
+        signed.url().startsWith("https://account.blob.core.windows.net/container/table/part.parquet?"),
+        signed.url());
+    assertTrue(signed.url().contains("sp=r"), signed.url());
+    assertTrue(signed.url().contains("spr=https"), signed.url());
+    assertTrue(signed.url().contains("sig="), signed.url());
   }
 
   @Test
@@ -76,6 +77,6 @@ class AzureSasUrlSignerTest {
             credentials,
             Duration.ofMinutes(15));
 
-    assertTrue(signed.url().contains("/table/c2%3Dfoo%20bar/part.parquet?"), signed.url());
+    assertTrue(signed.url().contains("/table/c2=foo%20bar/part.parquet?"), signed.url());
   }
 }

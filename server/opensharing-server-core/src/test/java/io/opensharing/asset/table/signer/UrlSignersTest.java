@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.StorageCredentials;
-import io.opensharing.config.OpenSharingProperties;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ErrorCodes;
 import java.time.Duration;
@@ -20,7 +19,7 @@ class UrlSignersTest {
 
   private final UrlSigners signers =
       new UrlSigners(
-          List.of(new S3UrlSigner(new OpenSharingProperties()), new AzureSasUrlSigner()));
+          List.of(new S3UrlSigner(), new AzureSasUrlSigner()));
 
   @Test
   void signsBySchemeAndCapsTtlToCredentialExpiry() {
@@ -31,7 +30,8 @@ class UrlSignersTest {
             CloudProvider.AWS,
             Map.of(
                 StorageCredentials.ACCESS_KEY_ID, "AKIATEST",
-                StorageCredentials.SECRET_ACCESS_KEY, "secret"),
+                StorageCredentials.SECRET_ACCESS_KEY, "secret",
+                StorageCredentials.REGION, "us-west-2"),
             expiry);
 
     SignedUrl signed = signers.sign("s3://bucket/key.parquet", credentials, Duration.ofHours(1));
@@ -50,7 +50,8 @@ class UrlSignersTest {
             CloudProvider.AWS,
             Map.of(
                 StorageCredentials.ACCESS_KEY_ID, "AKIATEST",
-                StorageCredentials.SECRET_ACCESS_KEY, "secret"),
+                StorageCredentials.SECRET_ACCESS_KEY, "secret",
+                StorageCredentials.REGION, "us-west-2"),
             Instant.now().minusSeconds(5));
     ApiException unknown =
         assertThrows(
