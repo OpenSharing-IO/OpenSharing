@@ -28,8 +28,26 @@ assets:
     storageLocation: s3://test/main.sales.orders/
     format: delta
 
+  - identifier: main.sales.customers
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: s3://test/main.sales.customers/
+    format: delta
+
   - identifier: main.hr
     type: SCHEMA
+
+  - identifier: main.hr.employees
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: s3://test/main.hr.employees/
+    format: delta
+
+  - identifier: main.hr.salaries
+    type: TABLE
+    subtype: MANAGED
+    storageLocation: s3://test/main.hr.salaries/
+    format: delta
 
   - identifier: main.ops.people
     type: TABLE
