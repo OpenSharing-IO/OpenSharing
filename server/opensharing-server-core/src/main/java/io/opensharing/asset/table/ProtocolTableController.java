@@ -9,7 +9,6 @@ import io.opensharing.catalog.AssetLookup;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
-import io.opensharing.catalog.TableFormat;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Listings;
@@ -173,7 +172,7 @@ public class ProtocolTableController {
         object.getSourceAssetId(),
         resolved.storageLocation(),
         emptyToNull(resolved.auxiliaryLocations()),
-        accessModes(resolved));
+        TableAccessModes.forTable(resolved));
   }
 
   private static TableResponse fromChild(
@@ -186,7 +185,7 @@ public class ProtocolTableController {
         child.catalogAssetId(),
         child.storageLocation(),
         emptyToNull(child.auxiliaryLocations()),
-        accessModes(child));
+        TableAccessModes.forTable(child));
   }
 
   private static AuthContext owner(ShareEntity share) {
@@ -204,17 +203,5 @@ public class ProtocolTableController {
 
   private static List<String> emptyToNull(List<String> values) {
     return values == null || values.isEmpty() ? null : values;
-  }
-
-  /** Managed and external Delta tables support QueryTable (url) and temporary credentials (dir). */
-  private static List<String> accessModes(ResolvedAsset asset) {
-    if (asset.format() != TableFormat.DELTA) {
-      return null;
-    }
-    if ("MANAGED".equalsIgnoreCase(asset.subtype())
-        || "EXTERNAL".equalsIgnoreCase(asset.subtype())) {
-      return List.of("url", "dir");
-    }
-    return null;
   }
 }
