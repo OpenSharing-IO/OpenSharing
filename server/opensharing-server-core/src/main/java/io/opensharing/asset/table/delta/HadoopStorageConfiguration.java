@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.asset.table.delta;
 
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.exception.CatalogException;

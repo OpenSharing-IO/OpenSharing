@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.asset.table.delta;
 
 import io.delta.kernel.Table;
 import io.delta.kernel.defaults.engine.DefaultEngine;

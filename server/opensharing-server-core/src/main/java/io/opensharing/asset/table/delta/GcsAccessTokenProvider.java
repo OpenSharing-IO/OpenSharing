@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.asset.table.delta;
 
 import com.google.cloud.hadoop.util.AccessTokenProvider;
 import java.io.IOException;

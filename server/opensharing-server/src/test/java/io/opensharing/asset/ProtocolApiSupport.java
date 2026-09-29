@@ -6,7 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
-import io.opensharing.asset.table.DeltaKernel;
+import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
