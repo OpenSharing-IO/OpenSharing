@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.asset.table.signer;
 
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.config.OpenSharingProperties;

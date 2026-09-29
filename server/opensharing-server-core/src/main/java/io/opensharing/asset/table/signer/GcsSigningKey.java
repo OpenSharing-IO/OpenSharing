@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.asset.table.signer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

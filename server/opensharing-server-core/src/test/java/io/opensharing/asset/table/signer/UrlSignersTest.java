@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.asset.table.signer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
