@@ -15,6 +15,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.TableFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
+import java.net.URI;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -157,11 +158,16 @@ public final class LocalCatalogConnector implements CatalogConnector {
     }
     Duration ttl = request.ttl() != null ? request.ttl() : configuredTtl();
     Instant expiration = Instant.now().plus(ttl);
-    CloudProvider provider = credentials.provider();
+    CloudProvider provider =
+        credentials.mode() == LocalCatalogFile.CredentialMode.ENV
+            ? providerFor(location)
+            : credentials.provider();
     Map<String, String> values =
-        credentials.mode() == LocalCatalogFile.CredentialMode.STATIC
-            ? staticValues(provider)
-            : fakeValues(provider, expiration);
+        switch (credentials.mode()) {
+          case STATIC -> staticValues(provider);
+          case ENV -> envValues(provider);
+          case FAKE -> fakeValues(provider, expiration);
+        };
     return List.of(new StorageCredentials(location, provider, values, expiration));
   }
 
@@ -194,6 +200,66 @@ public final class LocalCatalogConnector implements CatalogConnector {
   private Duration configuredTtl() {
     Integer seconds = credentials.ttlSeconds();
     return seconds == null ? DEFAULT_TTL : Duration.ofSeconds(seconds);
+  }
+
+  private Map<String, String> envValues(CloudProvider provider) {
+    Map<String, String> values = new LinkedHashMap<>();
+    switch (provider) {
+      case AWS, R2 -> {
+        values.put(StorageCredentials.ACCESS_KEY_ID, requireEnv("AWS_ACCESS_KEY_ID"));
+        values.put(StorageCredentials.SECRET_ACCESS_KEY, requireEnv("AWS_SECRET_ACCESS_KEY"));
+        String region = firstEnv("AWS_REGION", "AWS_DEFAULT_REGION");
+        if (region != null) {
+          values.put(StorageCredentials.REGION, region);
+        }
+        String session = System.getenv("AWS_SESSION_TOKEN");
+        if (session != null && !session.isBlank()) {
+          values.put(StorageCredentials.SESSION_TOKEN, session);
+        }
+      }
+      case AZURE ->
+          values.put(
+              StorageCredentials.AZURE_ACCOUNT_KEY, requireEnv("AZURE_TEST_ACCOUNT_KEY"));
+      case GCP ->
+          values.put(
+              StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE,
+              requireEnv("GOOGLE_APPLICATION_CREDENTIALS"));
+    }
+    return values;
+  }
+
+  private static CloudProvider providerFor(String location) {
+    String scheme = URI.create(location).getScheme();
+    if (scheme == null) {
+      throw new CatalogException("storage location '" + location + "' has no URI scheme");
+    }
+    return switch (scheme.toLowerCase(Locale.ROOT)) {
+      case "s3", "s3a" -> CloudProvider.AWS;
+      case "abfs", "abfss", "wasb", "wasbs" -> CloudProvider.AZURE;
+      case "gs" -> CloudProvider.GCP;
+      default ->
+          throw new CatalogException(
+              "cannot select environment credentials for storage scheme '" + scheme + "'");
+    };
+  }
+
+  private static String requireEnv(String name) {
+    String value = System.getenv(name);
+    if (value == null || value.isBlank()) {
+      throw new CatalogException(
+          "local catalog credentials.mode is ENV but environment variable '" + name + "' is unset");
+    }
+    return value;
+  }
+
+  private static String firstEnv(String... names) {
+    for (String name : names) {
+      String value = System.getenv(name);
+      if (value != null && !value.isBlank()) {
+        return value;
+      }
+    }
+    return null;
   }
 
   private Map<String, String> staticValues(CloudProvider provider) {
