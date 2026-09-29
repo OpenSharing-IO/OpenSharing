@@ -11,6 +11,8 @@ import io.delta.kernel.internal.checksum.CRCInfo;
 import io.delta.kernel.utils.CloseableIterator;
 import io.delta.kernel.utils.FileStatus;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
+import io.opensharing.asset.table.signer.SignedUrl;
+import io.opensharing.asset.table.signer.UrlSigners;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
