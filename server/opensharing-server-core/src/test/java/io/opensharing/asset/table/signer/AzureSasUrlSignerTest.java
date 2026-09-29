@@ -35,6 +35,8 @@ class AzureSasUrlSignerTest {
             .startsWith(
                 "https://account.blob.core.windows.net/container/table/part.parquet?sv=2020-12-06&sig=catalog"),
         signed.url());
+    long remaining = Duration.between(Instant.now(), signed.expiration()).toSeconds();
+    assertTrue(remaining >= 59 * 60 && remaining <= 60 * 60, String.valueOf(remaining));
   }
 
   @Test
@@ -59,6 +61,9 @@ class AzureSasUrlSignerTest {
     assertTrue(signed.url().contains("sp=r"), signed.url());
     assertTrue(signed.url().contains("spr=https"), signed.url());
     assertTrue(signed.url().contains("sig="), signed.url());
+    assertTrue(signed.url().contains("se="), signed.url());
+    long remaining = Duration.between(Instant.now(), signed.expiration()).toSeconds();
+    assertTrue(remaining >= 14 * 60 && remaining <= 15 * 60, String.valueOf(remaining));
   }
 
   @Test

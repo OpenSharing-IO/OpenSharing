@@ -37,6 +37,9 @@ class GcsUrlSignerTest {
     assertTrue(signed.url().startsWith("https://storage.googleapis.com/bucket/path/file.parquet?"));
     assertTrue(signed.url().contains("X-Goog-Algorithm=GOOG4-RSA-SHA256"));
     assertTrue(signed.url().contains("X-Goog-Signature="));
+    assertTrue(signed.url().contains("X-Goog-Expires=600"), signed.url());
+    long remaining = Duration.between(Instant.now(), signed.expiration()).toSeconds();
+    assertTrue(remaining >= 9 * 60 && remaining <= 10 * 60, String.valueOf(remaining));
   }
 
   @Test

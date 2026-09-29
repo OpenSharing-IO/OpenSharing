@@ -32,6 +32,7 @@ public class AzureSasUrlSigner implements UrlSigner {
     Instant expiration = Instant.now().plus(ttl);
     String sas = credentials.credentials().get(StorageCredentials.SAS_TOKEN);
     if (sas != null && !sas.isBlank()) {
+      // Catalog SAS is already minted; its lifetime is credentials.expiration(), not the sign TTL.
       Instant sasExpiry = credentials.expiration() == null ? expiration : credentials.expiration();
       return new SignedUrl(httpsUrl(path) + withQuery(sas), sasExpiry);
     }
