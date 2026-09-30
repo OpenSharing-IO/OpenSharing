@@ -57,6 +57,7 @@ public class DeltaTableQueryReader {
     if (version != null && timestamp != null) {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
+
     DeltaKernel.Session session = kernel.open(table, auth, properties.getDelta().getUrlTtl());
     Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
     SnapshotImpl impl = (SnapshotImpl) snapshot;
@@ -66,6 +67,7 @@ public class DeltaTableQueryReader {
     Long fileVersion = historical ? snapshot.getVersion() : null;
     Long fileTimestamp = historical ? snapshot.getTimestamp(session.engine()) : null;
     Duration urlTtl = properties.getDelta().getUrlTtl();
+
     StringBuilder ndjson = new StringBuilder();
     ndjson.append(TableActions.protocol(impl.getProtocol(), null, format));
     ndjson.append(
@@ -76,6 +78,7 @@ public class DeltaTableQueryReader {
             crc == null ? null : crc.getTableSizeBytes(),
             crc == null ? null : crc.getNumFiles(),
             format));
+
     try {
       Scan scan = snapshot.getScanBuilder().build();
       try (CloseableIterator<FilteredColumnarBatch> batches = scan.getScanFiles(session.engine())) {
@@ -100,6 +103,7 @@ public class DeltaTableQueryReader {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+
     return new Result(snapshot.getVersion(), ndjson.toString());
   }
 
@@ -117,15 +121,18 @@ public class DeltaTableQueryReader {
     if (partitionValues == null) {
       partitionValues = Map.of();
     }
+
     AddFile add = new AddFile(scanFile.getStruct(InternalScanFileUtils.ADD_FILE_ORDINAL));
     SignedUrl signed = signers.sign(status.getPath(), credentials, urlTtl);
     String url = signed.url();
     long expirationTimestamp = signed.expiration().toEpochMilli();
     String id = FileIdHash.hash(add.getPath(), fileIdHash, format);
     String stats = add.getStatsJson().orElse(null);
+
     if (format == ResponseFormat.DELTA) {
       String deletionVectorFileId = null;
       String deletionVectorUrl = null;
+
       // storageType i = inline bitmap (no object to sign). u/p are on-disk; sign those and set
       // deletionVectorFileId.
       DeletionVectorDescriptor dv =
@@ -138,6 +145,7 @@ public class DeltaTableQueryReader {
         expirationTimestamp =
             Math.min(expirationTimestamp, signedDv.expiration().toEpochMilli());
       }
+
       return TableActions.deltaFile(
           id,
           deletionVectorFileId,
