@@ -7,6 +7,7 @@ import io.delta.kernel.data.Row;
 import io.delta.kernel.internal.InternalScanFileUtils;
 import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.internal.actions.AddFile;
+import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
 import io.delta.kernel.internal.checksum.CRCInfo;
 import io.delta.kernel.utils.CloseableIterator;
 import io.delta.kernel.utils.FileStatus;
@@ -89,6 +90,7 @@ public class DeltaTableQueryReader {
                       fileIdHash,
                       fileVersion,
                       fileTimestamp,
+                      session.location(),
                       session.credentials(),
                       urlTtl));
             }
@@ -107,6 +109,7 @@ public class DeltaTableQueryReader {
       String fileIdHash,
       Long version,
       Long timestamp,
+      String tableLocation,
       StorageCredentials credentials,
       Duration urlTtl) {
     FileStatus status = InternalScanFileUtils.getAddFileStatus(scanFile);
@@ -121,13 +124,27 @@ public class DeltaTableQueryReader {
     String id = FileIdHash.hash(add.getPath(), fileIdHash, format);
     String stats = add.getStatsJson().orElse(null);
     if (format == ResponseFormat.DELTA) {
+      String deletionVectorFileId = null;
+      String deletionVectorUrl = null;
+      // storageType i = inline bitmap (no object to sign). u/p are on-disk; sign those and set
+      // deletionVectorFileId.
+      DeletionVectorDescriptor dv =
+          add.getDeletionVector().filter(DeletionVectorDescriptor::isOnDisk).orElse(null);
+      if (dv != null) {
+        String dvPath = dv.getAbsolutePath(HadoopStorageConfiguration.kernelPath(tableLocation));
+        SignedUrl signedDv = signers.sign(dvPath, credentials, urlTtl);
+        deletionVectorUrl = signedDv.url();
+        deletionVectorFileId = FileIdHash.hash(dvPath, fileIdHash, format);
+        expirationTimestamp =
+            Math.min(expirationTimestamp, signedDv.expiration().toEpochMilli());
+      }
       return TableActions.deltaFile(
           id,
-          status.getSize(),
+          deletionVectorFileId,
           expirationTimestamp,
           version,
           timestamp,
-          TableActions.withPath(add, url));
+          TableActions.withPath(add, url, deletionVectorUrl));
     }
     return TableActions.parquetFile(
         url, id, partitionValues, status.getSize(), stats, version, timestamp, expirationTimestamp);

@@ -138,7 +138,7 @@ public abstract class ProtocolApiSupport {
     private static final String STUB_QUERY_DELTA =
         STUB_DELTA
             + """
-            {"file":{"id":"stub-file","size":1,"expirationTimestamp":4102444800000,"deltaSingleAction":{"add":{"path":"https://example.invalid/stub.parquet","partitionValues":{},"size":1,"modificationTime":0,"dataChange":true}}}}
+            {"file":{"id":"stub-file","expirationTimestamp":4102444800000,"deltaSingleAction":{"add":{"path":"https://example.invalid/stub.parquet","partitionValues":{},"size":1,"modificationTime":0,"dataChange":true}}}}
             """;
 
     @Bean

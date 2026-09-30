@@ -119,6 +119,29 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
   }
 
   @Test
+  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
+  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
+  void queriesDeltaFilesForDeletionVectorsTable() throws Exception {
+    String bearer =
+        shareTable("dv-query", "main.sales.deletionvectors", "sales.deletionvectors");
+    String endpoint =
+        PROTOCOL + "/shares/dv-query/schemas/sales/tables/deletionvectors/query";
+
+    // Delta format signs the DV object and returns deletionVectorFileId for cache keys.
+    String delta =
+        query(endpoint, bearer, "{}", "responseformat=delta")
+            .andExpect(status().isOk())
+            .andExpect(content().contentTypeCompatibleWith("application/x-ndjson"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertDeltaQuery(delta);
+    assertTrue(delta.contains("\"deletionVectorFileId\""), delta);
+    assertTrue(delta.contains("\"deletionVector\""), delta);
+    assertTrue(delta.contains("X-Amz-Signature="), delta);
+  }
+
+  @Test
   void rejectsQueryForUngrantedTables() throws Exception {
     createShare("hidden-query");
     addObject("hidden-query", "TABLE", "main.sales.table1", "sales.table1");

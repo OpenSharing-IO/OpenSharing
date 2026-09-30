@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import io.delta.kernel.data.Row;
 import io.delta.kernel.defaults.internal.json.JsonUtils;
 import io.delta.kernel.internal.actions.AddFile;
+import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
 import io.delta.kernel.internal.actions.Format;
 import io.delta.kernel.internal.actions.Metadata;
 import io.delta.kernel.internal.actions.Protocol;
@@ -18,6 +19,7 @@ import io.delta.kernel.internal.util.VectorUtils;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.catalog.ResolvedAsset;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -99,7 +101,7 @@ public final class TableActions {
 
   public static String deltaFile(
       String id,
-      Long size,
+      String deletionVectorFileId,
       Long expirationTimestamp,
       Long version,
       Long timestamp,
@@ -107,14 +109,36 @@ public final class TableActions {
     return line(
         new FileLine(
             new DeltaFile(
-                id, size, expirationTimestamp, version, timestamp, new DeltaSingleAction(add))));
+                id,
+                deletionVectorFileId,
+                version,
+                timestamp,
+                expirationTimestamp,
+                new DeltaSingleAction(add))));
   }
 
-  /** Keep the Kernel add action and replace path with the file URL. */
-  public static AddFile withPath(AddFile add, String path) {
+  /**
+   * Replace the add path with a signed file URL. When {@code deletionVectorUrl} is set, rewrite the
+   * on-disk deletion vector as a path-type descriptor so clients fetch the signed object.
+   */
+  public static AddFile withPath(AddFile add, String path, String deletionVectorUrl) {
     Row row = add.toRow();
-    return new AddFile(
-        new DelegateRow(row, Map.of(row.getSchema().indexOf("path"), (Object) path)));
+    Map<Integer, Object> overrides = new HashMap<>();
+    overrides.put(row.getSchema().indexOf("path"), path);
+    if (deletionVectorUrl != null) {
+      int dvOrdinal = row.getSchema().indexOf("deletionVector");
+      Row dv = row.getStruct(dvOrdinal);
+      overrides.put(
+          dvOrdinal,
+          new DelegateRow(
+              dv,
+              Map.of(
+                  dv.getSchema().indexOf("storageType"),
+                  (Object) DeletionVectorDescriptor.PATH_DV_MARKER,
+                  dv.getSchema().indexOf("pathOrInlineDv"),
+                  deletionVectorUrl)));
+    }
+    return new AddFile(new DelegateRow(row, overrides));
   }
 
   private static String line(Object value) {
@@ -216,10 +240,10 @@ public final class TableActions {
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record DeltaFile(
       String id,
-      Long size,
-      Long expirationTimestamp,
+      String deletionVectorFileId,
       Long version,
       Long timestamp,
+      Long expirationTimestamp,
       DeltaSingleAction deltaSingleAction)
       implements FileBody {}
 

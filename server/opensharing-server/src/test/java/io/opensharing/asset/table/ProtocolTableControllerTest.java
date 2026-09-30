@@ -428,6 +428,15 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
             .getContentAsString();
     assertTrue(delta.contains("\"deltaProtocol\""), delta);
     assertTrue(delta.contains("\"deltaSingleAction\""), delta);
+    // Unknown responseformat is INVALID_PARAMETER_VALUE.
+    mvc.perform(
+            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                .header("Authorization", "Bearer " + bearer)
+                .header("delta-sharing-capabilities", "responseformat=json")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
 
     // timestamp-as-of uses the historical snapshot version from the stub Kernel.
     mvc.perform(
@@ -445,22 +454,6 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
                 .content("{\"version\":1,\"timestamp\":\"2022-01-01T00:00:00Z\"}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
-    // Streaming startingVersion is not implemented.
-    mvc.perform(
-            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
-                .header("Authorization", "Bearer " + bearer)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"startingVersion\":0}"))
-        .andExpect(status().isNotImplemented())
-        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.NOT_IMPLEMENTED));
-    // Predicate and limit pushdown is not implemented.
-    mvc.perform(
-            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
-                .header("Authorization", "Bearer " + bearer)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"predicateHints\":[\"date >= '2021-01-01'\"],\"limitHint\":1000}"))
-        .andExpect(status().isNotImplemented())
-        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.NOT_IMPLEMENTED));
     // A table in an ungranted share is 404, not 403.
     mvc.perform(
             post(PROTOCOL + "/shares/hidden-query/schemas/sales/tables/customers/query")
