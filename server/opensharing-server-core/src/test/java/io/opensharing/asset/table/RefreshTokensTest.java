@@ -3,11 +3,18 @@ package io.opensharing.asset.table;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.opensharing.asset.table.RefreshTokens.RefreshToken;
 import io.opensharing.http.ApiException;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 class RefreshTokensTest {
+
+  @Test
+  void encodesAndDecodesRefreshToken() {
+    RefreshToken token = new RefreshToken("main.sales.orders", 7, 1000);
+    assertEquals(token, RefreshTokens.decode(RefreshTokens.encode(token)));
+  }
 
   @Test
   void roundTripsTableIdAndVersion() {

@@ -106,9 +106,9 @@ class TableActionsTest {
   void encodesEndStreamAction() {
     assertEquals(
         """
-        {"endStreamAction":{"refreshToken":"os1rt:token","minUrlExpirationTimestamp":1652140800000}}
+        {"endStreamAction":{"refreshToken":"refresh-token","minUrlExpirationTimestamp":1652140800000}}
         """,
-        TableActions.endStreamAction("os1rt:token", null, 1652140800000L));
+        TableActions.endStreamAction("refresh-token", null, 1652140800000L));
     assertEquals(
         """
         {"endStreamAction":{"nextPageToken":"os1:1"}}
