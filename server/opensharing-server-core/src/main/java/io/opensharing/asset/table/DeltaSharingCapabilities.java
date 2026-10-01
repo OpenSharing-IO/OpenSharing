@@ -65,6 +65,7 @@ public final class DeltaSharingCapabilities {
       }
       String key = trimmed.substring(0, eq).trim().toLowerCase(Locale.ROOT);
       String value = trimmed.substring(eq + 1).trim().toLowerCase(Locale.ROOT);
+      // Async query is not supported; skip so clients that send asyncquery still get a sync response.
       if (key.equals("asyncquery")) {
         continue;
       }
