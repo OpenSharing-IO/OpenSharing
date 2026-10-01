@@ -14,6 +14,7 @@ import io.delta.kernel.utils.FileStatus;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.asset.table.FileIdHash;
+import io.opensharing.asset.table.RefreshTokens;
 import io.opensharing.asset.table.TableActions;
 import io.opensharing.asset.table.signer.SignedUrl;
 import io.opensharing.asset.table.signer.UrlSigners;
@@ -53,7 +54,10 @@ public class DeltaTableQueryReader {
       Instant timestamp,
       AuthContext auth,
       String capabilities,
-      String fileIdHash) {
+      String fileIdHash,
+      boolean historical,
+      boolean includeRefreshToken,
+      boolean includeEndStreamAction) {
     if (version != null && timestamp != null) {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
@@ -61,7 +65,6 @@ public class DeltaTableQueryReader {
     DeltaKernel.Session session = kernel.open(table, auth, properties.getDelta().getUrlTtl());
     Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
     SnapshotImpl impl = (SnapshotImpl) snapshot;
-    boolean historical = version != null || timestamp != null;
     ResponseFormat format = DeltaSharingCapabilities.choose(capabilities);
     DeltaSharingCapabilities.requireReaderFeatures(capabilities, format, impl.getProtocol());
     CRCInfo crc = crcFor(impl, snapshot.getVersion());
@@ -80,6 +83,7 @@ public class DeltaTableQueryReader {
             crc == null ? null : crc.getNumFiles(),
             format));
 
+    Long minUrlExpirationTimestamp = null;
     try {
       Scan scan = snapshot.getScanBuilder().build();
       try (CloseableIterator<FilteredColumnarBatch> batches = scan.getScanFiles(session.engine())) {
@@ -87,7 +91,7 @@ public class DeltaTableQueryReader {
           FilteredColumnarBatch batch = batches.next();
           try (CloseableIterator<Row> rows = batch.getRows()) {
             while (rows.hasNext()) {
-              ndjson.append(
+              FileAction file =
                   fileLine(
                       rows.next(),
                       format,
@@ -96,7 +100,12 @@ public class DeltaTableQueryReader {
                       fileTimestamp,
                       session.location(),
                       session.credentials(),
-                      urlTtl));
+                      urlTtl);
+              ndjson.append(file.line());
+              minUrlExpirationTimestamp =
+                  minUrlExpirationTimestamp == null
+                      ? file.expirationTimestamp()
+                      : Math.min(minUrlExpirationTimestamp, file.expirationTimestamp());
             }
           }
         }
@@ -105,10 +114,20 @@ public class DeltaTableQueryReader {
       throw new UncheckedIOException(e);
     }
 
+    if (includeRefreshToken || includeEndStreamAction) {
+      String refreshToken =
+          includeRefreshToken
+              ? RefreshTokens.encode(
+                  table.identifier(), snapshot.getVersion(), Instant.now().plus(urlTtl))
+              : null;
+      ndjson.append(
+          TableActions.endStreamAction(refreshToken, null, minUrlExpirationTimestamp));
+    }
+
     return new Result(snapshot.getVersion(), ndjson.toString());
   }
 
-  private String fileLine(
+  private FileAction fileLine(
       Row scanFile,
       ResponseFormat format,
       String fileIdHash,
@@ -147,16 +166,27 @@ public class DeltaTableQueryReader {
             Math.min(expirationTimestamp, signedDv.expiration().toEpochMilli());
       }
 
-      return TableActions.deltaFile(
-          id,
-          deletionVectorFileId,
-          expirationTimestamp,
-          version,
-          timestamp,
-          TableActions.withPath(add, url, deletionVectorUrl));
+      return new FileAction(
+          TableActions.deltaFile(
+              id,
+              deletionVectorFileId,
+              expirationTimestamp,
+              version,
+              timestamp,
+              TableActions.withPath(add, url, deletionVectorUrl)),
+          expirationTimestamp);
     }
-    return TableActions.parquetFile(
-        url, id, partitionValues, status.getSize(), stats, version, timestamp, expirationTimestamp);
+    return new FileAction(
+        TableActions.parquetFile(
+            url,
+            id,
+            partitionValues,
+            status.getSize(),
+            stats,
+            version,
+            timestamp,
+            expirationTimestamp),
+        expirationTimestamp);
   }
 
   private static CRCInfo crcFor(SnapshotImpl snapshot, long version) {
@@ -167,4 +197,6 @@ public class DeltaTableQueryReader {
   }
 
   public record Result(long version, String ndjson) {}
+
+  private record FileAction(String line, long expirationTimestamp) {}
 }

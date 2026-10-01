@@ -430,6 +430,48 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
             .getContentAsString();
     assertTrue(delta.contains("\"deltaProtocol\""), delta);
     assertTrue(delta.contains("\"deltaSingleAction\""), delta);
+
+    // includeRefreshToken appends endStreamAction with a refresh token; the ESA header is echoed
+    // only when the request asked for includeendstreamaction.
+    String refreshed =
+        mvc.perform(
+                post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                    .header("Authorization", "Bearer " + bearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"includeRefreshToken\":true}"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("delta-sharing-capabilities", "responseformat=parquet"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(refreshed.contains("\"endStreamAction\""), refreshed);
+    assertTrue(refreshed.contains("\"refreshToken\""), refreshed);
+    String withEsa =
+        mvc.perform(
+                post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                    .header("Authorization", "Bearer " + bearer)
+                    .header("delta-sharing-capabilities", "includeendstreamaction=true")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{}"))
+            .andExpect(status().isOk())
+            .andExpect(
+                header()
+                    .string(
+                        "delta-sharing-capabilities",
+                        "responseformat=parquet;includeendstreamaction=true"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(withEsa.contains("\"endStreamAction\""), withEsa);
+    assertFalse(withEsa.contains("\"refreshToken\""), withEsa);
+    mvc.perform(
+            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"includeRefreshToken\":true,\"version\":1}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+
     // Unknown responseformat is INVALID_PARAMETER_VALUE.
     mvc.perform(
             post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")

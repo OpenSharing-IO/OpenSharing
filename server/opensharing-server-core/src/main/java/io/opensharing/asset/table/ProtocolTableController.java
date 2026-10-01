@@ -215,19 +215,39 @@ public class ProtocolTableController {
     if (hasPushdownHint(body)) {
       throw ApiException.notImplemented("predicate and limit pushdown is not supported");
     }
+    boolean historical = body.version() != null || body.timestamp() != null;
+    if (Boolean.TRUE.equals(body.includeRefreshToken()) && historical) {
+      throw ApiException.invalidParameter(
+          "includeRefreshToken cannot be used when querying a specific version.");
+    }
+    if (body.refreshToken() != null && !body.refreshToken().isBlank() && historical) {
+      throw ApiException.invalidParameter(
+          "refreshToken cannot be used when querying a specific version.");
+    }
+    Long version = body.version();
+    if (body.refreshToken() != null && !body.refreshToken().isBlank()) {
+      version = RefreshTokens.versionOf(body.refreshToken(), resolved.identifier());
+    }
     String fileIdHash = FileIdHash.parse(fileIdHashHeader);
+    boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
+    boolean includeEndStreamAction = DeltaSharingCapabilities.includeEndStreamAction(capabilities);
     DeltaTableQueryReader.Result result =
         queryReader.read(
             resolved,
-            body.version(),
+            version,
             parseTimestamp(body.timestamp()),
             owner(entity),
             capabilities,
-            fileIdHash);
+            fileIdHash,
+            historical,
+            includeRefreshToken,
+            includeEndStreamAction);
     var response =
         ResponseEntity.ok()
             .header("Delta-Table-Version", Long.toString(result.version()))
-            .header(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(capabilities))
+            .header(
+                DeltaSharingCapabilities.HEADER,
+                DeltaSharingCapabilities.responded(capabilities, includeEndStreamAction))
             .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"));
     if (fileIdHash != null) {
       response = response.header(FileIdHash.HEADER, fileIdHash);
