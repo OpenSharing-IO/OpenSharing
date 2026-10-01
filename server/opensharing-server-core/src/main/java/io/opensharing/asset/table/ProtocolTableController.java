@@ -227,6 +227,7 @@ public class ProtocolTableController {
     var response =
         ResponseEntity.ok()
             .header("Delta-Table-Version", Long.toString(result.version()))
+            .header(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(capabilities))
             .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"));
     if (fileIdHash != null) {
       response = response.header(FileIdHash.HEADER, fileIdHash);
