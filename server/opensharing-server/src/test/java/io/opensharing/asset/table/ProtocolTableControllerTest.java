@@ -473,6 +473,18 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
 
+    // Predicate and limit hints are accepted.
+    mvc.perform(
+            post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
+                .header("Authorization", "Bearer " + bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"predicateHints":["id = 1"],"limitHint":10,
+                     "jsonPredicateHints":"{\\"op\\":\\"column\\",\\"name\\":\\"id\\",\\"valueType\\":\\"long\\"}"}
+                    """))
+        .andExpect(status().isOk());
+
     // Unknown responseformat is INVALID_PARAMETER_VALUE.
     mvc.perform(
             post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")

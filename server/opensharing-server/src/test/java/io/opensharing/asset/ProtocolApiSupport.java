@@ -202,7 +202,9 @@ public abstract class ProtocolApiSupport {
             String fileIdHash,
             boolean historical,
             boolean includeRefreshToken,
-            boolean includeEndStreamAction) {
+            boolean includeEndStreamAction,
+            String jsonPredicateHints,
+            Long limitHint) {
           if (version != null && timestamp != null) {
             throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
           }
