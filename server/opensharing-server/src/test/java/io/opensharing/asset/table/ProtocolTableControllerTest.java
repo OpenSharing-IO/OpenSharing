@@ -234,6 +234,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
                     .header("Authorization", "Bearer " + bearer))
             .andExpect(status().isOk())
             .andExpect(header().string("Delta-Table-Version", "123"))
+            .andExpect(header().string("delta-sharing-capabilities", "responseformat=parquet"))
             .andExpect(content().contentTypeCompatibleWith("application/x-ndjson"))
             .andReturn()
             .getResponse()
@@ -251,6 +252,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
                     .header("delta-sharing-capabilities", "responseformat=delta"))
             .andExpect(status().isOk())
             .andExpect(header().string("Delta-Table-Version", "123"))
+            .andExpect(header().string("delta-sharing-capabilities", "responseformat=delta"))
             .andReturn()
             .getResponse()
             .getContentAsString();

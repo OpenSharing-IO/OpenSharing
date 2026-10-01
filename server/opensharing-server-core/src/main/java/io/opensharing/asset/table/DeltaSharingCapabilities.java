@@ -12,6 +12,8 @@ public final class DeltaSharingCapabilities {
     DELTA
   }
 
+  public static final String HEADER = "delta-sharing-capabilities";
+
   private DeltaSharingCapabilities() {}
 
   /**
@@ -22,6 +24,13 @@ public final class DeltaSharingCapabilities {
     return responseFormats(header).contains(ResponseFormat.DELTA)
         ? ResponseFormat.DELTA
         : ResponseFormat.PARQUET;
+  }
+
+  /** Value for the response {@code delta-sharing-capabilities} header: the format actually used. */
+  public static String responded(String requestHeader) {
+    return choose(requestHeader) == ResponseFormat.DELTA
+        ? "responseformat=delta"
+        : "responseformat=parquet";
   }
 
   static Set<ResponseFormat> responseFormats(String header) {

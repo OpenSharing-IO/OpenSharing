@@ -11,6 +11,8 @@ class DeltaSharingCapabilitiesTest {
   void defaultsToParquetWithoutAHeader() {
     assertEquals(ResponseFormat.PARQUET, DeltaSharingCapabilities.choose(null));
     assertEquals(ResponseFormat.PARQUET, DeltaSharingCapabilities.choose(""));
+    assertEquals("responseformat=parquet", DeltaSharingCapabilities.responded(null));
+    assertEquals("responseformat=delta", DeltaSharingCapabilities.responded("responseformat=delta"));
   }
 
   @Test
