@@ -199,8 +199,14 @@ public abstract class ProtocolApiSupport {
             DeltaTableQueryReader.ResponseOptions options,
             Long version,
             Instant timestamp,
-            String refreshToken,
-            boolean includeRefreshToken) {
+            AuthContext auth,
+            String capabilities,
+            String fileIdHash,
+            boolean historical,
+            boolean includeRefreshToken,
+            boolean includeEndStreamAction,
+            String jsonPredicateHints,
+            Long limitHint) {
           if (version != null && timestamp != null) {
             throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
           }
