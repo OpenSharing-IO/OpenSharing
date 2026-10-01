@@ -129,7 +129,11 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
 
     // Delta format signs the DV object and returns deletionVectorFileId for cache keys.
     String delta =
-        query(endpoint, bearer, "{}", "responseformat=delta")
+        query(
+                endpoint,
+                bearer,
+                "{}",
+                "responseformat=delta;readerfeatures=deletionvectors")
             .andExpect(status().isOk())
             .andExpect(content().contentTypeCompatibleWith("application/x-ndjson"))
             .andReturn()

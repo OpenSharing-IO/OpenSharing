@@ -63,6 +63,7 @@ public class DeltaTableQueryReader {
     SnapshotImpl impl = (SnapshotImpl) snapshot;
     boolean historical = version != null || timestamp != null;
     ResponseFormat format = DeltaSharingCapabilities.choose(capabilities);
+    DeltaSharingCapabilities.requireReaderFeatures(capabilities, format, impl.getProtocol());
     CRCInfo crc = crcFor(impl, snapshot.getVersion());
     Long fileVersion = historical ? snapshot.getVersion() : null;
     Long fileTimestamp = historical ? snapshot.getTimestamp(session.engine()) : null;
