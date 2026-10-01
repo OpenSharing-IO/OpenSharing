@@ -8,6 +8,7 @@ import io.opensharing.catalog.AssetLookup;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.TableFormat;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,6 +27,7 @@ class CatalogConfigurationTest {
   @Test
   void loadsTheConfiguredLocalCatalog() {
     assertEquals(OpenSharingProperties.Hosting.Mode.STANDALONE, properties.getHosting().getMode());
+    assertEquals(Duration.ofHours(1), properties.getAssetCredentials().getTtl());
 
     UserContext user = new UserContext("alice@example.com", "alice@example.com");
 

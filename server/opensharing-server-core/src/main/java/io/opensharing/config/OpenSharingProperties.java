@@ -12,6 +12,7 @@ public class OpenSharingProperties {
   private final Hosting hosting = new Hosting();
   private final Provider provider = new Provider();
   private final RecipientTokens recipientTokens = new RecipientTokens();
+  private final AssetCredentials assetCredentials = new AssetCredentials();
   private final Pagination pagination = new Pagination();
   private final Catalog catalog = new Catalog();
 
@@ -41,6 +42,10 @@ public class OpenSharingProperties {
 
   public RecipientTokens getRecipientTokens() {
     return recipientTokens;
+  }
+
+  public AssetCredentials getAssetCredentials() {
+    return assetCredentials;
   }
 
   public Pagination getPagination() {
@@ -115,6 +120,20 @@ public class OpenSharingProperties {
 
     public void setRotationGrace(Duration rotationGrace) {
       this.rotationGrace = rotationGrace;
+    }
+  }
+
+  /** Catalog-vended cloud credentials for directory access. */
+  public static class AssetCredentials {
+
+    private Duration ttl = Duration.ofHours(1);
+
+    public Duration getTtl() {
+      return ttl;
+    }
+
+    public void setTtl(Duration ttl) {
+      this.ttl = ttl;
     }
   }
 
