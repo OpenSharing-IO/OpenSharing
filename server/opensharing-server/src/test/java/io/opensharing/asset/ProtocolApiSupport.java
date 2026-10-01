@@ -17,6 +17,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.http.ApiException;
 import java.net.URI;
 import java.time.Instant;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -205,6 +206,7 @@ public abstract class ProtocolApiSupport {
             boolean historical,
             boolean includeRefreshToken,
             boolean includeEndStreamAction,
+            List<String> predicateHints,
             String jsonPredicateHints,
             Long limitHint) {
           if (version != null && timestamp != null) {

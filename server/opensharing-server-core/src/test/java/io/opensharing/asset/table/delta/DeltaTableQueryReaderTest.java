@@ -105,24 +105,55 @@ class DeltaTableQueryReaderTest {
   }
 
   @Test
+  void sqlPredicateHintsPrunePartitionsAndCombineWithJsonHints() {
+    assertEquals(List.of("a"), files(List.of("(date < DATE '2021-01-02')"), null, null));
+    // SQL hints only prune partitions, so a data-column hint is dropped.
+    assertEquals(List.of("a", "b", "c"), files(List.of("(id > 25L)"), null, null));
+    assertEquals(
+        List.of("c"),
+        files(
+            List.of("(date = DATE '2021-01-02')"),
+            "{\"op\":\"greaterThan\",\"children\":[{\"op\":\"column\",\"name\":\"id\",\"valueType\":"
+                + "\"long\"},{\"op\":\"literal\",\"value\":\"25\",\"valueType\":\"long\"}]}",
+            null));
+  }
+
+  @Test
   void limitHintStopsOnceFilesCoverTheLimit() {
     // limitHint counts stats.numRecords, which file actions carry through.
-    assertTrue(ndjson(null, null).contains("\\\"numRecords\\\":10"));
+    assertTrue(ndjson(null, null, null).contains("\\\"numRecords\\\":10"));
     assertEquals(0, files(null, 0L).size());
     assertEquals(1, files(null, 10L).size());
     assertEquals(2, files(null, 11L).size());
     assertEquals(3, files(null, 1000L).size());
   }
 
-  private String ndjson(String jsonPredicateHints, Long limitHint) {
+  private String ndjson(
+      List<String> predicateHints, String jsonPredicateHints, Long limitHint) {
     return reader
         .read(
-            table, null, null, null, null, null, false, false, false, jsonPredicateHints, limitHint)
+            table,
+            null,
+            null,
+            null,
+            null,
+            null,
+            false,
+            false,
+            false,
+            predicateHints,
+            jsonPredicateHints,
+            limitHint)
         .ndjson();
   }
 
   private List<String> files(String jsonPredicateHints, Long limitHint) {
-    return Arrays.stream(ndjson(jsonPredicateHints, limitHint).split("\n"))
+    return files(null, jsonPredicateHints, limitHint);
+  }
+
+  private List<String> files(
+      List<String> predicateHints, String jsonPredicateHints, Long limitHint) {
+    return Arrays.stream(ndjson(predicateHints, jsonPredicateHints, limitHint).split("\n"))
         .filter(line -> line.startsWith("{\"file\""))
         .map(line -> line.replaceAll(".*https://signed/(\\w)\\.parquet.*", "$1"))
         .sorted()
