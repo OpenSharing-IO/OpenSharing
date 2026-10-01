@@ -1,5 +1,7 @@
 package io.opensharing.asset.table;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -210,6 +212,91 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
     mvc.perform(
             get(PROTOCOL + "/shares/hidden-version/schemas/sales/tables/customers/version")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
+
+  @Test
+  void queriesGrantedTableMetadata() throws Exception {
+    createShare("table-metadata");
+    addObject("table-metadata", "TABLE", "main.sales.orders", "sales.orders");
+    addObject("table-metadata", "SCHEMA", "main.hr", "hr");
+    createShare("hidden-metadata");
+    addObject("hidden-metadata", "TABLE", "main.sales.customers", "sales.customers");
+    String bearer = createAndActivateRecipient("table-metadata-partner");
+    grant("table-metadata", "table-metadata-partner");
+
+    // Latest metadata defaults to parquet NDJSON (protocol + metaData.schemaString).
+    String latest =
+        mvc.perform(
+                get(PROTOCOL + "/shares/TABLE-METADATA/schemas/SALES/tables/ORDERS/metadata")
+                    .header("Authorization", "Bearer " + bearer))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "123"))
+            .andExpect(header().string("delta-sharing-capabilities", "responseformat=parquet"))
+            .andExpect(content().contentTypeCompatibleWith("application/x-ndjson"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(latest.contains("\"protocol\""));
+    assertTrue(latest.contains("\"metaData\""));
+    assertTrue(latest.contains("\"schemaString\""));
+    assertFalse(latest.contains("\"deltaMetadata\""));
+
+    // responseformat=delta wraps Kernel protocol and metadata as deltaProtocol/deltaMetadata.
+    String delta =
+        mvc.perform(
+                get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                    .header("Authorization", "Bearer " + bearer)
+                    .header("delta-sharing-capabilities", "responseformat=delta"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "123"))
+            .andExpect(header().string("delta-sharing-capabilities", "responseformat=delta"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(delta.contains("\"deltaProtocol\""), delta);
+    assertTrue(delta.contains("\"deltaMetadata\""), delta);
+    // Unknown responseformat and capability keys are INVALID_PARAMETER_VALUE.
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                .header("Authorization", "Bearer " + bearer)
+                .header("delta-sharing-capabilities", "responseformat=json"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                .header("Authorization", "Bearer " + bearer)
+                .header("delta-sharing-capabilities", "unknown=true"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+
+    // timestamp-as-of uses the historical snapshot version from the stub Kernel.
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/hr/tables/SALARIES/metadata")
+                .param("timestamp", "2022-01-01T00:00:00Z")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Delta-Table-Version", "45"));
+    // version and timestamp together are mutually exclusive.
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                .param("version", "1")
+                .param("timestamp", "2022-01-01T00:00:00Z")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    // A malformed timestamp is INVALID_PARAMETER_VALUE.
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                .param("timestamp", "not-a-timestamp")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    // A table in an ungranted share is 404, not 403.
+    mvc.perform(
+            get(PROTOCOL + "/shares/hidden-metadata/schemas/sales/tables/customers/metadata")
                 .header("Authorization", "Bearer " + bearer))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
