@@ -239,6 +239,7 @@ public class ProtocolTableController {
             historical,
             includeRefreshToken,
             includeEndStreamAction,
+            body.predicateHints(),
             body.jsonPredicateHints(),
             limitHint(body));
     var response =
