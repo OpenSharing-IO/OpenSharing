@@ -1,8 +1,10 @@
 package io.opensharing.asset.table;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
+import io.opensharing.http.ApiException;
 import org.junit.jupiter.api.Test;
 
 class DeltaSharingCapabilitiesTest {
@@ -29,5 +31,21 @@ class DeltaSharingCapabilitiesTest {
         ResponseFormat.DELTA,
         DeltaSharingCapabilities.choose(
             "RESPONSEFORMAT=PARQUET,DELTA;readerfeatures=deletionvectors"));
+  }
+
+  @Test
+  void rejectsUnknownFormatsKeysAndMalformedHeader() {
+    assertThrows(ApiException.class, () -> DeltaSharingCapabilities.choose("responseformat=json"));
+    assertThrows(ApiException.class, () -> DeltaSharingCapabilities.choose("responseformat="));
+    assertThrows(ApiException.class, () -> DeltaSharingCapabilities.choose("not-a-capability"));
+    assertThrows(ApiException.class, () -> DeltaSharingCapabilities.choose("unknown=true"));
+    assertEquals(ResponseFormat.PARQUET, DeltaSharingCapabilities.choose("asyncquery=true"));
+    assertEquals(
+        ResponseFormat.DELTA,
+        DeltaSharingCapabilities.choose("responseformat=delta;asyncquery=true"));
+    assertThrows(
+        ApiException.class, () -> DeltaSharingCapabilities.choose("readerfeatures=notAFeature"));
+    assertThrows(
+        ApiException.class, () -> DeltaSharingCapabilities.choose("readerfeatures=appendOnly"));
   }
 }

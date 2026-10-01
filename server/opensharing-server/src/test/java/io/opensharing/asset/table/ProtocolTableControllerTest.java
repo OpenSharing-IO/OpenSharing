@@ -258,6 +258,19 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
             .getContentAsString();
     assertTrue(delta.contains("\"deltaProtocol\""), delta);
     assertTrue(delta.contains("\"deltaMetadata\""), delta);
+    // Unknown responseformat and capability keys are INVALID_PARAMETER_VALUE.
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                .header("Authorization", "Bearer " + bearer)
+                .header("delta-sharing-capabilities", "responseformat=json"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    mvc.perform(
+            get(PROTOCOL + "/shares/table-metadata/schemas/sales/tables/orders/metadata")
+                .header("Authorization", "Bearer " + bearer)
+                .header("delta-sharing-capabilities", "unknown=true"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
 
     // timestamp-as-of uses the historical snapshot version from the stub Kernel.
     mvc.perform(

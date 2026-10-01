@@ -1,8 +1,14 @@
 package io.opensharing.asset.table;
 
+import io.delta.kernel.internal.tablefeatures.TableFeature;
+import io.delta.kernel.internal.tablefeatures.TableFeatures;
+import io.opensharing.http.ApiException;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Parses {@code delta-sharing-capabilities} and chooses parquet vs delta response actions. */
 public final class DeltaSharingCapabilities {
@@ -14,6 +20,15 @@ public final class DeltaSharingCapabilities {
 
   public static final String HEADER = "delta-sharing-capabilities";
 
+  private static final Set<String> KEYS =
+      Set.of("responseformat", "readerfeatures", "includeendstreamaction");
+
+  private static final Set<String> READER_FEATURES =
+      TableFeatures.TABLE_FEATURES.stream()
+          .filter(TableFeature::isReaderWriterFeature)
+          .map(feature -> feature.featureName().toLowerCase(Locale.ROOT))
+          .collect(Collectors.toUnmodifiableSet());
+
   private DeltaSharingCapabilities() {}
 
   /**
@@ -21,7 +36,7 @@ public final class DeltaSharingCapabilities {
    * {@code responseformat=delta,parquet}.
    */
   public static ResponseFormat choose(String header) {
-    return responseFormats(header).contains(ResponseFormat.DELTA)
+    return responseFormats(parse(header)).contains(ResponseFormat.DELTA)
         ? ResponseFormat.DELTA
         : ResponseFormat.PARQUET;
   }
@@ -33,26 +48,74 @@ public final class DeltaSharingCapabilities {
         : "responseformat=parquet";
   }
 
-  static Set<ResponseFormat> responseFormats(String header) {
-    EnumSet<ResponseFormat> requested = EnumSet.noneOf(ResponseFormat.class);
+  static Map<String, String> parse(String header) {
     if (header == null || header.isBlank()) {
+      return Map.of();
+    }
+    Map<String, String> capabilities = new LinkedHashMap<>();
+    for (String part : header.split(";")) {
+      String trimmed = part.trim();
+      if (trimmed.isEmpty()) {
+        continue;
+      }
+      int eq = trimmed.indexOf('=');
+      if (eq <= 0) {
+        throw ApiException.invalidParameter(
+            "delta-sharing-capabilities must be semicolon-separated key=value pairs");
+      }
+      String key = trimmed.substring(0, eq).trim().toLowerCase(Locale.ROOT);
+      String value = trimmed.substring(eq + 1).trim().toLowerCase(Locale.ROOT);
+      if (key.equals("asyncquery")) {
+        continue;
+      }
+      if (!KEYS.contains(key)) {
+        throw ApiException.invalidParameter(
+            "Unsupported delta-sharing-capabilities key: '" + key + "'");
+      }
+      if (key.equals("includeendstreamaction")
+          && !value.equals("true")
+          && !value.equals("false")) {
+        throw ApiException.invalidParameter(
+            "Unsupported " + key + ": '" + value + "'. Supported: true, false");
+      }
+      if (key.equals("readerfeatures")) {
+        validateReaderFeatures(value);
+      }
+      capabilities.put(key, value);
+    }
+    return capabilities;
+  }
+
+  private static void validateReaderFeatures(String value) {
+    if (value.isBlank()) {
+      throw ApiException.invalidParameter("Unsupported readerfeatures: ''");
+    }
+    for (String token : value.split(",")) {
+      String feature = token.trim();
+      if (feature.isEmpty() || !READER_FEATURES.contains(feature)) {
+        throw ApiException.invalidParameter("Unsupported readerfeatures: '" + feature + "'");
+      }
+    }
+  }
+
+  static Set<ResponseFormat> responseFormats(Map<String, String> capabilities) {
+    EnumSet<ResponseFormat> requested = EnumSet.noneOf(ResponseFormat.class);
+    String formats = capabilities.get("responseformat");
+    if (formats == null) {
       return requested;
     }
-    for (String part : header.split(";")) {
-      int eq = part.indexOf('=');
-      if (eq <= 0) {
-        continue;
-      }
-      String key = part.substring(0, eq).trim().toLowerCase(Locale.ROOT);
-      if (!key.equals("responseformat")) {
-        continue;
-      }
-      for (String token : part.substring(eq + 1).split(",")) {
-        switch (token.trim().toLowerCase(Locale.ROOT)) {
-          case "parquet" -> requested.add(ResponseFormat.PARQUET);
-          case "delta" -> requested.add(ResponseFormat.DELTA);
-          default -> {}
-        }
+    if (formats.isBlank()) {
+      throw ApiException.invalidParameter(
+          "Unsupported responseformat: ''. Supported: parquet, delta");
+    }
+    for (String token : formats.split(",")) {
+      String format = token.trim();
+      switch (format) {
+        case "parquet" -> requested.add(ResponseFormat.PARQUET);
+        case "delta" -> requested.add(ResponseFormat.DELTA);
+        default ->
+            throw ApiException.invalidParameter(
+                "Unsupported responseformat: '" + format + "'. Supported: parquet, delta");
       }
     }
     return requested;
