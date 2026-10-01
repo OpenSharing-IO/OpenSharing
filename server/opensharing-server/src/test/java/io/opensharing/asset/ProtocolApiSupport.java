@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
+import io.opensharing.asset.table.TableActions;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader;
 import io.opensharing.auth.AuthContext;
@@ -198,16 +199,24 @@ public abstract class ProtocolApiSupport {
             Instant timestamp,
             AuthContext auth,
             String capabilities,
-            String fileIdHash) {
+            String fileIdHash,
+            boolean historical,
+            boolean includeRefreshToken,
+            boolean includeEndStreamAction) {
           if (version != null && timestamp != null) {
             throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
           }
           boolean delta =
               DeltaSharingCapabilities.choose(capabilities)
                   == DeltaSharingCapabilities.ResponseFormat.DELTA;
+          String ndjson = delta ? STUB_QUERY_DELTA : STUB_QUERY_PARQUET;
+          if (includeRefreshToken || includeEndStreamAction) {
+            ndjson +=
+                TableActions.endStreamAction(
+                    includeRefreshToken ? "stub-refresh-token" : null, null, 4102444800000L);
+          }
           return new DeltaTableQueryReader.Result(
-              version == null && timestamp == null ? 123 : 45,
-              delta ? STUB_QUERY_DELTA : STUB_QUERY_PARQUET);
+              version == null && timestamp == null ? 123 : 45, ndjson);
         }
       };
     }
