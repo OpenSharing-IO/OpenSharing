@@ -31,6 +31,8 @@
     <delta-kernel.version>4.0.0</delta-kernel.version>
     <hadoop.version>3.4.3</hadoop.version>
     <aws-sdk.version>2.35.4</aws-sdk.version>
+    <azure-storage-blob.version>12.27.0</azure-storage-blob.version>
+    <google-cloud-storage.version>2.30.1</google-cloud-storage.version>
     <gcs-connector.version>hadoop3-2.2.30</gcs-connector.version>
     <springdoc.version>2.9.0</springdoc.version>
   </properties>
@@ -48,6 +50,31 @@
         <version>${spring-boot.version}</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.google.code.gson</groupId>
+        <artifactId>gson</artifactId>
+        <version>2.10.1</version>
+      </dependency>
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-core</artifactId>
+        <version>1.51.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-json</artifactId>
+        <version>1.2.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-xml</artifactId>
+        <version>1.0.0</version>
+      </dependency>
+      <dependency>
+        <groupId>io.projectreactor</groupId>
+        <artifactId>reactor-core</artifactId>
+        <version>3.4.38</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

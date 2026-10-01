@@ -197,6 +197,7 @@ class LocalCatalogConnectorTest {
     assertTrue(credentials.expiration().isAfter(java.time.Instant.now()));
     assertTrue(credentials.require(StorageCredentials.ACCESS_KEY_ID).startsWith("ASIA"));
     assertTrue(!credentials.require(StorageCredentials.SESSION_TOKEN).isBlank());
+    assertEquals("us-west-2", credentials.require(StorageCredentials.REGION));
   }
 
   @Test

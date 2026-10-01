@@ -13,6 +13,7 @@ public class OpenSharingProperties {
   private final Provider provider = new Provider();
   private final RecipientTokens recipientTokens = new RecipientTokens();
   private final AssetCredentials assetCredentials = new AssetCredentials();
+  private final Storage storage = new Storage();
   private final Pagination pagination = new Pagination();
   private final Catalog catalog = new Catalog();
 
@@ -46,6 +47,10 @@ public class OpenSharingProperties {
 
   public AssetCredentials getAssetCredentials() {
     return assetCredentials;
+  }
+
+  public Storage getStorage() {
+    return storage;
   }
 
   public Pagination getPagination() {
@@ -120,6 +125,20 @@ public class OpenSharingProperties {
 
     public void setRotationGrace(Duration rotationGrace) {
       this.rotationGrace = rotationGrace;
+    }
+  }
+
+  /** Storage settings used to sign recipient-readable file URLs. */
+  public static class Storage {
+
+    private String gcsServiceAccountKeyFile;
+
+    public String getGcsServiceAccountKeyFile() {
+      return gcsServiceAccountKeyFile;
+    }
+
+    public void setGcsServiceAccountKeyFile(String gcsServiceAccountKeyFile) {
+      this.gcsServiceAccountKeyFile = gcsServiceAccountKeyFile;
     }
   }
 
