@@ -1,10 +1,15 @@
 package io.opensharing.asset.table.delta;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.delta.kernel.Scan;
+import io.delta.kernel.ScanBuilder;
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.data.FilteredColumnarBatch;
 import io.delta.kernel.data.Row;
+import io.delta.kernel.expressions.And;
+import io.delta.kernel.expressions.Predicate;
 import io.delta.kernel.internal.InternalScanFileUtils;
+import io.delta.kernel.internal.ScanImpl;
 import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.internal.actions.AddFile;
 import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
@@ -27,15 +32,21 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Component;
 
 /**
  * Reads Query Table snapshot files from a Delta log. The parquet or delta response is NDJSON:
- * protocol, metaData, then one file action per data file.
+ * protocol, metaData, then one file action per data file. predicateHints, jsonPredicateHints, and
+ * limitHint only skip files; clients still filter rows.
  */
 @Component
 public class DeltaTableQueryReader {
+
+  private static final ObjectMapper JSON = new ObjectMapper();
 
   private final DeltaKernel kernel;
   private final OpenSharingProperties properties;
@@ -57,7 +68,10 @@ public class DeltaTableQueryReader {
       String fileIdHash,
       boolean historical,
       boolean includeRefreshToken,
-      boolean includeEndStreamAction) {
+      boolean includeEndStreamAction,
+      List<String> predicateHints,
+      String jsonPredicateHints,
+      Long limitHint) {
     if (version != null && timestamp != null) {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
@@ -84,29 +98,45 @@ public class DeltaTableQueryReader {
             format));
 
     Long minUrlExpirationTimestamp = null;
-    try {
-      Scan scan = snapshot.getScanBuilder().build();
-      try (CloseableIterator<FilteredColumnarBatch> batches = scan.getScanFiles(session.engine())) {
-        while (batches.hasNext()) {
-          FilteredColumnarBatch batch = batches.next();
-          try (CloseableIterator<Row> rows = batch.getRows()) {
-            while (rows.hasNext()) {
-              FileAction file =
-                  fileLine(
-                      rows.next(),
-                      format,
-                      fileIdHash,
-                      fileVersion,
-                      fileTimestamp,
-                      session.location(),
-                      session.credentials(),
-                      urlTtl);
-              ndjson.append(file.line());
-              minUrlExpirationTimestamp =
-                  minUrlExpirationTimestamp == null
-                      ? file.expirationTimestamp()
-                      : Math.min(minUrlExpirationTimestamp, file.expirationTimestamp());
+    long numRecords = 0;
+    ScanBuilder builder = snapshot.getScanBuilder();
+    Optional<Predicate> filter =
+        Stream.of(
+                SqlPredicateHints.toPredicate(
+                    predicateHints,
+                    snapshot.getSchema(),
+                    impl.getMetadata().getPartitionColNames()),
+                JsonPredicateHints.toPredicate(jsonPredicateHints, snapshot.getSchema()))
+            .flatMap(Optional::stream)
+            .reduce((left, right) -> new And(left, right));
+    Scan scan = filter.map(builder::withFilter).orElse(builder).build();
+    // Stats are only read with includeStats; they feed file stats and limitHint record counts.
+    try (CloseableIterator<FilteredColumnarBatch> batches =
+        ((ScanImpl) scan).getScanFiles(session.engine(), true)) {
+      files:
+      while (batches.hasNext()) {
+        FilteredColumnarBatch batch = batches.next();
+        try (CloseableIterator<Row> rows = batch.getRows()) {
+          while (rows.hasNext()) {
+            if (limitHint != null && numRecords >= limitHint) {
+              break files;
             }
+            FileAction file =
+                fileLine(
+                    rows.next(),
+                    format,
+                    fileIdHash,
+                    fileVersion,
+                    fileTimestamp,
+                    session.location(),
+                    session.credentials(),
+                    urlTtl);
+            ndjson.append(file.line());
+            numRecords += file.numRecords();
+            minUrlExpirationTimestamp =
+                minUrlExpirationTimestamp == null
+                    ? file.expirationTimestamp()
+                    : Math.min(minUrlExpirationTimestamp, file.expirationTimestamp());
           }
         }
       }
@@ -148,6 +178,9 @@ public class DeltaTableQueryReader {
     long expirationTimestamp = signed.expiration().toEpochMilli();
     String id = FileIdHash.hash(add.getPath(), fileIdHash, format);
     String stats = add.getStatsJson().orElse(null);
+    long numRecords =
+        numRecords(stats)
+            - add.getDeletionVector().map(DeletionVectorDescriptor::getCardinality).orElse(0L);
 
     if (format == ResponseFormat.DELTA) {
       String deletionVectorFileId = null;
@@ -174,7 +207,8 @@ public class DeltaTableQueryReader {
               version,
               timestamp,
               TableActions.withPath(add, url, deletionVectorUrl)),
-          expirationTimestamp);
+          expirationTimestamp,
+          numRecords);
     }
     return new FileAction(
         TableActions.parquetFile(
@@ -186,7 +220,20 @@ public class DeltaTableQueryReader {
             version,
             timestamp,
             expirationTimestamp),
-        expirationTimestamp);
+        expirationTimestamp,
+        numRecords);
+  }
+
+  // Files without stats count as zero records, so limitHint never stops early on them.
+  private static long numRecords(String stats) {
+    if (stats == null || stats.isBlank()) {
+      return 0;
+    }
+    try {
+      return JSON.readTree(stats).path("numRecords").asLong(0);
+    } catch (IOException unreadable) {
+      return 0;
+    }
   }
 
   private static CRCInfo crcFor(SnapshotImpl snapshot, long version) {
@@ -198,5 +245,5 @@ public class DeltaTableQueryReader {
 
   public record Result(long version, String ndjson) {}
 
-  private record FileAction(String line, long expirationTimestamp) {}
+  private record FileAction(String line, long expirationTimestamp, long numRecords) {}
 }

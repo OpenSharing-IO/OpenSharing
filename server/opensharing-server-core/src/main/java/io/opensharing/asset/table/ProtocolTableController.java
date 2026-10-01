@@ -186,7 +186,7 @@ public class ProtocolTableController {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(matching));
   }
 
-  // Snapshot Query Table only. Predicate/limit pushdown and startingVersion/endingVersion are NOT_IMPLEMENTED.
+  // Snapshot Query Table only. startingVersion/endingVersion are NOT_IMPLEMENTED.
   @PostMapping(
       value = "/schemas/{schema}/tables/{table}/query",
       produces = "application/x-ndjson;charset=UTF-8")
@@ -211,9 +211,6 @@ public class ProtocolTableController {
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     if (body.startingVersion() != null || body.endingVersion() != null) {
       throw ApiException.notImplemented("startingVersion queries are not supported");
-    }
-    if (hasPushdownHint(body)) {
-      throw ApiException.notImplemented("predicate and limit pushdown is not supported");
     }
     boolean historical = body.version() != null || body.timestamp() != null;
     if (Boolean.TRUE.equals(body.includeRefreshToken()) && historical) {
@@ -241,7 +238,10 @@ public class ProtocolTableController {
             fileIdHash,
             historical,
             includeRefreshToken,
-            includeEndStreamAction);
+            includeEndStreamAction,
+            body.predicateHints(),
+            body.jsonPredicateHints(),
+            limitHint(body));
     var response =
         ResponseEntity.ok()
             .header("Delta-Table-Version", Long.toString(result.version()))
@@ -350,10 +350,12 @@ public class ProtocolTableController {
     }
   }
 
-  private static boolean hasPushdownHint(QueryTableRequest body) {
-    return (body.predicateHints() != null && !body.predicateHints().isEmpty())
-        || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank())
-        || body.limitHint() != null;
+  // limitHint counts unfiltered file records, so it is dropped when any predicate hint is present.
+  private static Long limitHint(QueryTableRequest body) {
+    boolean hasPredicate =
+        (body.predicateHints() != null && !body.predicateHints().isEmpty())
+            || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank());
+    return hasPredicate || body.limitHint() == null ? null : body.limitHint().longValue();
   }
 
   private static ApiException tableNotFound(ShareEntity share, String schema, String table) {
