@@ -1,14 +1,11 @@
 package io.opensharing.asset.table;
 
-import io.delta.kernel.internal.tablefeatures.TableFeature;
-import io.delta.kernel.internal.tablefeatures.TableFeatures;
 import io.opensharing.http.ApiException;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /** Parses {@code delta-sharing-capabilities} and chooses parquet vs delta response actions. */
 public final class DeltaSharingCapabilities {
@@ -22,12 +19,6 @@ public final class DeltaSharingCapabilities {
 
   private static final Set<String> KEYS =
       Set.of("responseformat", "readerfeatures", "includeendstreamaction");
-
-  private static final Set<String> READER_FEATURES =
-      TableFeatures.TABLE_FEATURES.stream()
-          .filter(TableFeature::isReaderWriterFeature)
-          .map(feature -> feature.featureName().toLowerCase(Locale.ROOT))
-          .collect(Collectors.toUnmodifiableSet());
 
   private DeltaSharingCapabilities() {}
 
@@ -79,24 +70,9 @@ public final class DeltaSharingCapabilities {
         throw ApiException.invalidParameter(
             "Unsupported " + key + ": '" + value + "'. Supported: true, false");
       }
-      if (key.equals("readerfeatures")) {
-        validateReaderFeatures(value);
-      }
       capabilities.put(key, value);
     }
     return capabilities;
-  }
-
-  private static void validateReaderFeatures(String value) {
-    if (value.isBlank()) {
-      throw ApiException.invalidParameter("Unsupported readerfeatures: ''");
-    }
-    for (String token : value.split(",")) {
-      String feature = token.trim();
-      if (feature.isEmpty() || !READER_FEATURES.contains(feature)) {
-        throw ApiException.invalidParameter("Unsupported readerfeatures: '" + feature + "'");
-      }
-    }
   }
 
   static Set<ResponseFormat> responseFormats(Map<String, String> capabilities) {

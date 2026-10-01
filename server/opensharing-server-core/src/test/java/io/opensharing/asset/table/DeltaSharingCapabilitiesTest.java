@@ -43,9 +43,7 @@ class DeltaSharingCapabilitiesTest {
     assertEquals(
         ResponseFormat.DELTA,
         DeltaSharingCapabilities.choose("responseformat=delta;asyncquery=true"));
-    assertThrows(
-        ApiException.class, () -> DeltaSharingCapabilities.choose("readerfeatures=notAFeature"));
-    assertThrows(
-        ApiException.class, () -> DeltaSharingCapabilities.choose("readerfeatures=appendOnly"));
+    assertEquals(
+        ResponseFormat.PARQUET, DeltaSharingCapabilities.choose("readerfeatures=notAFeature"));
   }
 }
