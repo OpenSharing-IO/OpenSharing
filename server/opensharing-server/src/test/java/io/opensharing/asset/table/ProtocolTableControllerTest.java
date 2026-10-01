@@ -431,8 +431,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
     assertTrue(delta.contains("\"deltaProtocol\""), delta);
     assertTrue(delta.contains("\"deltaSingleAction\""), delta);
 
-    // includeRefreshToken appends endStreamAction with a refresh token; the ESA header is echoed
-    // only when the request asked for includeendstreamaction.
+    // includeRefreshToken appends an endStreamAction carrying a refresh token.
     String refreshed =
         mvc.perform(
                 post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
@@ -446,6 +445,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
             .getContentAsString();
     assertTrue(refreshed.contains("\"endStreamAction\""), refreshed);
     assertTrue(refreshed.contains("\"refreshToken\""), refreshed);
+    // includeendstreamaction=true is echoed and appends an endStreamAction without a refresh token.
     String withEsa =
         mvc.perform(
                 post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
@@ -464,6 +464,7 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
             .getContentAsString();
     assertTrue(withEsa.contains("\"endStreamAction\""), withEsa);
     assertFalse(withEsa.contains("\"refreshToken\""), withEsa);
+    // includeRefreshToken with a version is INVALID_PARAMETER_VALUE.
     mvc.perform(
             post(PROTOCOL + "/shares/table-query/schemas/sales/tables/orders/query")
                 .header("Authorization", "Bearer " + bearer)
