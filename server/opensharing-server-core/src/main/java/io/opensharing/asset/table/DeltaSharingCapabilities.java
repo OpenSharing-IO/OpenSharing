@@ -45,9 +45,19 @@ public final class DeltaSharingCapabilities {
 
   /** Value for the response {@code delta-sharing-capabilities} header: the format actually used. */
   public static String responded(String requestHeader) {
-    return choose(requestHeader) == ResponseFormat.DELTA
-        ? "responseformat=delta"
-        : "responseformat=parquet";
+    return responded(requestHeader, false);
+  }
+
+  public static String responded(String requestHeader, boolean includeEndStreamAction) {
+    String format =
+        choose(requestHeader) == ResponseFormat.DELTA
+            ? "responseformat=delta"
+            : "responseformat=parquet";
+    return includeEndStreamAction ? format + ";includeendstreamaction=true" : format;
+  }
+
+  public static boolean includeEndStreamAction(String header) {
+    return "true".equals(parse(header).get("includeendstreamaction"));
   }
 
   /**

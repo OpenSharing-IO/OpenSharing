@@ -103,6 +103,20 @@ class TableActionsTest {
   }
 
   @Test
+  void encodesEndStreamAction() {
+    assertEquals(
+        """
+        {"endStreamAction":{"refreshToken":"os1rt:token","minUrlExpirationTimestamp":1652140800000}}
+        """,
+        TableActions.endStreamAction("os1rt:token", null, 1652140800000L));
+    assertEquals(
+        """
+        {"endStreamAction":{"nextPageToken":"os1:1"}}
+        """,
+        TableActions.endStreamAction(null, "os1:1", null));
+  }
+
+  @Test
   void encodesDeltaProtocolAndMetadataFromKernel() {
     Protocol protocol = protocol();
     Metadata metadata = metadata();

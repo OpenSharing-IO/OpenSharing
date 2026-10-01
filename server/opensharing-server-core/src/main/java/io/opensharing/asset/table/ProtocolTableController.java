@@ -208,42 +208,39 @@ public class ProtocolTableController {
     if (hasPushdownHint(body)) {
       throw ApiException.notImplemented("predicate and limit pushdown is not supported");
     }
+    boolean historical = body.version() != null || body.timestamp() != null;
+    if (Boolean.TRUE.equals(body.includeRefreshToken()) && historical) {
+      throw ApiException.invalidParameter(
+          "includeRefreshToken cannot be used when querying a specific version.");
+    }
+    if (body.refreshToken() != null && !body.refreshToken().isBlank() && historical) {
+      throw ApiException.invalidParameter(
+          "refreshToken cannot be used when querying a specific version.");
+    }
+    Long version = body.version();
+    if (body.refreshToken() != null && !body.refreshToken().isBlank()) {
+      version = RefreshTokens.versionOf(body.refreshToken(), resolved.identifier());
+    }
+    String fileIdHash = FileIdHash.parse(fileIdHashHeader);
+    boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
+    boolean includeEndStreamAction = DeltaSharingCapabilities.includeEndStreamAction(capabilities);
     DeltaTableQueryReader.Result result =
         queryReader.read(
             resolved,
+            version,
+            parseTimestamp(body.timestamp()),
             owner(entity),
-            options,
-            body.version(),
-            parseTimestamp(body.timestamp()));
-    return queryResponse(result, options);
-  }
-
-  private ResolvedAsset requireUrlAccess(ResolvedAsset resolved, String schema, String table) {
-    List<String> accessModes = TableAccessModes.forTable(resolved);
-    if (accessModes == null || !accessModes.contains("url")) {
-      throw ApiException.invalidParameter(
-          "table '" + schema + "." + table + "' does not support url access");
-    }
-    if (!properties.getDelta().isUrlAccessEnabled()) {
-      throw ApiException.invalidParameter("url access is disabled");
-    }
-    return resolved;
-  }
-
-  private static DeltaTableQueryReader.ResponseOptions responseOptions(
-      String capabilities, String fileIdHashHeader) {
-    return new DeltaTableQueryReader.ResponseOptions(
-        capabilities, FileIdHash.parse(fileIdHashHeader));
-  }
-
-  private static ResponseEntity<String> queryResponse(
-      DeltaTableQueryReader.Result result, DeltaTableQueryReader.ResponseOptions options) {
+            capabilities,
+            fileIdHash,
+            historical,
+            includeRefreshToken,
+            includeEndStreamAction);
     var response =
         ResponseEntity.ok()
             .header("Delta-Table-Version", Long.toString(result.version()))
             .header(
                 DeltaSharingCapabilities.HEADER,
-                DeltaSharingCapabilities.responded(options.capabilities()))
+                DeltaSharingCapabilities.responded(capabilities, includeEndStreamAction))
             .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"));
     if (options.fileIdHash() != null) {
       response = response.header(FileIdHash.HEADER, options.fileIdHash());
