@@ -1,0 +1,50 @@
+package io.opensharing.catalog;
+
+import io.opensharing.auth.AuthContext;
+import io.opensharing.auth.Privilege;
+import io.opensharing.auth.UserContext;
+import io.opensharing.exception.AssetNotFoundException;
+import io.opensharing.exception.UnsupportedAssetTypeException;
+import java.util.List;
+
+/**
+ * OpenSharing's only interface to a data catalog. Every catalog interaction goes through this
+ * narrow waist: no other code talks to a catalog directly.
+ *
+ * <p>OpenSharing doesn't own assets, permissions or storage access; the catalog stays the source of
+ * truth for all three. A connector resolves catalog names to assets and their storage locations,
+ * mints storage credentials scoped to those locations, and maps callers to catalog users. Every
+ * call carries an {@link AuthContext}, so the catalog authenticates the caller and enforces its own
+ * permissions rather than OpenSharing re-implementing them.
+ */
+public interface CatalogConnector {
+
+  /** Identifier used to select this connector in configuration. */
+  String name();
+
+  /**
+   * Resolves an asset as {@code auth}. Also the existence check: missing assets throw {@link
+   * AssetNotFoundException}.
+   */
+  ResolvedAsset resolveAsset(Asset asset, AuthContext auth);
+
+  /**
+   * Lists the assets under a container such as a schema as one flat list. Catalogs with nested
+   * containers, such as folders inside a schema, must walk them and return every descendant asset
+   * rather than the intermediate containers. Optional: catalogs that cannot enumerate throw {@link
+   * UnsupportedAssetTypeException}.
+   */
+  default List<ResolvedAsset> listChildren(Asset parent, AuthContext auth) {
+    throw new UnsupportedAssetTypeException(
+        "the " + name() + " catalog cannot list the contents of a " + parent.type());
+  }
+
+  /** Mints credentials scoped to the asset location, as {@code auth}. */
+  List<StorageCredentials> getStorageCredentials(CredentialRequest request, AuthContext auth);
+
+  /**
+   * The catalog owns authorization: checks that the caller has {@code privilege} for the action. A
+   * null {@code privilege} means authentication only.
+   */
+  UserContext authorize(AuthContext auth, Privilege privilege);
+}
