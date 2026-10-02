@@ -1,11 +1,11 @@
 package io.opensharing.exception;
 
-import io.opensharing.catalog.AssetLookup;
+import io.opensharing.catalog.Asset;
 
-/** No catalog asset matches the lookup. */
+/** No catalog asset has this full name. */
 public class AssetNotFoundException extends CatalogException {
 
-  public AssetNotFoundException(AssetLookup lookup) {
-    super(lookup.type() + " '" + lookup.identifier() + "' does not exist in the catalog");
+  public AssetNotFoundException(Asset asset) {
+    super(asset.type() + " '" + asset.fullName() + "' does not exist in the catalog");
   }
 }

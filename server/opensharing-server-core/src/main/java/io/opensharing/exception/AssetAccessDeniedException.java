@@ -1,19 +1,19 @@
 package io.opensharing.exception;
 
 import io.opensharing.auth.UserContext;
-import io.opensharing.catalog.AssetLookup;
+import io.opensharing.catalog.Asset;
 
 /** The catalog has the asset but this user may not share it. */
 public class AssetAccessDeniedException extends CatalogException {
 
-  public AssetAccessDeniedException(AssetLookup lookup, UserContext user) {
+  public AssetAccessDeniedException(Asset asset, UserContext user) {
     super(
         "'"
             + display(user)
             + "' may not share "
-            + lookup.type()
+            + asset.type()
             + " '"
-            + lookup.identifier()
+            + asset.fullName()
             + "'");
   }
 
