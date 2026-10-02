@@ -11,9 +11,9 @@ class UserContextTest {
     UserContext user = new UserContext("alice-id", "secret-token", "alice");
 
     assertEquals(
-        "UserContext[userId=alice-id, bearerToken=***, userName=alice]", user.toString());
+        "UserContext[userId=alice-id, userAuthToken=***, userName=alice]", user.toString());
     assertEquals(
-        "AuthContext[serverId=null, user=UserContext[userId=alice-id, bearerToken=***,"
+        "AuthContext[serverId=null, user=UserContext[userId=alice-id, userAuthToken=***,"
             + " userName=alice]]",
         AuthContext.of(user).toString());
   }
