@@ -61,16 +61,16 @@ public class ProviderAuthenticationFilter extends OncePerRequestFilter {
 
   // Creating a share or recipient needs the matching privilege. Other requests only authenticate;
   // ownership of existing objects is checked by the stores.
-  private static String privilegeFor(HttpServletRequest request) {
+  private static Privilege privilegeFor(HttpServletRequest request) {
     if (!"POST".equalsIgnoreCase(request.getMethod())) {
       return null;
     }
     String path = request.getRequestURI().replaceFirst("/$", "");
     if (path.endsWith("/shares")) {
-      return "CREATE_SHARE";
+      return Privilege.CREATE_SHARE;
     }
     if (path.endsWith("/recipients")) {
-      return "CREATE_RECIPIENT";
+      return Privilege.CREATE_RECIPIENT;
     }
     return null;
   }
