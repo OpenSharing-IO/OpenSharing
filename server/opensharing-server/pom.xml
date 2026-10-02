@@ -36,7 +36,6 @@
         <configuration>
           <mainClass>io.opensharing.OpenSharingServer</mainClass>
           <classifier>exec</classifier>
-          <skip>true</skip>
         </configuration>
         <executions>
           <execution>
