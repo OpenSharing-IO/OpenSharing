@@ -4,7 +4,7 @@ import io.opensharing.ObjectNames;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
-import io.opensharing.catalog.AssetLookup;
+import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
@@ -99,9 +99,9 @@ public class ShareAdminController {
     if (name.length() > 512) {
       throw ApiException.invalidParameter("dataObject.name must not exceed 512 characters");
     }
-    AssetType type = requireSupportedType(dataObject.type());
+    AssetType type = requireType(dataObject.type());
     Alias alias = parseAlias(dataObject.sharedAs(), type, name);
-    ResolvedAsset resolved = catalog.resolveAsset(AssetLookup.of(type, name), AuthContext.of(user));
+    ResolvedAsset resolved = catalog.resolveAsset(Asset.of(type, name), AuthContext.of(user));
     if (resolved.type() != type) {
       throw new CatalogException(
           "catalog resolved '" + name + "' as " + resolved.type() + " instead of " + type);
@@ -110,7 +110,7 @@ public class ShareAdminController {
   }
 
   private void removeObject(ShareEntity share, UpdateShareRequest.DataObject dataObject) {
-    AssetType type = requireSupportedType(dataObject.type());
+    AssetType type = requireType(dataObject.type());
     if (dataObject.sharedAs() != null && !dataObject.sharedAs().isBlank()) {
       Alias alias = parseAlias(dataObject.sharedAs(), type, null);
       objects.removeByAlias(share, type, alias.schema(), alias.table());
@@ -145,12 +145,9 @@ public class ShareAdminController {
         ObjectNames.validateAssetName(parts[parts.length - 1]));
   }
 
-  private static AssetType requireSupportedType(AssetType type) {
+  private static AssetType requireType(AssetType type) {
     if (type == null) {
       throw ApiException.invalidParameter("dataObject.type is required");
-    }
-    if (type != AssetType.SCHEMA && type != AssetType.TABLE) {
-      throw ApiException.invalidParameter("dataObject.type " + type + " is not supported yet");
     }
     return type;
   }
