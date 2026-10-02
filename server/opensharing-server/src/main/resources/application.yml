@@ -43,6 +43,9 @@ opensharing:
     # standalone: run as its own Spring Boot process.
     # embedded: a host application registers an OpenSharing server inside its own process.
     mode: standalone
+  provider:
+    # Provider-admin API. Its bearer tokens are authorized by the configured catalog.
+    base-path: /api/1.0/opensharing/provider
   asset-credentials:
     # Lifetime of the cloud credentials the catalog vends for reading an asset's storage.
     ttl: 1h
