@@ -1,0 +1,73 @@
+# Defaults for a local run. Override any key without editing this file, either as an argument:
+#   java -jar opensharing-server.jar --opensharing.delta.url-ttl=15m
+# or as an environment variable:
+#   OPENSHARING_DELTA_URLTTL=15m java -jar opensharing-server.jar
+spring:
+  application:
+    name: opensharing-server
+  datasource:
+    # The driver is derived from the URL, so pointing this at Postgres or MySQL is the only change
+    # needed to move the metadata store there.
+    url: jdbc:h2:file:./data/opensharing;AUTO_SERVER=TRUE
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      # Creates missing tables and columns to match the entities on startup. 
+      # Production should use 'validate' and manage the schema with a migration tool.
+      ddl-auto: update
+    # Closes the database session when each transaction ends, so nothing loads lazily outside the store.
+    open-in-view: false
+  jackson:
+    # Leaves null fields out of JSON responses, as the protocol expects for absent optional fields.
+    default-property-inclusion: non_null
+    mapper:
+      # Accepts enum values in requests in any case, such as "table" for TABLE.
+      accept-case-insensitive-enums: true
+    serialization:
+      # Writes dates and times as ISO-8601 strings, not epoch numbers.
+      write-dates-as-timestamps: false
+
+server:
+  # HTTP port the server listens on.
+  port: 8080
+  error:
+    whitelabel:
+      # Errors use the protocol's JSON error body, not Spring's HTML error page.
+      enabled: false
+
+opensharing:
+  # Prefix the protocol-serving endpoints are mounted under; this is what goes in a profile file.
+  protocol-prefix: /api/1.0/opensharing
+  hosting:
+    # standalone: run as its own Spring Boot process.
+    # embedded: a host application registers an OpenSharing server inside its own process.
+    mode: standalone
+  asset-credentials:
+    # Lifetime of the cloud credentials the catalog vends for reading an asset's storage.
+    ttl: 1h
+  pagination:
+    # Page size for list endpoints when the client sends no maxResults.
+    default-max-results: 500
+    # Largest page size a client may request; larger values are capped to this.
+    max-max-results: 1000
+  storage:
+    # Service-account key used to sign GCS URLs.
+    gcs-service-account-key-file: ""
+  delta:
+    # Whether Query Table may return pre-signed file URLs to recipients.
+    url-access-enabled: true
+    # Lifetime of each pre-signed file URL.
+    url-ttl: 1h
+  catalog:
+    # Which CatalogConnector the standalone server uses; local reads assets from a YAML file.
+    type: local
+    local:
+      # The YAML file the local catalog reads, as a Spring resource path.
+      file: classpath:local-catalog.yml
+
+logging:
+  level:
+    io.opensharing: INFO
+    # Delta Kernel narrates every log segment it loads, which is a line per request.
+    io.delta: WARN
