@@ -9,9 +9,12 @@ class ResolvedAssetTest {
 
   @Test
   void onlyTablesHaveAFormat() {
-    assertNull(ResolvedAsset.builder(AssetType.SCHEMA, "main.sales").build().format());
+    assertNull(ResolvedAsset.builder(AssetType.SCHEMA, "main.sales").build().dataSourceFormat());
     assertThrows(
         IllegalArgumentException.class,
-        () -> ResolvedAsset.builder(AssetType.SCHEMA, "main.sales").format(TableFormat.DELTA).build());
+        () ->
+            ResolvedAsset.builder(AssetType.SCHEMA, "main.sales")
+                .dataSourceFormat(DataSourceFormat.DELTA)
+                .build());
   }
 }
