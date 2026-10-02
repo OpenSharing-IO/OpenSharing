@@ -1,9 +1,11 @@
 package io.opensharing.catalog.local;
 
 import io.opensharing.auth.AuthContext;
+import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetAccessDeniedException;
-import io.opensharing.catalog.AssetLookup;
+import io.opensharing.catalog.Asset;
+import io.opensharing.catalog.AssetLocation;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
@@ -13,7 +15,7 @@ import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
-import io.opensharing.catalog.TableFormat;
+import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -70,19 +72,19 @@ public final class LocalCatalogConnector implements CatalogConnector {
   }
 
   @Override
-  public ResolvedAsset resolveAsset(AssetLookup lookup, AuthContext auth) {
+  public ResolvedAsset resolveAsset(Asset lookup, AuthContext auth) {
     return resolved(requireAsset(lookup, auth));
   }
 
   /** Tables whose identifier is this schema plus one more dotted segment. */
   @Override
-  public List<ResolvedAsset> listChildren(AssetLookup parent, AuthContext auth) {
+  public List<ResolvedAsset> listChildren(Asset parent, AuthContext auth) {
     if (parent.type() != AssetType.SCHEMA) {
       throw new UnsupportedAssetTypeException(
           "the " + NAME + " catalog only lists the contents of a SCHEMA, not a " + parent.type());
     }
     requireAsset(parent, auth);
-    String prefix = parent.identifier().toLowerCase(Locale.ROOT) + ".";
+    String prefix = parent.fullName().toLowerCase(Locale.ROOT) + ".";
     return assetsByIdentifier.values().stream()
         .filter(asset -> asset.type() == AssetType.TABLE)
         .filter(asset -> isChildOf(asset.identifier(), prefix))
@@ -99,14 +101,14 @@ public final class LocalCatalogConnector implements CatalogConnector {
 
   private static ResolvedAsset resolved(LocalCatalogFile.Asset asset) {
     return ResolvedAsset.builder(asset.type(), asset.identifier())
-        .catalogAssetId(asset.catalogAssetId() != null ? asset.catalogAssetId() : asset.identifier())
-        .storageLocation(asset.storageLocation())
-        .metadataLocation(asset.metadataLocation())
-        .format(TableFormat.fromWireName(asset.format()))
-        .schema(asset.schema())
-        .partitionColumns(asset.partitionColumns())
         .subtype(asset.subtype())
-        .auxiliaryLocations(asset.auxiliaryLocations())
+        .catalogAssetId(asset.catalogAssetId() != null ? asset.catalogAssetId() : asset.identifier())
+        .location(
+            new AssetLocation(
+                asset.storageLocation(),
+                asset.metadataLocation(),
+                asset.auxiliaryLocations()))
+        .dataSourceFormat(DataSourceFormat.fromWireName(asset.format()))
         .build();
   }
 
@@ -123,8 +125,8 @@ public final class LocalCatalogConnector implements CatalogConnector {
     return asset.sharableBy().stream().anyMatch(allowed -> allowed.equalsIgnoreCase(name));
   }
 
-  private LocalCatalogFile.Asset requireAsset(AssetLookup lookup, AuthContext auth) {
-    LocalCatalogFile.Asset asset = assetsByIdentifier.get(key(lookup.type(), lookup.identifier()));
+  private LocalCatalogFile.Asset requireAsset(Asset lookup, AuthContext auth) {
+    LocalCatalogFile.Asset asset = assetsByIdentifier.get(key(lookup.type(), lookup.fullName()));
     if (asset == null) {
       throw new AssetNotFoundException(lookup);
     }
@@ -138,21 +140,23 @@ public final class LocalCatalogConnector implements CatalogConnector {
   public List<StorageCredentials> getStorageCredentials(
       CredentialRequest request, AuthContext auth) {
     LocalCatalogFile.Asset asset =
-        requireAsset(AssetLookup.of(request.assetType(), request.identifier()), auth);
+        requireAsset(Asset.of(request.assetType(), request.assetFullName()), auth);
     String location = request.storageLocation();
     if (location == null || location.isBlank()) {
       location = asset.storageLocation();
     }
     if (location == null || location.isBlank()) {
       throw new CatalogException(
-          "asset '" + request.identifier() + "' has no storage location to scope credentials to");
+          "asset '"
+              + request.assetFullName()
+              + "' has no storage location to scope credentials to");
     }
     if (!covers(asset, location)) {
       throw new CatalogException(
           "storage location '"
               + location
               + "' is not part of asset '"
-              + request.identifier()
+              + request.assetFullName()
               + "'");
     }
     Duration ttl = request.ttl() != null ? request.ttl() : configuredTtl();
@@ -166,12 +170,12 @@ public final class LocalCatalogConnector implements CatalogConnector {
   }
 
   @Override
-  public UserContext authorize(AuthContext auth, String privilege) {
+  public UserContext authorize(AuthContext auth, Privilege privilege) {
     if (principals.isEmpty()) {
       throw new UnsupportedOperationException(
           "the " + NAME + " catalog has no principals configured to authorize");
     }
-    String token = auth == null || auth.user() == null ? null : auth.user().bearerToken();
+    String token = auth == null || auth.user() == null ? null : auth.user().userAuthToken();
     if (token == null || token.isBlank()) {
       throw new CatalogAuthorizationException("missing bearer token");
     }
