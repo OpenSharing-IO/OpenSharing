@@ -49,10 +49,10 @@ public class ProviderAuthenticationFilter extends OncePerRequestFilter {
     chain.doFilter(request, response);
   }
 
-  private static String privilegeFor(HttpServletRequest request) {
+  private static Privilege privilegeFor(HttpServletRequest request) {
     return "POST".equalsIgnoreCase(request.getMethod())
             && request.getRequestURI().replaceFirst("/$", "").endsWith("/shares")
-        ? "CREATE_SHARE"
+        ? Privilege.CREATE_SHARE
         : null;
   }
 
