@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * Where an asset's files live in storage.
  *
- * @param storageLocation the root location of the asset's data, such as {@code s3://bucket/path/}
+ * @param storageLocation the root location of the asset, such as {@code s3://bucket/path/}
  * @param metadataLocation the absolute path of the asset's current metadata file, for formats whose
  *     catalog tracks one, such as an Iceberg table's {@code
  *     s3://bucket/path/metadata/00003-<uuid>.metadata.json}; optional
