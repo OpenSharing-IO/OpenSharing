@@ -3,9 +3,9 @@ package io.opensharing;
 import java.util.Locale;
 
 /**
- * Name rules from {@code spec/protocols/OVERVIEW.md}. Object names are compared case-insensitively.
- * Share names, recipient names, and shared-as schema/table names are stored lowercase; catalog
- * identifiers persist original casing.
+ * Validates and normalizes names OpenSharing owns: shares, recipients, and the schema and asset
+ * names a share exposes. They are compared case-insensitively through {@link #normalize}. Catalog
+ * full names are the catalog's, not OpenSharing's, and keep their original casing.
  */
 public final class ObjectNames {
 
