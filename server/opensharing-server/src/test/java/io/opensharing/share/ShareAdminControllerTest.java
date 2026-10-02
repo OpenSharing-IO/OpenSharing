@@ -313,7 +313,10 @@ class ShareAdminControllerTest {
             {"updates":[{"action":"ADD","dataObject":{"name":"main.sales.orders","type":"VOLUME"}}]}
             """)
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE))
+        .andExpect(
+            jsonPath("$.message")
+                .value("updates[0].dataObject.type must be one of [TABLE, SCHEMA]"));
     deleteShare("edge-volume");
   }
 
