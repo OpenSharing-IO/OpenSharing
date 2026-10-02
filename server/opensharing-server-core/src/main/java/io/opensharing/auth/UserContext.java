@@ -9,10 +9,11 @@ package io.opensharing.auth;
  * user without them present (such as serving a recipient request) identify the user by id alone.
  *
  * @param userId the catalog's durable id for the user
- * @param bearerToken the user's catalog token, present only while serving that user's own request
+ * @param userAuthToken the user's catalog token, present only while serving that user's own
+ *     request
  * @param userName display name
  */
-public record UserContext(String userId, String bearerToken, String userName) {
+public record UserContext(String userId, String userAuthToken, String userName) {
 
   public static UserContext fromUserIdAndName(String userId, String userName) {
     return new UserContext(userId, null, userName);
@@ -23,8 +24,8 @@ public record UserContext(String userId, String bearerToken, String userName) {
   public String toString() {
     return "UserContext[userId="
         + userId
-        + ", bearerToken="
-        + (bearerToken == null ? null : "***")
+        + ", userAuthToken="
+        + (userAuthToken == null ? null : "***")
         + ", userName="
         + userName
         + "]";
