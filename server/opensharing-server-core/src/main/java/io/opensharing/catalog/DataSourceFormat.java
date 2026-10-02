@@ -3,7 +3,7 @@ package io.opensharing.catalog;
 import java.util.Locale;
 
 /** Physical format of a shared table. */
-public enum TableFormat {
+public enum DataSourceFormat {
   DELTA;
 
   public String wireName() {
@@ -11,7 +11,7 @@ public enum TableFormat {
   }
 
   /** {@code null} when the format is omitted; unknown values are rejected. */
-  public static TableFormat fromWireName(String value) {
+  public static DataSourceFormat fromWireName(String value) {
     if (value == null || value.isBlank()) {
       return null;
     }
