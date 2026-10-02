@@ -4,10 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
-import io.opensharing.catalog.AssetLookup;
+import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
-import io.opensharing.catalog.TableFormat;
+import io.opensharing.catalog.DataSourceFormat;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,13 +24,13 @@ class CatalogConfigurationTest {
 
   @Test
   void loadsTheConfiguredLocalCatalog() {
-    UserContext user = new UserContext("alice@example.com", "alice@example.com");
+    UserContext user = UserContext.fromUserIdAndName("alice@example.com", "alice@example.com");
 
     assertEquals("local", catalog.name());
     assertEquals(
-        TableFormat.DELTA,
+        DataSourceFormat.DELTA,
         catalog
-            .resolveAsset(AssetLookup.of(AssetType.TABLE, "main.sales.table1"), AuthContext.of(user))
-            .format());
+            .resolveAsset(Asset.of(AssetType.TABLE, "main.sales.table1"), AuthContext.of(user))
+            .dataSourceFormat());
   }
 }
