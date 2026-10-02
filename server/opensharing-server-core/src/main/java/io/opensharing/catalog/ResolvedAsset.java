@@ -1,44 +1,37 @@
 package io.opensharing.catalog;
 
-import java.util.List;
-
-/** Where an asset lives, as the catalog reports it. */
+/**
+ * What the catalog knows about an asset, as returned by {@link CatalogConnector#resolveAsset} and
+ * {@link CatalogConnector#listChildren}: its identity, where its data lives, and for tables, the
+ * format OpenSharing needs to serve them.
+ *
+ * @param type the asset's type
+ * @param fullName the asset's full name in the catalog, such as {@code main.sales.orders}
+ * @param catalogAssetId the catalog's own stable id for the asset; optional
+ * @param location where the asset's files live in storage
+ * @param format the table format, for tables
+ */
 public record ResolvedAsset(
     AssetType type,
-    String identifier,
+    String fullName,
     String catalogAssetId,
-    String storageLocation,
-    String metadataLocation,
-    TableFormat format,
-    String schema,
-    List<String> partitionColumns,
-    String subtype,
-    List<String> auxiliaryLocations) {
+    AssetLocation location,
+    TableFormat format) {
 
-  public ResolvedAsset {
-    auxiliaryLocations = auxiliaryLocations == null ? List.of() : List.copyOf(auxiliaryLocations);
-    partitionColumns = partitionColumns == null ? List.of() : List.copyOf(partitionColumns);
-  }
-
-  public static Builder builder(AssetType type, String identifier) {
-    return new Builder(type, identifier);
+  public static Builder builder(AssetType type, String fullName) {
+    return new Builder(type, fullName);
   }
 
   public static final class Builder {
     private final AssetType type;
-    private final String identifier;
+    private final String fullName;
     private String catalogAssetId;
-    private String storageLocation;
-    private String metadataLocation;
+    private AssetLocation location;
     private TableFormat format;
-    private String schema;
-    private List<String> partitionColumns = List.of();
-    private String subtype;
-    private List<String> auxiliaryLocations = List.of();
 
-    private Builder(AssetType type, String identifier) {
+    private Builder(AssetType type, String fullName) {
       this.type = type;
-      this.identifier = identifier;
+      this.fullName = fullName;
     }
 
     public Builder catalogAssetId(String value) {
@@ -46,13 +39,8 @@ public record ResolvedAsset(
       return this;
     }
 
-    public Builder storageLocation(String value) {
-      this.storageLocation = value;
-      return this;
-    }
-
-    public Builder metadataLocation(String value) {
-      this.metadataLocation = value;
+    public Builder location(AssetLocation value) {
+      this.location = value;
       return this;
     }
 
@@ -61,38 +49,8 @@ public record ResolvedAsset(
       return this;
     }
 
-    public Builder schema(String value) {
-      this.schema = value;
-      return this;
-    }
-
-    public Builder partitionColumns(List<String> value) {
-      this.partitionColumns = value;
-      return this;
-    }
-
-    public Builder subtype(String value) {
-      this.subtype = value;
-      return this;
-    }
-
-    public Builder auxiliaryLocations(List<String> value) {
-      this.auxiliaryLocations = value;
-      return this;
-    }
-
     public ResolvedAsset build() {
-      return new ResolvedAsset(
-          type,
-          identifier,
-          catalogAssetId,
-          storageLocation,
-          metadataLocation,
-          format,
-          schema,
-          partitionColumns,
-          subtype,
-          auxiliaryLocations);
+      return new ResolvedAsset(type, fullName, catalogAssetId, location, format);
     }
   }
 }
