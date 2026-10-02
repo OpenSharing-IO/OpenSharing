@@ -3,7 +3,7 @@ package io.opensharing.asset;
 import io.opensharing.BaseEntity;
 import io.opensharing.ObjectNames;
 import io.opensharing.catalog.AssetType;
-import io.opensharing.catalog.TableFormat;
+import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.share.ShareEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -49,7 +49,7 @@ public class SharedDataObjectEntity extends BaseEntity {
 
   @Enumerated(EnumType.STRING)
   @Column(name = "source_format", length = 32)
-  private TableFormat sourceFormat;
+  private DataSourceFormat sourceFormat;
 
   @Column(name = "shared_as_schema", nullable = false, length = 255)
   private String sharedAsSchema;
@@ -98,11 +98,11 @@ public class SharedDataObjectEntity extends BaseEntity {
     this.sourceSubtype = sourceSubtype;
   }
 
-  public TableFormat getSourceFormat() {
+  public DataSourceFormat getSourceFormat() {
     return sourceFormat;
   }
 
-  public void setSourceFormat(TableFormat sourceFormat) {
+  public void setSourceFormat(DataSourceFormat sourceFormat) {
     this.sourceFormat = sourceFormat;
   }
 
