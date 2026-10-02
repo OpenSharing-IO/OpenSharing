@@ -8,12 +8,13 @@ import java.util.Objects;
  * format OpenSharing needs to serve them.
  *
  * @param type the asset's type
- * @param subtype the catalog's finer-grained kind within {@code type}, such as {@code MANAGED} or
- *     {@code EXTERNAL} for a table
+ * @param subtype the catalog's finer-grained kind within {@code type}, for any asset type, such as
+ *     {@code MANAGED} or {@code EXTERNAL} for a table
  * @param fullName the asset's full name in the catalog, such as {@code main.sales.orders}
  * @param catalogAssetId the catalog's own stable id for the asset
  * @param location where the asset's files live in storage
- * @param format the table format; null for assets that are not tables
+ * @param dataSourceFormat the table's data source format, such as Delta; null for assets that
+ *     are not tables
  */
 public record ResolvedAsset(
     AssetType type,
@@ -21,15 +22,15 @@ public record ResolvedAsset(
     String fullName,
     String catalogAssetId,
     AssetLocation location,
-    TableFormat format) {
+    DataSourceFormat dataSourceFormat) {
 
   public ResolvedAsset {
     Objects.requireNonNull(type, "type");
     if (fullName == null || fullName.isBlank()) {
       throw new IllegalArgumentException("catalog full name must not be blank");
     }
-    if (type != AssetType.TABLE && format != null) {
-      throw new IllegalArgumentException(type + " asset must not have a table format");
+    if (type != AssetType.TABLE && dataSourceFormat != null) {
+      throw new IllegalArgumentException(type + " asset must not have a data source format");
     }
   }
 
@@ -43,7 +44,7 @@ public record ResolvedAsset(
     private String subtype;
     private String catalogAssetId;
     private AssetLocation location;
-    private TableFormat format;
+    private DataSourceFormat dataSourceFormat;
 
     private Builder(AssetType type, String fullName) {
       this.type = type;
@@ -65,13 +66,13 @@ public record ResolvedAsset(
       return this;
     }
 
-    public Builder format(TableFormat value) {
-      this.format = value;
+    public Builder dataSourceFormat(DataSourceFormat value) {
+      this.dataSourceFormat = value;
       return this;
     }
 
     public ResolvedAsset build() {
-      return new ResolvedAsset(type, subtype, fullName, catalogAssetId, location, format);
+      return new ResolvedAsset(type, subtype, fullName, catalogAssetId, location, dataSourceFormat);
     }
   }
 }
