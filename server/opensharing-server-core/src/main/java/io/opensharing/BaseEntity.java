@@ -37,10 +37,6 @@ public abstract class BaseEntity {
     return id;
   }
 
-  /**
-   * Adopts an id chosen elsewhere, for the entities whose identity is not the server's to invent. Only
-   * meaningful before the row is written: the column is not updatable.
-   */
   protected void setId(String id) {
     this.id = id;
   }
