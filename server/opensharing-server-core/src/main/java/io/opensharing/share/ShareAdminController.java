@@ -11,6 +11,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import io.opensharing.recipient.RecipientStore;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -33,12 +34,20 @@ public class ShareAdminController {
 
   private final ShareStore shares;
   private final SharedDataObjectStore objects;
+  private final SharePermissionStore permissions;
+  private final RecipientStore recipients;
   private final CatalogConnector catalog;
 
   public ShareAdminController(
-      ShareStore shares, SharedDataObjectStore objects, CatalogConnector catalog) {
+      ShareStore shares,
+      SharedDataObjectStore objects,
+      SharePermissionStore permissions,
+      RecipientStore recipients,
+      CatalogConnector catalog) {
     this.shares = shares;
     this.objects = objects;
+    this.permissions = permissions;
+    this.recipients = recipients;
     this.catalog = catalog;
   }
 
@@ -91,6 +100,29 @@ public class ShareAdminController {
   public ResponseEntity<Void> delete(UserContext user, @PathVariable String share) {
     shares.delete(share, user);
     return ResponseEntity.noContent().build();
+  }
+
+  @GetMapping("/{share}/permissions")
+  public ListResponse<SharePermissionResponse> listPermissions(
+      UserContext user, @PathVariable String share) {
+    return ListResponse.of(
+        permissions.list(shares.require(share)).stream()
+            .map(SharePermissionResponse::from)
+            .toList());
+  }
+
+  @PatchMapping("/{share}/permissions")
+  public ListResponse<SharePermissionResponse> updatePermissions(
+      UserContext user,
+      @PathVariable String share,
+      @Valid @RequestBody UpdateSharePermissionsRequest request) {
+    ShareEntity entity = shares.requireOwned(share, user);
+    for (UpdateSharePermissionsRequest.Change change : request.changes()) {
+      var recipient = recipients.require(change.recipientName());
+      change.remove().forEach(privilege -> permissions.revoke(entity, recipient, privilege));
+      change.add().forEach(privilege -> permissions.grant(entity, recipient, privilege));
+    }
+    return listPermissions(user, share);
   }
 
   private void addObject(
