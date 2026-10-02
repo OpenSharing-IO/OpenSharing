@@ -5,9 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.opensharing.auth.AuthContext;
+import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetAccessDeniedException;
-import io.opensharing.catalog.AssetLookup;
+import io.opensharing.catalog.Asset;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.exception.CatalogAuthorizationException;
@@ -17,7 +18,7 @@ import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
-import io.opensharing.catalog.TableFormat;
+import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -54,7 +55,7 @@ class LocalCatalogConnectorTest {
       """;
 
   private static final UserContext ALICE =
-      new UserContext("alice@example.com", "alice@example.com");
+      UserContext.fromUserIdAndName("alice@example.com", "alice@example.com");
 
   private static LocalCatalogConnector connector(String yaml) {
     return new LocalCatalogConnector(
@@ -66,8 +67,8 @@ class LocalCatalogConnectorTest {
   void resolvesTableWithFormat() {
     ResolvedAsset asset = resolve(CATALOG, "main.sales.table1", ALICE);
 
-    assertEquals(TABLE1, asset.storageLocation());
-    assertEquals(TableFormat.DELTA, asset.format());
+    assertEquals(TABLE1, asset.location().storageLocation());
+    assertEquals(DataSourceFormat.DELTA, asset.dataSourceFormat());
     assertEquals("MANAGED", asset.subtype());
   }
 
@@ -76,18 +77,18 @@ class LocalCatalogConnectorTest {
     ResolvedAsset asset = resolve(CATALOG, "main.finance.ledger", ALICE);
 
     assertEquals(AssetType.TABLE, asset.type());
-    assertEquals(TableFormat.DELTA, asset.format());
+    assertEquals(DataSourceFormat.DELTA, asset.dataSourceFormat());
   }
 
   @Test
   void resolvesNamesCaseInsensitively() {
-    assertEquals(TABLE1, resolve(CATALOG, "MAIN.Sales.Table1", ALICE).storageLocation());
+    assertEquals(TABLE1, resolve(CATALOG, "MAIN.Sales.Table1", ALICE).location().storageLocation());
   }
 
   @Test
   void rejectsUnknownAsset() {
     LocalCatalogConnector connector = connector(CATALOG);
-    AssetLookup lookup = AssetLookup.of(AssetType.TABLE, "main.sales.missing");
+    Asset lookup = Asset.of(AssetType.TABLE, "main.sales.missing");
 
     assertThrows(
         AssetNotFoundException.class,
@@ -101,18 +102,19 @@ class LocalCatalogConnectorTest {
    */
   @Test
   void letsOnlyTheListedPrincipalsShareARestrictedAsset() {
-    assertEquals(TABLE1, resolve(CATALOG, "main.finance.ledger", ALICE).storageLocation());
+    assertEquals(
+        TABLE1, resolve(CATALOG, "main.finance.ledger", ALICE).location().storageLocation());
 
     LocalCatalogConnector connector = connector(CATALOG);
-    AssetLookup lookup = AssetLookup.of(AssetType.TABLE, "main.finance.ledger");
-    UserContext bob = new UserContext("bob@example.com", "bob@example.com");
+    Asset lookup = Asset.of(AssetType.TABLE, "main.finance.ledger");
+    UserContext bob = UserContext.fromUserIdAndName("bob@example.com", "bob@example.com");
     assertThrows(AssetAccessDeniedException.class, () -> connector.resolveAsset(lookup, AuthContext.of(bob)));
   }
 
   @Test
   void refusesToVendWhenCallerIsNotOnSharableBy() {
     LocalCatalogConnector connector = connector(CATALOG);
-    UserContext bob = new UserContext("bob@example.com", "bob@example.com");
+    UserContext bob = UserContext.fromUserIdAndName("bob@example.com", "bob@example.com");
     CredentialRequest request =
         new CredentialRequest(
             AssetType.TABLE,
@@ -157,23 +159,7 @@ class LocalCatalogConnectorTest {
   }
 
   private static ResolvedAsset resolve(String yaml, String identifier, UserContext user) {
-    return connector(yaml).resolveAsset(AssetLookup.of(AssetType.TABLE, identifier), AuthContext.of(user));
-  }
-
-  @Test
-  void resolvesSchemaWhenTheCatalogStatesIt() {
-    String yaml =
-        """
-        assets:
-          - identifier: main.research.trials
-            format: delta
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-            schema: '{"type":"struct","fields":[]}'
-        """;
-
-    ResolvedAsset asset = resolve(yaml, "main.research.trials", ALICE);
-
-    assertEquals("{\"type\":\"struct\",\"fields\":[]}", asset.schema());
+    return connector(yaml).resolveAsset(Asset.of(AssetType.TABLE, identifier), AuthContext.of(user));
   }
 
   @Test
@@ -224,8 +210,6 @@ class LocalCatalogConnectorTest {
                     TABLE1,
                     null,
                     "delta",
-                    null,
-                    List.of(),
                     null,
                     List.of(),
                     List.of())));
@@ -325,13 +309,13 @@ class LocalCatalogConnectorTest {
 
     List<ResolvedAsset> children =
         connector(yaml)
-            .listChildren(AssetLookup.of(AssetType.SCHEMA, "MAIN.SALES"), AuthContext.of(ALICE));
+            .listChildren(Asset.of(AssetType.SCHEMA, "MAIN.SALES"), AuthContext.of(ALICE));
 
     assertEquals(
         List.of("main.sales.table1"),
-        children.stream().map(ResolvedAsset::identifier).toList(),
+        children.stream().map(ResolvedAsset::fullName).toList(),
         "a table two levels down belongs to another schema, and one elsewhere to none of it");
-    assertEquals(TABLE1, children.get(0).storageLocation());
+    assertEquals(TABLE1, children.get(0).location().storageLocation());
   }
 
   @Test
@@ -350,24 +334,24 @@ class LocalCatalogConnectorTest {
             sharableBy:
               - alice@example.com
         """;
-    UserContext bob = new UserContext("bob@example.com", "bob@example.com");
+    UserContext bob = UserContext.fromUserIdAndName("bob@example.com", "bob@example.com");
 
     assertEquals(
         List.of("main.sales.ledger", "main.sales.table1"),
-        connector(yaml).listChildren(AssetLookup.of(AssetType.SCHEMA, "main.sales"), AuthContext.of(ALICE)).stream()
-            .map(ResolvedAsset::identifier)
+        connector(yaml).listChildren(Asset.of(AssetType.SCHEMA, "main.sales"), AuthContext.of(ALICE)).stream()
+            .map(ResolvedAsset::fullName)
             .toList());
     assertEquals(
         List.of("main.sales.table1"),
-        connector(yaml).listChildren(AssetLookup.of(AssetType.SCHEMA, "main.sales"), AuthContext.of(bob)).stream()
-            .map(ResolvedAsset::identifier)
+        connector(yaml).listChildren(Asset.of(AssetType.SCHEMA, "main.sales"), AuthContext.of(bob)).stream()
+            .map(ResolvedAsset::fullName)
             .toList());
   }
 
   @Test
   void refusesToListWhatIsNotAContainer() {
     LocalCatalogConnector connector = connector(CATALOG);
-    AssetLookup table = AssetLookup.of(AssetType.TABLE, "main.sales.table1");
+    Asset table = Asset.of(AssetType.TABLE, "main.sales.table1");
 
     assertThrows(
         UnsupportedAssetTypeException.class,
@@ -377,7 +361,7 @@ class LocalCatalogConnectorTest {
   @Test
   void refusesToListASchemaItDoesNotHave() {
     LocalCatalogConnector connector = connector(CATALOG);
-    AssetLookup schema = AssetLookup.of(AssetType.SCHEMA, "main.missing");
+    Asset schema = Asset.of(AssetType.SCHEMA, "main.missing");
 
     assertThrows(
         AssetNotFoundException.class,
@@ -400,7 +384,8 @@ class LocalCatalogConnectorTest {
 
     UserContext alice =
         connector.authorize(
-            new AuthContext(null, new UserContext(null, "alice-token", null)), "CREATE_SHARE");
+            new AuthContext(null, new UserContext(null, "alice-token", null)),
+            Privilege.CREATE_SHARE);
     assertEquals("catalog-alice-id", alice.userId());
     assertEquals("alice", alice.userName());
     assertThrows(

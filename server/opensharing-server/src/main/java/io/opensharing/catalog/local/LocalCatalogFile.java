@@ -2,7 +2,7 @@ package io.opensharing.catalog.local;
 
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CloudProvider;
-import io.opensharing.catalog.TableFormat;
+import io.opensharing.catalog.DataSourceFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -49,8 +49,6 @@ public record LocalCatalogFile(
       String storageLocation,
       String metadataLocation,
       String format,
-      String schema,
-      List<String> partitionColumns,
       String catalogAssetId,
       List<String> auxiliaryLocations,
       List<String> sharableBy) {
@@ -60,10 +58,9 @@ public record LocalCatalogFile(
         throw new IllegalArgumentException("local catalog asset is missing 'identifier'");
       }
       type = type == null ? AssetType.TABLE : type;
-      partitionColumns = partitionColumns == null ? List.of() : List.copyOf(partitionColumns);
       auxiliaryLocations = auxiliaryLocations == null ? List.of() : List.copyOf(auxiliaryLocations);
       sharableBy = sharableBy == null ? List.of() : List.copyOf(sharableBy);
-      TableFormat.fromWireName(format);
+      DataSourceFormat.fromWireName(format);
     }
   }
 }
