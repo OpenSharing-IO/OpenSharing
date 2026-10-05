@@ -3,7 +3,7 @@ package io.opensharing.share;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
 
-/** A privilege a recipient holds on a share. */
+/** A privilege a recipient holds on a share. {@code grantedAt} is when it was first granted. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record SharePermissionResponse(
     String shareId,

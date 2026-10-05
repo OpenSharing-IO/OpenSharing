@@ -6,7 +6,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Storage for privileges recipients hold on shares. */
+/**
+ * Storage for privileges recipients hold on shares. Callers check share ownership before granting
+ * or revoking.
+ */
 @Service
 @Transactional
 public class SharePermissionStore {
@@ -32,6 +35,7 @@ public class SharePermissionStore {
             });
   }
 
+  /** Revokes a privilege. Fails with not-found when the recipient does not hold it. */
   public void revoke(ShareEntity share, RecipientEntity recipient, SharePrivilege privilege) {
     SharePermissionEntity permission =
         permissions
@@ -49,6 +53,7 @@ public class SharePermissionStore {
     permissions.delete(permission);
   }
 
+  /** Lists the share's permissions ordered by recipient name. */
   @Transactional(readOnly = true)
   public List<SharePermissionEntity> list(ShareEntity share) {
     return permissions.findByShareOrderByRecipient_NameAsc(share);
