@@ -30,7 +30,7 @@ class CatalogConfigurationTest {
     assertEquals(
         DataSourceFormat.DELTA,
         catalog
-            .resolveAsset(Asset.of(AssetType.TABLE, "main.sales.table1"), AuthContext.of(user))
+            .resolveAsset(new Asset(AssetType.TABLE, "main.sales.table1"), AuthContext.of(user))
             .dataSourceFormat());
   }
 }
