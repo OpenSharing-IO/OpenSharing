@@ -1,13 +1,20 @@
 package io.opensharing.catalog;
 
+import java.util.Map;
+
 /**
  * Table-only attributes of a {@link ResolvedAsset}.
  *
- * @param subtype the catalog's kind of table; null when the catalog does not report one
  * @param dataSourceFormat the format OpenSharing needs to serve the table, such as Delta
+ * @param attributes any other attributes the catalog returns for the table, such as its subtype;
+ *     OpenSharing does not interpret them
  */
-public record TableProperties(TableSubtype subtype, DataSourceFormat dataSourceFormat)
+public record TableProperties(DataSourceFormat dataSourceFormat, Map<String, String> attributes)
     implements AdditionalProperties {
+
+  public TableProperties {
+    attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
+  }
 
   @Override
   public AssetType type() {
