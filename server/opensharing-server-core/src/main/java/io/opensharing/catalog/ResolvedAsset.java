@@ -27,7 +27,7 @@ public record ResolvedAsset(
   public ResolvedAsset {
     Objects.requireNonNull(type, "type");
     if (fullName == null || fullName.isBlank()) {
-      throw new IllegalArgumentException("catalog full name must not be blank");
+      throw new IllegalArgumentException("asset's full name in the catalog must not be blank");
     }
     if (type != AssetType.TABLE && dataSourceFormat != null) {
       throw new IllegalArgumentException(type + " asset must not have a data source format");
