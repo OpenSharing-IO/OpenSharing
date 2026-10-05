@@ -16,14 +16,18 @@ import org.hibernate.annotations.OnDeleteAction;
 @Table(
     name = "os_recipient_tokens",
     uniqueConstraints =
-        @UniqueConstraint(name = "uk_recipient_tokens_activation_code", columnNames = "activation_code"))
+        @UniqueConstraint(
+            name = "uk_recipient_tokens_activation_code",
+            columnNames = "activation_code"))
 public class RecipientTokenEntity extends BaseEntity {
 
+  /** The recipient the token belongs to. Tokens are deleted with their recipient. */
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "recipient_id", nullable = false)
   @OnDelete(action = OnDeleteAction.CASCADE)
   private RecipientEntity recipient;
 
+  /** One-time code embedded in the activation URL. */
   @Column(name = "activation_code", unique = true, length = 36)
   private String activationCode;
 

@@ -21,7 +21,10 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-/** Provider HTTP API for recipient CRUD. */
+/**
+ * Provider HTTP API for recipient CRUD. Callers are authenticated by {@code
+ * ProviderAuthenticationFilter}; any caller may read recipients, only the owner may change them.
+ */
 @RestController
 @RequestMapping("${opensharing.provider.base-path}/recipients")
 public class RecipientAdminController {
@@ -34,6 +37,10 @@ public class RecipientAdminController {
     this.properties = properties;
   }
 
+  /**
+   * {@code POST /recipients}: creates a recipient owned by the caller, with a new activation code.
+   * Needs CREATE_RECIPIENT.
+   */
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
   public RecipientResponse create(
@@ -52,17 +59,20 @@ public class RecipientAdminController {
     return toResponse(recipient);
   }
 
+  /** {@code GET /recipients}: lists every recipient by name, unpaged. */
   @GetMapping
   public ListResponse<RecipientResponse> list(UserContext user) {
     return ListResponse.of(
         recipients.list(Pageable.unpaged()).stream().map(this::toResponse).toList());
   }
 
+  /** {@code GET /recipients/{recipient}}: gets a recipient by name in any case. */
   @GetMapping("/{recipient}")
   public RecipientResponse get(UserContext user, @PathVariable String recipient) {
     return toResponse(recipients.require(recipient));
   }
 
+  /** {@code PATCH /recipients/{recipient}}: updates the fields set in the body. Owner only. */
   @PatchMapping("/{recipient}")
   public RecipientResponse update(
       UserContext user,
@@ -71,6 +81,7 @@ public class RecipientAdminController {
     return toResponse(recipients.update(user, recipient, request.comment()));
   }
 
+  /** {@code DELETE /recipients/{recipient}}: deletes the recipient and its tokens. Owner only. */
   @DeleteMapping("/{recipient}")
   public ResponseEntity<Void> delete(UserContext user, @PathVariable String recipient) {
     recipients.delete(recipient, user);
@@ -82,6 +93,7 @@ public class RecipientAdminController {
     return RecipientResponse.from(recipient, code == null ? null : activationUrl(code));
   }
 
+  // Absolute URL on this server, so the recipient can open it as is.
   private String activationUrl(String code) {
     return ServletUriComponentsBuilder.fromCurrentContextPath()
         .path(properties.getActivationPrefix())

@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "opensharing")
 public class OpenSharingProperties {
 
+  /** Path prefix recipient activation URLs are built under. */
   private String activationPrefix = "/api/1.0/opensharing/activations";
   private final Hosting hosting = new Hosting();
   private final Provider provider = new Provider();
