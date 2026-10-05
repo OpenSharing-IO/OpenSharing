@@ -17,7 +17,6 @@ import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.TableProperties;
-import io.opensharing.catalog.TableSubtype;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.security.SecureRandom;
@@ -139,8 +138,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
         .additionalProperties(
             asset.type() == AssetType.TABLE
                 ? new TableProperties(
-                    TableSubtype.parse(asset.subtype()),
-                    DataSourceFormat.fromWireName(asset.format()))
+                    DataSourceFormat.fromWireName(asset.format()), asset.attributes())
                 : null)
         .build();
   }
