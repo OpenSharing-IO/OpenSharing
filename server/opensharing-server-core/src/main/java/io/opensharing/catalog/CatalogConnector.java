@@ -14,8 +14,9 @@ import java.util.List;
  * <p>OpenSharing doesn't own assets, permissions or storage access; the catalog stays the source of
  * truth for all three. A connector resolves catalog names to assets and their storage locations,
  * mints storage credentials scoped to those locations, and maps callers to catalog users. Every
- * call carries an {@link AuthContext}, so the catalog authenticates the caller and enforces its own
- * permissions rather than OpenSharing re-implementing them.
+ * call carries an {@link AuthContext}, so the catalog authenticates the caller and enforces the
+ * permission model OpenSharing needs, while the OpenSharing server implements the core sharing
+ * protocol.
  */
 public interface CatalogConnector {
 
@@ -29,12 +30,20 @@ public interface CatalogConnector {
   ResolvedAsset resolveAsset(Asset asset, AuthContext auth);
 
   /**
-   * Lists the assets under a container such as a schema as one flat list. Catalogs with nested
-   * containers, such as folders inside a schema, must walk them and return every descendant asset
-   * rather than the intermediate containers. Optional: catalogs that cannot enumerate throw {@link
-   * UnsupportedAssetTypeException}.
+   * Lists one page of the assets under a container such as a schema, as {@code auth}. The listing
+   * is flat: catalogs with nested containers, such as folders inside a schema, must walk them and
+   * return every descendant asset rather than the intermediate containers. Optional: catalogs that
+   * cannot enumerate throw {@link UnsupportedAssetTypeException}.
+   *
+   * <p>Callers pass a null {@code pageToken} for the first page, then the previous page's {@code
+   * nextPageToken} until it is null, and may stop early. A catalog without native paging may read
+   * the whole listing and return a slice of it.
+   *
+   * @param maxResults the most assets to return on this page; must be positive
+   * @param pageToken null for the first page, otherwise a token from the same listing
    */
-  default List<ResolvedAsset> listChildren(Asset parent, AuthContext auth) {
+  default AssetPage listChildren(
+      Asset parent, int maxResults, String pageToken, AuthContext auth) {
     throw new UnsupportedAssetTypeException(
         "the " + name() + " catalog cannot list the contents of a " + parent.type());
   }
