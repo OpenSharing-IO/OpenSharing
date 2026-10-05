@@ -15,7 +15,7 @@ class ResolvedAssetTest {
         IllegalArgumentException.class,
         () ->
             ResolvedAsset.builder(AssetType.SCHEMA, "main.sales")
-                .additionalProperties(new TableProperties("MANAGED", DataSourceFormat.DELTA))
+                .additionalProperties(new TableProperties(TableSubtype.MANAGED, DataSourceFormat.DELTA))
                 .build());
   }
 }
