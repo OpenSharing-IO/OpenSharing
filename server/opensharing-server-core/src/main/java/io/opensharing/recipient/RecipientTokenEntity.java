@@ -36,15 +36,19 @@ public class RecipientTokenEntity extends BaseEntity {
   @Column(name = "activation_code", unique = true, length = 36)
   private String activationCode;
 
+  /** SHA-256 hex of the bearer token; null until the activation code is redeemed. */
   @Column(name = "token_hash", unique = true, length = 64)
   private String tokenHash;
 
+  /** Whether the activation code has been redeemed. */
   @Column(nullable = false)
   private boolean activated;
 
+  /** When the token stops working; null means it never expires. */
   @Column(name = "expires_at")
   private Instant expiresAt;
 
+  /** When a rotation replaced this token; null while it is the current token. */
   @Column(name = "superseded_at")
   private Instant supersededAt;
 

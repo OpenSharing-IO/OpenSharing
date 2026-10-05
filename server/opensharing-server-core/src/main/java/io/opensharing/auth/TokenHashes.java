@@ -10,11 +10,14 @@ public final class TokenHashes {
 
   private TokenHashes() {}
 
+  /** Lowercase hex, 64 characters. */
   public static String sha256(String token) {
     try {
-      return HexFormat.of()
-          .formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
+      byte[] digest =
+          MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8));
+      return HexFormat.of().formatHex(digest);
     } catch (NoSuchAlgorithmException e) {
+      // Every Java runtime must provide SHA-256.
       throw new IllegalStateException(e);
     }
   }

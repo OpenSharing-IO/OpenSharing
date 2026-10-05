@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "opensharing")
 public class OpenSharingProperties {
 
+  /** Path prefix the sharing protocol is served under; profile files point here. */
   private String protocolPrefix = "/api/1.0/opensharing";
 
   /** Path prefix recipient activation URLs are built under. */
@@ -71,7 +72,10 @@ public class OpenSharingProperties {
   /** Issued recipient bearer tokens. */
   public static class RecipientTokens {
 
+    /** Lifetime of a new token when the request does not set one. */
     private Duration defaultTtl = Duration.ofDays(90);
+
+    /** How long replaced tokens keep working after a rotation that does not set one. */
     private Duration rotationGrace = Duration.ZERO;
 
     public Duration getDefaultTtl() {

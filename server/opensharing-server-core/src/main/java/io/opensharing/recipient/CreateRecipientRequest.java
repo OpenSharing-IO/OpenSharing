@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Positive;
  * POST body to create a recipient. The authenticated caller becomes the owner. Only {@code TOKEN}
  * authentication is accepted for now.
  *
- * @param tokenExpirationDays first-token lifetime; defaults to configured token TTL
+ * @param tokenExpirationDays first-token lifetime in days; defaults to the configured token TTL
  */
 public record CreateRecipientRequest(
     @NotBlank String name,

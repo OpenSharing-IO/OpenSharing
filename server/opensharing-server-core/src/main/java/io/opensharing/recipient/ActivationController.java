@@ -16,13 +16,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-/** Public one-time redemption of a recipient activation URL. */
+/**
+ * Public one-time redemption of a recipient activation URL. Not behind the provider filter: the
+ * activation code itself is the credential. Each redeem issues a new bearer token, returned only
+ * in the profile file and stored only as a hash.
+ */
 @RestController
 @RequestMapping("${opensharing.activation-prefix}")
 public class ActivationController {
 
+  /** Profile file format version defined by the Delta Sharing protocol. */
   private static final int SHARE_CREDENTIALS_VERSION = 1;
+
+  /** Random bytes per bearer token; 64 characters once base64url-encoded. */
   private static final int BEARER_BYTES = 48;
+
+  /** Profile {@code expirationTime} format, as in {@code 2026-01-01T00:00:00.000Z}. */
   private static final DateTimeFormatter EXPIRATION_TIME =
       DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX").withZone(ZoneOffset.UTC);
 
@@ -35,6 +44,11 @@ public class ActivationController {
     this.properties = properties;
   }
 
+  /**
+   * {@code GET /activations/{code}}: redeems the code and downloads the recipient's profile file.
+   * Fails with not-found when the code is unknown, already redeemed, or expired. The response is
+   * not cacheable because it carries the bearer token.
+   */
   @GetMapping("/{code}")
   public ResponseEntity<ProfileFile> activate(@PathVariable String code) {
     String bearer = newBearer();
@@ -53,6 +67,7 @@ public class ActivationController {
         .body(profile);
   }
 
+  // Absolute protocol URL on this server, which clients call with the bearer token.
   private String endpoint() {
     return ServletUriComponentsBuilder.fromCurrentContextPath()
         .path(properties.getProtocolPrefix())
