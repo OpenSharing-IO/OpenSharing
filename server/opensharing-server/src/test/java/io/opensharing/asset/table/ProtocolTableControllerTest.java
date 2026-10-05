@@ -571,4 +571,49 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
           .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
     }
   }
+
+  @Test
+  void queriesGrantedTableChangeDataFeed() throws Exception {
+    createShare("table-cdf");
+    addObject("table-cdf", "TABLE", "main.sales.orders", "sales.orders");
+    createShare("hidden-cdf");
+    addObject("hidden-cdf", "TABLE", "main.sales.customers", "sales.customers");
+    String bearer = createAndActivateRecipient("table-cdf-partner");
+    grant("table-cdf", "table-cdf-partner");
+    String changes = PROTOCOL + "/shares/TABLE-CDF/schemas/SALES/tables/ORDERS/changes";
+
+    // Delta-Table-Version is the starting version; fileidhash is echoed.
+    String body =
+        mvc.perform(
+                get(changes + "?startingVersion=7&endingVersion=9&includeHistoricalMetadata=true")
+                    .header("Authorization", "Bearer " + bearer)
+                    .header(FileIdHash.HEADER, "delta"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "7"))
+            .andExpect(header().string("delta-sharing-capabilities", "responseformat=parquet"))
+            .andExpect(header().string(FileIdHash.HEADER, "delta"))
+            .andExpect(content().contentTypeCompatibleWith("application/x-ndjson"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(body.contains("{\"add\":"), body);
+
+    mvc.perform(
+            get(changes + "?startingTimestamp=2022-01-01T00:00:00Z")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isOk())
+        .andExpect(header().string("Delta-Table-Version", "45"));
+
+    for (String invalid :
+        List.of("", "?startingTimestamp=yesterday", "?startingVersion=one")) {
+      mvc.perform(get(changes + invalid).header("Authorization", "Bearer " + bearer))
+          .andExpect(status().isBadRequest());
+    }
+    mvc.perform(
+            get(PROTOCOL + "/shares/hidden-cdf/schemas/sales/tables/customers/changes"
+                    + "?startingVersion=0")
+                .header("Authorization", "Bearer " + bearer))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
 }

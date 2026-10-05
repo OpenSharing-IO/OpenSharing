@@ -26,6 +26,7 @@ import io.opensharing.http.ApiException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -161,6 +162,114 @@ class DeltaTableQueryReaderTest {
     assertThrows(ApiException.class, () -> changes(1L, 5L, null, false));
   }
 
+  @Test
+  void changeDataFeedPrefersCdcFilesAndSkipsNoOpMerges() throws IOException {
+    writeChangeDataFeed();
+    List<String> lines = changeDataFeed(0L, null, 3L, null, null, false);
+    // Without includeHistoricalMetadata, protocol and metaData come from the latest version.
+    assertTrue(lines.get(1).contains("\"version\":4"), lines.get(1));
+    assertEquals(
+        List.of("add a 0", "add b 0", "cdf c 1", "remove b 2"),
+        describe(lines.subList(2, lines.size())));
+    assertTrue(lines.get(4).startsWith("{\"cdf\":"), lines.get(4));
+
+    List<String> delta = changeDataFeed(1L, null, 2L, null, "responseformat=delta", false);
+    assertEquals(List.of("cdc c 1", "remove b 2"), describe(delta.subList(2, delta.size())));
+  }
+
+  @Test
+  void changeDataFeedResolvesTimestampsAndHistoricalMetadata() throws IOException {
+    writeChangeDataFeed();
+    List<String> lines =
+        changeDataFeed(
+            null,
+            Instant.ofEpochMilli(1500),
+            null,
+            Instant.ofEpochMilli(3500),
+            null,
+            true);
+    assertTrue(lines.get(1).contains("\"version\":1"), lines.get(1));
+    assertEquals(List.of("cdf c 1", "remove b 2"), describe(lines.subList(2, lines.size())));
+    // An end after the latest version is capped; the range then reaches CDF being disabled.
+    assertThrows(ApiException.class, () -> changeDataFeed(0L, null, 9L, null, null, false));
+  }
+
+  @Test
+  void changeDataFeedRejectsInvalidRanges() throws IOException {
+    // The table written in setup never enabled the Change Data Feed.
+    assertThrows(ApiException.class, () -> changeDataFeed(0L, null, null, null, null, false));
+    writeChangeDataFeed();
+    assertThrows(ApiException.class, () -> changeDataFeed(null, null, null, null, null, false));
+    assertThrows(ApiException.class, () -> changeDataFeed(2L, null, 1L, null, null, false));
+    assertThrows(ApiException.class, () -> changeDataFeed(5L, null, null, null, null, false));
+  }
+
+  private List<String> changeDataFeed(
+      Long startingVersion,
+      Instant startingTimestamp,
+      Long endingVersion,
+      Instant endingTimestamp,
+      String capabilities,
+      boolean includeHistoricalMetadata) {
+    return List.of(
+        reader
+            .readChangeDataFeed(
+                table,
+                null,
+                new DeltaTableQueryReader.ResponseOptions(capabilities, null, false),
+                startingVersion,
+                startingTimestamp,
+                endingVersion,
+                endingTimestamp,
+                includeHistoricalMetadata,
+                false)
+            .ndjson()
+            .split("\n"));
+  }
+
+  // 0: insert a, b. 1: update a to d with a cdc file. 2: delete b without cdc. 3: no-op MERGE.
+  // 4: disable the Change Data Feed. Commit n is written at (n + 1) seconds.
+  private void writeChangeDataFeed() throws IOException {
+    Path log = dir.resolve("_delta_log");
+    String metadata =
+        "{\"metaData\":{\"id\":\"t\",\"format\":{\"provider\":\"parquet\",\"options\":{}},"
+            + "\"schemaString\":\""
+            + SCHEMA
+            + "\",\"partitionColumns\":[\"date\"],"
+            + "\"configuration\":{\"delta.enableChangeDataFeed\":\"%s\"},\"createdTime\":0}}";
+    List<String> commits =
+        List.of(
+            String.join(
+                "\n",
+                "{\"protocol\":{\"minReaderVersion\":1,\"minWriterVersion\":4}}",
+                metadata.formatted("true"),
+                add("a", "2021-01-01", 1, 10),
+                add("b", "2021-01-02", 11, 20)),
+            String.join(
+                "\n",
+                remove("a", "2021-01-01", true),
+                add("d", "2021-01-01", 1, 10),
+                "{\"cdc\":{\"path\":\"_change_data/date=2021-01-01/c.parquet\","
+                    + "\"partitionValues\":{\"date\":\"2021-01-01\"},\"size\":1,"
+                    + "\"dataChange\":false}}"),
+            remove("b", "2021-01-02", true),
+            String.join(
+                "\n",
+                "{\"commitInfo\":{\"timestamp\":4000,\"engineInfo\":\"test\","
+                    + "\"operation\":\"MERGE\",\"operationParameters\":{},"
+                    + "\"isBlindAppend\":false,\"txnId\":\"t\","
+                    + "\"operationMetrics\":{\"numTargetRowsInserted\":\"0\","
+                    + "\"numTargetRowsUpdated\":\"0\",\"numTargetRowsDeleted\":\"0\"}}}",
+                remove("d", "2021-01-01", true),
+                add("e", "2021-01-01", 1, 10)),
+            metadata.formatted("false"));
+    for (int version = 0; version < commits.size(); version++) {
+      Path commit = log.resolve("%020d.json".formatted(version));
+      Files.writeString(commit, commits.get(version) + "\n");
+      Files.setLastModifiedTime(commit, FileTime.fromMillis((version + 1) * 1000L));
+    }
+  }
+
   private List<String> changes(
       long startingVersion, Long endingVersion, String capabilities, boolean historicalProtocol) {
     return List.of(
@@ -190,7 +299,7 @@ class DeltaTableQueryReaderTest {
                 String name = fileName(action.get(key).get("path"));
                 return key + " " + name + " " + body.get("version");
               }
-              if (key.equals("add") || key.equals("remove")) {
+              if (key.equals("add") || key.equals("remove") || key.equals("cdf")) {
                 return key + " " + fileName(body.get("url")) + " " + body.get("version");
               }
               return key + " " + body.get("version");

@@ -239,6 +239,25 @@ public abstract class ProtocolApiSupport {
           }
           return new DeltaTableQueryReader.Result(startingVersion, ndjson);
         }
+
+        @Override
+        public DeltaTableQueryReader.Result readChangeDataFeed(
+            ResolvedAsset table,
+            AuthContext auth,
+            DeltaTableQueryReader.ResponseOptions options,
+            Long startingVersion,
+            Instant startingTimestamp,
+            Long endingVersion,
+            Instant endingTimestamp,
+            boolean includeHistoricalMetadata,
+            boolean includeHistoricalProtocol) {
+          if (startingVersion == null && startingTimestamp == null) {
+            throw ApiException.invalidParameter(
+                "startingVersion or startingTimestamp is required");
+          }
+          return new DeltaTableQueryReader.Result(
+              startingVersion == null ? 45 : startingVersion, STUB_PARQUET + STUB_CHANGES);
+        }
       };
     }
   }

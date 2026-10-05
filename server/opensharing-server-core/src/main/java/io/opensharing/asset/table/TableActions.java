@@ -99,13 +99,14 @@ public final class TableActions {
                 expirationTimestamp)));
   }
 
-  /** Data change file kinds, keyed {@code add} or {@code remove}. */
+  /** Data change file kinds, keyed {@code add}, {@code remove}, or {@code cdf} in parquet. */
   public enum ChangeType {
     ADD,
-    REMOVE
+    REMOVE,
+    CDC
   }
 
-  /** A data change file for a startingVersion query. */
+  /** A data change file for a startingVersion or Change Data Feed query. */
   public static String parquetChange(
       ChangeType type,
       String url,
@@ -130,6 +131,7 @@ public final class TableActions {
         switch (type) {
           case ADD -> new AddLine(file);
           case REMOVE -> new RemoveLine(file);
+          case CDC -> new CdfLine(file);
         });
   }
 
@@ -146,10 +148,10 @@ public final class TableActions {
         expirationTimestamp,
         version,
         timestamp,
-        new DeltaSingleAction(add.toRow(), null));
+        new DeltaSingleAction(add.toRow(), null, null));
   }
 
-  /** {@code action} is the add or remove row; {@code type} picks its action key. */
+  /** {@code action} is the add, remove, or cdc row; {@code type} picks its action key. */
   public static String deltaChange(
       String id,
       String deletionVectorFileId,
@@ -165,8 +167,9 @@ public final class TableActions {
         version,
         timestamp,
         switch (type) {
-          case ADD -> new DeltaSingleAction(action, null);
-          case REMOVE -> new DeltaSingleAction(null, action);
+          case ADD -> new DeltaSingleAction(action, null, null);
+          case REMOVE -> new DeltaSingleAction(null, action, null);
+          case CDC -> new DeltaSingleAction(null, null, action);
         });
   }
 
@@ -328,11 +331,14 @@ public final class TableActions {
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record DeltaSingleAction(
       @JsonSerialize(using = KernelActionSerializer.class) Row add,
-      @JsonSerialize(using = KernelActionSerializer.class) Row remove) {}
+      @JsonSerialize(using = KernelActionSerializer.class) Row remove,
+      @JsonSerialize(using = KernelActionSerializer.class) Row cdc) {}
 
   public record AddLine(ParquetFile add) {}
 
   public record RemoveLine(ParquetFile remove) {}
+
+  public record CdfLine(ParquetFile cdf) {}
 
   public record EndStreamLine(EndStreamAction endStreamAction) {}
 
