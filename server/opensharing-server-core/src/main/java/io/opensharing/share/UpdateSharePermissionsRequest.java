@@ -11,6 +11,7 @@ public record UpdateSharePermissionsRequest(@Valid List<Change> changes) {
     changes = changes == null ? List.of() : List.copyOf(changes);
   }
 
+  /** Privileges to revoke from and grant to one recipient; removes are applied first. */
   public record Change(
       @NotBlank String recipientName, List<SharePrivilege> add, List<SharePrivilege> remove) {
 

@@ -28,8 +28,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Provider share CRUD. The host authenticates the caller and checks CREATE_SHARE before {@link
- * #create}; any caller may read shares, only the owner may change them.
+ * Provider HTTP API for share CRUD and recipient grants. Callers are authenticated by {@code
+ * ProviderAuthenticationFilter}; any caller may read shares, only the owner may change them.
  */
 public class ShareService {
 
@@ -105,6 +105,7 @@ public class ShareService {
     shares.delete(share, user);
   }
 
+  /** {@code GET /shares/{share}/permissions}: lists who holds which privilege on the share. */
   @GetMapping("/{share}/permissions")
   public ListResponse<SharePermissionResponse> listPermissions(
       UserContext user, @PathVariable String share) {
@@ -114,6 +115,10 @@ public class ShareService {
             .toList());
   }
 
+  /**
+   * {@code PATCH /shares/{share}/permissions}: grants and revokes privileges in order, then returns
+   * the share's permissions. Owner only.
+   */
   @PatchMapping("/{share}/permissions")
   public ListResponse<SharePermissionResponse> updatePermissions(
       UserContext user,
