@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import io.opensharing.asset.ProtocolApiSupport;
 import io.opensharing.http.ErrorCodes;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -519,5 +520,55 @@ class ProtocolTableControllerTest extends ProtocolApiSupport {
                 .content("{}"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
+  }
+
+  @Test
+  void queriesGrantedTableChangesFromStartingVersion() throws Exception {
+    createShare("table-changes");
+    addObject("table-changes", "TABLE", "main.sales.orders", "sales.orders");
+    String bearer = createAndActivateRecipient("table-changes-partner");
+    grant("table-changes", "table-changes-partner");
+    String query = PROTOCOL + "/shares/table-changes/schemas/sales/tables/orders/query";
+
+    // Delta-Table-Version is the startingVersion; lines are data change files.
+    String changes =
+        mvc.perform(
+                post(query)
+                    .header("Authorization", "Bearer " + bearer)
+                    .header("delta-sharing-capabilities", "includeendstreamaction=true")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(
+                        "{\"startingVersion\":7,\"endingVersion\":9,"
+                            + "\"includeHistoricalProtocol\":true}"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Delta-Table-Version", "7"))
+            .andExpect(
+                header()
+                    .string(
+                        "delta-sharing-capabilities",
+                        "responseformat=parquet;includeendstreamaction=true"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    assertTrue(changes.contains("{\"add\":"), changes);
+    assertTrue(changes.contains("\"endStreamAction\""), changes);
+
+    for (String invalid :
+        List.of(
+            "{\"endingVersion\":9}",
+            "{\"startingVersion\":-1}",
+            "{\"startingVersion\":9,\"endingVersion\":7}",
+            "{\"startingVersion\":7,\"version\":7}",
+            "{\"startingVersion\":7,\"timestamp\":\"2022-01-01T00:00:00Z\"}",
+            "{\"startingVersion\":7,\"includeRefreshToken\":true}",
+            "{\"startingVersion\":7,\"refreshToken\":\"token\"}")) {
+      mvc.perform(
+              post(query)
+                  .header("Authorization", "Bearer " + bearer)
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(invalid))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    }
   }
 }
