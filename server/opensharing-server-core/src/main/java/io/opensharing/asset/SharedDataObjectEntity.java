@@ -4,7 +4,6 @@ import io.opensharing.BaseEntity;
 import io.opensharing.ObjectNames;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.DataSourceFormat;
-import io.opensharing.catalog.TableSubtype;
 import io.opensharing.share.ShareEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -51,11 +50,6 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Column(nullable = false, length = 32)
   private AssetType type;
 
-  /** The catalog's kind of table, such as {@code MANAGED}; null for schemas. */
-  @Enumerated(EnumType.STRING)
-  @Column(name = "source_subtype", length = 32)
-  private TableSubtype sourceSubtype;
-
   /** Data source format for tables, such as Delta; null for schemas. */
   @Enumerated(EnumType.STRING)
   @Column(name = "source_format", length = 32)
@@ -99,14 +93,6 @@ public class SharedDataObjectEntity extends BaseEntity {
 
   public void setType(AssetType type) {
     this.type = type;
-  }
-
-  public TableSubtype getSourceSubtype() {
-    return sourceSubtype;
-  }
-
-  public void setSourceSubtype(TableSubtype sourceSubtype) {
-    this.sourceSubtype = sourceSubtype;
   }
 
   public DataSourceFormat getSourceFormat() {

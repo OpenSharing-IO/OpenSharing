@@ -73,7 +73,6 @@ public class SharedDataObjectStore {
     object.setName(name);
     object.setType(type);
     if (resolved.additionalProperties() instanceof TableProperties table) {
-      object.setSourceSubtype(table.subtype());
       object.setSourceFormat(table.dataSourceFormat());
     }
     object.setSharedAsSchema(sharedAsSchema);
