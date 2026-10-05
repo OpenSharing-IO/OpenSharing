@@ -7,26 +7,16 @@ import io.opensharing.catalog.Asset;
 public class AssetAccessDeniedException extends CatalogException {
 
   public AssetAccessDeniedException(Asset asset, UserContext user) {
-    super(
-        "'"
-            + display(user)
-            + "' may not share "
-            + asset.type()
-            + " '"
-            + asset.fullName()
-            + "'");
+    super(display(user) + " may not share " + asset.type() + " '" + asset.fullName() + "'");
   }
 
   private static String display(UserContext user) {
-    if (user == null) {
-      return "unknown user";
+    if (user != null && user.userName() != null) {
+      return "'" + user.userName() + "'";
     }
-    if (user.userName() != null) {
-      return user.userName();
+    if (user != null && user.userId() != null) {
+      return "'" + user.userId() + "'";
     }
-    if (user.userId() != null) {
-      return user.userId();
-    }
-    return "unknown user";
+    return "the calling user";
   }
 }
