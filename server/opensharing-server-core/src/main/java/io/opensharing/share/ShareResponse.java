@@ -6,7 +6,7 @@ import io.opensharing.catalog.AssetType;
 import java.util.List;
 import java.util.Map;
 
-/** A share as the protocol reports it. */
+/** A share as the provider API reports it. {@code objects} is omitted unless requested. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ShareResponse(
     String id,
@@ -32,7 +32,7 @@ public record ShareResponse(
             : objects.stream().map(SharedDataObjectResponse::from).toList());
   }
 
-  /** A catalog asset included in a share. */
+  /** A catalog asset included in a share, with the alias recipients see it under. */
   public record SharedDataObjectResponse(String name, AssetType type, String sharedAs) {
 
     static SharedDataObjectResponse from(SharedDataObjectEntity object) {
