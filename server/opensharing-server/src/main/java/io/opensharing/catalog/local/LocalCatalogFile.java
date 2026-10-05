@@ -3,6 +3,7 @@ package io.opensharing.catalog.local;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.catalog.TableSubtype;
 import java.util.List;
 import java.util.Map;
 
@@ -61,6 +62,9 @@ public record LocalCatalogFile(
       auxiliaryLocations = auxiliaryLocations == null ? List.of() : List.copyOf(auxiliaryLocations);
       sharableBy = sharableBy == null ? List.of() : List.copyOf(sharableBy);
       DataSourceFormat.fromWireName(format);
+      if (type == AssetType.TABLE) {
+        TableSubtype.parse(subtype);
+      }
     }
   }
 }
