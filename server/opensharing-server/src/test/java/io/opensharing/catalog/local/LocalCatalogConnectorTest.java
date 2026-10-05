@@ -88,7 +88,7 @@ class LocalCatalogConnectorTest {
   @Test
   void rejectsUnknownAsset() {
     LocalCatalogConnector connector = connector(CATALOG);
-    Asset lookup = Asset.of(AssetType.TABLE, "main.sales.missing");
+    Asset lookup = new Asset(AssetType.TABLE, "main.sales.missing");
 
     assertThrows(
         AssetNotFoundException.class,
@@ -106,7 +106,7 @@ class LocalCatalogConnectorTest {
         TABLE1, resolve(CATALOG, "main.finance.ledger", ALICE).location().storageLocation());
 
     LocalCatalogConnector connector = connector(CATALOG);
-    Asset lookup = Asset.of(AssetType.TABLE, "main.finance.ledger");
+    Asset lookup = new Asset(AssetType.TABLE, "main.finance.ledger");
     UserContext bob = UserContext.fromUserIdAndName("bob@example.com", "bob@example.com");
     assertThrows(AssetAccessDeniedException.class, () -> connector.resolveAsset(lookup, AuthContext.of(bob)));
   }
@@ -159,7 +159,7 @@ class LocalCatalogConnectorTest {
   }
 
   private static ResolvedAsset resolve(String yaml, String identifier, UserContext user) {
-    return connector(yaml).resolveAsset(Asset.of(AssetType.TABLE, identifier), AuthContext.of(user));
+    return connector(yaml).resolveAsset(new Asset(AssetType.TABLE, identifier), AuthContext.of(user));
   }
 
   @Test
@@ -309,7 +309,7 @@ class LocalCatalogConnectorTest {
 
     List<ResolvedAsset> children =
         connector(yaml)
-            .listChildren(Asset.of(AssetType.SCHEMA, "MAIN.SALES"), AuthContext.of(ALICE));
+            .listChildren(new Asset(AssetType.SCHEMA, "MAIN.SALES"), AuthContext.of(ALICE));
 
     assertEquals(
         List.of("main.sales.table1"),
@@ -338,12 +338,12 @@ class LocalCatalogConnectorTest {
 
     assertEquals(
         List.of("main.sales.ledger", "main.sales.table1"),
-        connector(yaml).listChildren(Asset.of(AssetType.SCHEMA, "main.sales"), AuthContext.of(ALICE)).stream()
+        connector(yaml).listChildren(new Asset(AssetType.SCHEMA, "main.sales"), AuthContext.of(ALICE)).stream()
             .map(ResolvedAsset::fullName)
             .toList());
     assertEquals(
         List.of("main.sales.table1"),
-        connector(yaml).listChildren(Asset.of(AssetType.SCHEMA, "main.sales"), AuthContext.of(bob)).stream()
+        connector(yaml).listChildren(new Asset(AssetType.SCHEMA, "main.sales"), AuthContext.of(bob)).stream()
             .map(ResolvedAsset::fullName)
             .toList());
   }
@@ -351,7 +351,7 @@ class LocalCatalogConnectorTest {
   @Test
   void refusesToListWhatIsNotAContainer() {
     LocalCatalogConnector connector = connector(CATALOG);
-    Asset table = Asset.of(AssetType.TABLE, "main.sales.table1");
+    Asset table = new Asset(AssetType.TABLE, "main.sales.table1");
 
     assertThrows(
         UnsupportedAssetTypeException.class,
@@ -361,7 +361,7 @@ class LocalCatalogConnectorTest {
   @Test
   void refusesToListASchemaItDoesNotHave() {
     LocalCatalogConnector connector = connector(CATALOG);
-    Asset schema = Asset.of(AssetType.SCHEMA, "main.missing");
+    Asset schema = new Asset(AssetType.SCHEMA, "main.missing");
 
     assertThrows(
         AssetNotFoundException.class,
