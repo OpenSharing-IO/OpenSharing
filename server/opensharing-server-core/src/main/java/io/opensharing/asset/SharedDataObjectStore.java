@@ -2,6 +2,7 @@ package io.opensharing.asset;
 
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.catalog.TableProperties;
 import io.opensharing.http.ApiException;
 import io.opensharing.share.ShareEntity;
 import java.util.List;
@@ -71,8 +72,10 @@ public class SharedDataObjectStore {
     object.setSourceAssetId(resolved.catalogAssetId());
     object.setName(name);
     object.setType(type);
-    object.setSourceSubtype(resolved.subtype());
-    object.setSourceFormat(resolved.dataSourceFormat());
+    if (resolved.additionalProperties() instanceof TableProperties table) {
+      object.setSourceSubtype(table.subtype());
+      object.setSourceFormat(table.dataSourceFormat());
+    }
     object.setSharedAsSchema(sharedAsSchema);
     object.setSharedAsTable(sharedAsTable);
     return objects.save(object);

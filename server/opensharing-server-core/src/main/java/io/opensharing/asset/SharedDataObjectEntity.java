@@ -50,7 +50,7 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Column(nullable = false, length = 32)
   private AssetType type;
 
-  /** The catalog's finer-grained kind, such as {@code MANAGED} or {@code EXTERNAL}. */
+  /** The catalog's finer-grained kind of table, such as {@code MANAGED}; null for schemas. */
   @Column(name = "source_subtype", length = 64)
   private String sourceSubtype;
 
