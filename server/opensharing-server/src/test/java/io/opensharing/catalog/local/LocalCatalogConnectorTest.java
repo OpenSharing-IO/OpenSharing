@@ -1,6 +1,7 @@
 package io.opensharing.catalog.local;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,6 +10,7 @@ import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.Asset;
+import io.opensharing.catalog.AssetPage;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.exception.CatalogAuthorizationException;
@@ -309,7 +311,12 @@ class LocalCatalogConnectorTest {
 
     List<ResolvedAsset> children =
         connector(yaml)
-            .listChildren(new Asset(AssetType.SCHEMA, "MAIN.SALES"), AuthContext.of(ALICE));
+            .listChildren(
+                new Asset(AssetType.SCHEMA, "MAIN.SALES"),
+                100,
+                null,
+                AuthContext.of(ALICE))
+            .assets();
 
     assertEquals(
         List.of("main.sales.table1"),
@@ -338,12 +345,22 @@ class LocalCatalogConnectorTest {
 
     assertEquals(
         List.of("main.sales.ledger", "main.sales.table1"),
-        connector(yaml).listChildren(new Asset(AssetType.SCHEMA, "main.sales"), AuthContext.of(ALICE)).stream()
+        connector(yaml)
+            .listChildren(
+                new Asset(AssetType.SCHEMA, "main.sales"),
+                100,
+                null,
+                AuthContext.of(ALICE))
+            .assets()
+            .stream()
             .map(ResolvedAsset::fullName)
             .toList());
     assertEquals(
         List.of("main.sales.table1"),
-        connector(yaml).listChildren(new Asset(AssetType.SCHEMA, "main.sales"), AuthContext.of(bob)).stream()
+        connector(yaml)
+            .listChildren(new Asset(AssetType.SCHEMA, "main.sales"), 100, null, AuthContext.of(bob))
+            .assets()
+            .stream()
             .map(ResolvedAsset::fullName)
             .toList());
   }
@@ -355,7 +372,7 @@ class LocalCatalogConnectorTest {
 
     assertThrows(
         UnsupportedAssetTypeException.class,
-        () -> connector.listChildren(table, AuthContext.of(ALICE)));
+        () -> connector.listChildren(table, 100, null, AuthContext.of(ALICE)));
   }
 
   @Test
@@ -365,7 +382,49 @@ class LocalCatalogConnectorTest {
 
     assertThrows(
         AssetNotFoundException.class,
-        () -> connector.listChildren(schema, AuthContext.of(ALICE)));
+        () -> connector.listChildren(schema, 100, null, AuthContext.of(ALICE)));
+  }
+
+  @Test
+  void pagesThroughTheTablesBelowASchema() {
+    String yaml =
+        """
+        assets:
+          - identifier: main.sales
+            type: SCHEMA
+          - identifier: main.sales.c
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+          - identifier: main.sales.a
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+          - identifier: main.sales.b
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+        """;
+    LocalCatalogConnector connector = connector(yaml);
+    Asset schema = new Asset(AssetType.SCHEMA, "main.sales");
+
+    AssetPage first = connector.listChildren(schema, 2, null, AuthContext.of(ALICE));
+    assertEquals(
+        List.of("main.sales.a", "main.sales.b"),
+        first.assets().stream().map(ResolvedAsset::fullName).toList());
+
+    AssetPage last =
+        connector.listChildren(schema, 2, first.nextPageToken(), AuthContext.of(ALICE));
+    assertEquals(
+        List.of("main.sales.c"), last.assets().stream().map(ResolvedAsset::fullName).toList());
+    assertNull(last.nextPageToken(), "the last page has no next page");
+  }
+
+  @Test
+  void rejectsPageTokensItDidNotIssue() {
+    LocalCatalogConnector connector = connector(CATALOG);
+    Asset schema = new Asset(AssetType.SCHEMA, "main.sales");
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> connector.listChildren(schema, 2, "not-a-token", AuthContext.of(ALICE)));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> connector.listChildren(schema, 0, null, AuthContext.of(ALICE)));
   }
 
   @Test

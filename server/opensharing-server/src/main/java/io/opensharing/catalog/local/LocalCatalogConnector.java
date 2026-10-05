@@ -6,6 +6,7 @@ import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetLocation;
+import io.opensharing.catalog.AssetPage;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
@@ -76,22 +77,48 @@ public final class LocalCatalogConnector implements CatalogConnector {
     return resolved(requireAsset(lookup, auth));
   }
 
-  /** Tables whose identifier is this schema plus one more dotted segment. */
+  /**
+   * Tables whose identifier is this schema plus one more dotted segment, sorted by identifier. The
+   * whole listing is in memory, so a page token is just the offset of the page's first table.
+   */
   @Override
-  public List<ResolvedAsset> listChildren(Asset parent, AuthContext auth) {
+  public AssetPage listChildren(Asset parent, int maxResults, String pageToken, AuthContext auth) {
+    if (maxResults <= 0) {
+      throw new IllegalArgumentException("maxResults must be positive");
+    }
     if (parent.type() != AssetType.SCHEMA) {
       throw new UnsupportedAssetTypeException(
           "the " + NAME + " catalog only lists the contents of a SCHEMA, not a " + parent.type());
     }
     requireAsset(parent, auth);
     String prefix = parent.fullName().toLowerCase(Locale.ROOT) + ".";
-    return assetsByIdentifier.values().stream()
-        .filter(asset -> asset.type() == AssetType.TABLE)
-        .filter(asset -> isChildOf(asset.identifier(), prefix))
-        .filter(asset -> allows(asset, auth))
-        .sorted(Comparator.comparing(asset -> asset.identifier().toLowerCase(Locale.ROOT)))
-        .map(LocalCatalogConnector::resolved)
-        .toList();
+    List<ResolvedAsset> children =
+        assetsByIdentifier.values().stream()
+            .filter(asset -> asset.type() == AssetType.TABLE)
+            .filter(asset -> isChildOf(asset.identifier(), prefix))
+            .filter(asset -> allows(asset, auth))
+            .sorted(Comparator.comparing(asset -> asset.identifier().toLowerCase(Locale.ROOT)))
+            .map(LocalCatalogConnector::resolved)
+            .toList();
+    int start = offset(pageToken, children.size());
+    int end = (int) Math.min((long) start + maxResults, children.size());
+    return new AssetPage(
+        children.subList(start, end), end < children.size() ? Integer.toString(end) : null);
+  }
+
+  private static int offset(String pageToken, int size) {
+    if (pageToken == null) {
+      return 0;
+    }
+    try {
+      int offset = Integer.parseInt(pageToken);
+      if (offset >= 0 && offset <= size) {
+        return offset;
+      }
+    } catch (NumberFormatException ignored) {
+      // Reported below like any other token this connector did not issue.
+    }
+    throw new IllegalArgumentException("pageToken is invalid");
   }
 
   private static boolean isChildOf(String identifier, String schemaPrefix) {
