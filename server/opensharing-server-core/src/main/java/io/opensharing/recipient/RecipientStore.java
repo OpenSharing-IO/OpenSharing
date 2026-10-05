@@ -26,8 +26,8 @@ public class RecipientStore {
 
   /**
    * Creates a recipient owned by {@code author} and its first token holding {@code
-   * activationCode}. {@code name} must already be validated and lowercase. Fails with
-   * already-exists when the name is taken.
+   * activationCode}, expiring at {@code expiresAt} (null for never). {@code name} must already be
+   * validated and lowercase. Fails with already-exists when the name is taken.
    */
   public RecipientEntity create(
       UserContext author,
@@ -71,7 +71,8 @@ public class RecipientStore {
     return tx.inTransaction(true, em -> require(em, name));
   }
 
-  /** The newest token's activation code, or null when there is none. */
+  /** The newest token's activation code, or null once it has been redeemed. */
+  @Transactional(readOnly = true)
   public String findActivationCode(RecipientEntity recipient) {
     return tx.inTransaction(
         true,
@@ -137,7 +138,10 @@ public class RecipientStore {
     return recipient;
   }
 
-  /** Persists a bearer hash and consumes a valid one-time activation code. The row is locked so a concurrent redeem of the same code waits, then 404s. */
+  /**
+   * Persists a bearer hash and consumes a valid one-time activation code. The row is locked so a
+   * concurrent redeem of the same code waits, then fails with not-found.
+   */
   public RecipientTokenEntity activate(String activationCode, String tokenHash, Instant now) {
     RecipientTokenEntity token =
         tokens

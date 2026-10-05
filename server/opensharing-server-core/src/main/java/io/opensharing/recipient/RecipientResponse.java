@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 /**
  * A recipient as the provider API reports it. {@code activationUrl} is the link the provider sends
- * to the recipient; omitted when the recipient has no activation code.
+ * to the recipient; omitted once the code has been redeemed.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record RecipientResponse(

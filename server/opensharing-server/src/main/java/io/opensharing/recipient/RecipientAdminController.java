@@ -94,6 +94,10 @@ public class RecipientAdminController {
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * {@code POST /recipients/{recipient}/rotate-token}: issues a replacement token with a new
+   * activation URL. Existing tokens stop working after the grace window. Owner only.
+   */
   @PostMapping("/{recipient}/rotate-token")
   @ResponseStatus(HttpStatus.CREATED)
   public IssuedTokenResponse rotateToken(
@@ -133,6 +137,7 @@ public class RecipientAdminController {
         .toUriString();
   }
 
+  // A null duration means the token never expires.
   private static Instant plus(Instant now, Duration duration) {
     return duration == null ? null : now.plus(duration);
   }
