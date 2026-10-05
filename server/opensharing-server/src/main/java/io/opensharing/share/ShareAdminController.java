@@ -58,7 +58,10 @@ public class ShareAdminController {
     return shares.list();
   }
 
-  /** {@code GET /shares/{share}}: gets a share by name in any case. */
+  /**
+   * {@code GET /shares/{share}}: gets a share by name in any case. With {@code
+   * include_shared_data=true}, also lists the objects in the share.
+   */
   @GetMapping("/{share}")
   public ShareResponse get(
       UserContext user,
@@ -71,7 +74,10 @@ public class ShareAdminController {
         : ShareResponse.from(entity);
   }
 
-  /** {@code PATCH /shares/{share}}: updates the fields set in the body. Owner only. */
+  /**
+   * {@code PATCH /shares/{share}}: applies the object adds and removes in order, then updates the
+   * fields set in the body. Owner only.
+   */
   @PatchMapping("/{share}")
   public ShareResponse update(
       UserContext user,
@@ -97,6 +103,7 @@ public class ShareAdminController {
     return ResponseEntity.noContent().build();
   }
 
+  // Resolves the object in the catalog on behalf of the caller and checks the declared type.
   private void addObject(
       ShareEntity share, UserContext user, UpdateShareRequest.DataObject dataObject) {
     String name = requireText(dataObject.name(), "dataObject.name");
@@ -113,6 +120,7 @@ public class ShareAdminController {
     objects.add(share, name, type, resolved, alias.schema(), alias.table());
   }
 
+  // Removes by alias when sharedAs is given, otherwise by catalog name.
   private void removeObject(ShareEntity share, UpdateShareRequest.DataObject dataObject) {
     AssetType type = requireType(dataObject.type());
     if (dataObject.sharedAs() != null && !dataObject.sharedAs().isBlank()) {

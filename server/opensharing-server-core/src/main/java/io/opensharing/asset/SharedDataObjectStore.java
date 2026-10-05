@@ -8,7 +8,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Persists catalog objects included in a share. */
+/**
+ * Persists catalog objects included in a share. Callers resolve the object in the catalog and parse
+ * its alias first; the store only enforces the share's alias rules.
+ */
 @Service
 @Transactional
 public class SharedDataObjectStore {
@@ -19,6 +22,11 @@ public class SharedDataObjectStore {
     this.objects = objects;
   }
 
+  /**
+   * Includes an object in the share. Fails when the alias or the object is already in the share,
+   * when a table is added under an already included schema, or when a schema is added while tables
+   * under it are already included.
+   */
   public SharedDataObjectEntity add(
       ShareEntity share,
       String name,
@@ -70,11 +78,13 @@ public class SharedDataObjectStore {
     return objects.save(object);
   }
 
+  /** Lists the share's objects ordered by alias. */
   @Transactional(readOnly = true)
   public List<SharedDataObjectEntity> list(ShareEntity share) {
     return objects.findByShareOrderBySharedAsSchemaAscSharedAsTableAsc(share);
   }
 
+  /** Removes the object shared under the alias. Fails unless it exists with the given type. */
   public void removeByAlias(
       ShareEntity share, AssetType type, String sharedAsSchema, String sharedAsTable) {
     String alias = sharedAsTable.isEmpty() ? sharedAsSchema : sharedAsSchema + "." + sharedAsTable;
@@ -86,6 +96,7 @@ public class SharedDataObjectStore {
     objects.delete(object);
   }
 
+  /** Removes the object by catalog name. Fails unless it exists with the given type. */
   public void removeByName(ShareEntity share, AssetType type, String name) {
     SharedDataObjectEntity object =
         objects.findByShareAndName(share, name).orElseThrow(() -> notIncluded(share, name));
@@ -93,6 +104,7 @@ public class SharedDataObjectStore {
     objects.delete(object);
   }
 
+  // An object of another type under the same name or alias counts as not included.
   private static void requireType(
       SharedDataObjectEntity object, AssetType type, ShareEntity share) {
     if (object.getType() != type) {

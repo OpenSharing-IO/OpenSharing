@@ -17,7 +17,10 @@ import jakarta.persistence.UniqueConstraint;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
-/** A catalog object included in a share under a recipient-visible alias. */
+/**
+ * A catalog object included in a share under a recipient-visible alias. A share may include each
+ * catalog object once and use each alias once. Rows are deleted with their share.
+ */
 @Entity
 @Table(
     name = "os_shared_data_objects",
@@ -29,14 +32,17 @@ import org.hibernate.annotations.OnDeleteAction;
     })
 public class SharedDataObjectEntity extends BaseEntity {
 
+  /** The owning share. Lazy because callers already hold the share they query by. */
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "share_id", nullable = false)
   @OnDelete(action = OnDeleteAction.CASCADE)
   private ShareEntity share;
 
+  /** The catalog's own stable id for the object, when the catalog reports one. */
   @Column(name = "source_asset_id", length = 255)
   private String sourceAssetId;
 
+  /** Full catalog name as the provider gave it, such as {@code main.sales.orders}. */
   @Column(nullable = false, length = 512)
   private String name;
 
@@ -44,13 +50,16 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Column(nullable = false, length = 32)
   private AssetType type;
 
+  /** The catalog's finer-grained kind, such as {@code MANAGED} or {@code EXTERNAL}. */
   @Column(name = "source_subtype", length = 64)
   private String sourceSubtype;
 
+  /** Data source format for tables, such as Delta; null for schemas. */
   @Enumerated(EnumType.STRING)
   @Column(name = "source_format", length = 32)
   private DataSourceFormat sourceFormat;
 
+  /** Lowercase schema name recipients see. */
   @Column(name = "shared_as_schema", nullable = false, length = 255)
   private String sharedAsSchema;
 
