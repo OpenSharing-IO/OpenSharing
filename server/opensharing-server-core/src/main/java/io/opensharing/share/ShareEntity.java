@@ -38,9 +38,10 @@ public class ShareEntity extends BaseEntity {
   @Column(name = "owner_id", nullable = false, length = 255)
   private String ownerId;
 
-  @Column(name = "created_by", nullable = false, length = 255)
-  private String createdBy;
-
+  /**
+   * User-defined key-value properties, one row per key in {@code os_share_properties}. Loaded
+   * eagerly because the share is read after the store's transaction has closed.
+   */
   @ElementCollection(fetch = FetchType.EAGER)
   @CollectionTable(
       name = "os_share_properties",
@@ -91,13 +92,5 @@ public class ShareEntity extends BaseEntity {
 
   public void setOwnerId(String ownerId) {
     this.ownerId = ownerId;
-  }
-
-  public String getCreatedBy() {
-    return createdBy;
-  }
-
-  public void setCreatedBy(String createdBy) {
-    this.createdBy = createdBy;
   }
 }

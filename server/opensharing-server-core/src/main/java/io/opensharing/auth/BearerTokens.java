@@ -3,7 +3,7 @@ package io.opensharing.auth;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Optional;
 
-/** Extracts RFC 6750 bearer tokens from requests. */
+/** Reads the bearer token from the {@code Authorization} header. */
 public final class BearerTokens {
 
   private static final String SCHEME = "Bearer ";

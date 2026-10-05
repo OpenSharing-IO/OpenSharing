@@ -10,7 +10,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Storage for shares. Names are stored lowercase and looked up case-insensitively. */
+/**
+ * Storage for shares. Names are stored lowercase and looked up case-insensitively. Each method runs
+ * in its own transaction, so returned entities are detached and must be fully loaded.
+ */
 @Service
 @Transactional
 public class ShareStore {
@@ -21,6 +24,10 @@ public class ShareStore {
     this.shares = shares;
   }
 
+  /**
+   * Creates a share owned by {@code author}. {@code name} must already be validated and lowercase.
+   * Fails with already-exists when the name is taken.
+   */
   public ShareEntity create(
       UserContext author,
       String name,
@@ -36,7 +43,6 @@ public class ShareStore {
     share.setComment(comment);
     share.setProperties(properties);
     share.setOwnerId(author.userId());
-    share.setCreatedBy(author.userId());
     return shares.save(share);
   }
 
@@ -60,17 +66,20 @@ public class ShareStore {
     return shares.save(share);
   }
 
+  /** Looks up a share by name in any case. */
   @Transactional(readOnly = true)
   public Optional<ShareEntity> find(String name) {
     return shares.findByName(ObjectNames.normalize(name));
   }
 
+  /** Like {@link #find}, but fails with not-found when the share does not exist. */
   @Transactional(readOnly = true)
   public ShareEntity require(String name) {
     return find(name)
         .orElseThrow(() -> ApiException.notFound("share '" + name + "' does not exist"));
   }
 
+  /** Like {@link #require}, but also fails unless {@code user} owns the share. */
   @Transactional(readOnly = true)
   public ShareEntity requireOwned(String name, UserContext user) {
     ShareEntity share = require(name);
@@ -78,11 +87,13 @@ public class ShareStore {
     return share;
   }
 
+  /** Lists all shares ordered by name, regardless of owner. */
   @Transactional(readOnly = true)
   public Page<ShareEntity> list(Pageable pageable) {
     return shares.findAllByOrderByNameAsc(pageable);
   }
 
+  /** Deletes a share. Only the owner may delete it. */
   public void delete(String name, UserContext user) {
     ShareEntity share = requireOwned(name, user);
     shares.delete(share);
