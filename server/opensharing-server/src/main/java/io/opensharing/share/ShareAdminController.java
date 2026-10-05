@@ -112,7 +112,7 @@ public class ShareAdminController {
     }
     AssetType type = requireType(dataObject.type());
     Alias alias = parseAlias(dataObject.sharedAs(), type, name);
-    ResolvedAsset resolved = catalog.resolveAsset(Asset.of(type, name), AuthContext.of(user));
+    ResolvedAsset resolved = catalog.resolveAsset(new Asset(type, name), AuthContext.of(user));
     if (resolved.type() != type) {
       throw new CatalogException(
           "catalog resolved '" + name + "' as " + resolved.type() + " instead of " + type);
