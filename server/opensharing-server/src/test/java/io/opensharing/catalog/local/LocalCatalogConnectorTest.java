@@ -21,6 +21,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
 import io.opensharing.catalog.TableProperties;
+import io.opensharing.catalog.TableSubtype;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.io.ByteArrayInputStream;
@@ -72,7 +73,8 @@ class LocalCatalogConnectorTest {
 
     assertEquals(TABLE1, asset.location().storageLocation());
     assertEquals(
-        new TableProperties("MANAGED", DataSourceFormat.DELTA), asset.additionalProperties());
+        new TableProperties(TableSubtype.MANAGED, DataSourceFormat.DELTA),
+        asset.additionalProperties());
   }
 
   @Test
@@ -482,4 +484,16 @@ class LocalCatalogConnectorTest {
     assertThrows(CatalogException.class, () -> connector(yaml));
   }
 
+  @Test
+  void rejectsUnsupportedTableSubtypeAtLoad() {
+    String yaml =
+        """
+        assets:
+          - identifier: main.sales.orders_view
+            subtype: VIEW
+            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+        """;
+
+    assertThrows(CatalogException.class, () -> connector(yaml));
+  }
 }
