@@ -3,11 +3,10 @@ package io.opensharing.catalog;
 /**
  * Table-only attributes of a {@link ResolvedAsset}.
  *
- * @param subtype the catalog's finer-grained kind of table, such as {@code MANAGED} or {@code
- *     EXTERNAL}
+ * @param subtype the catalog's kind of table; null when the catalog does not report one
  * @param dataSourceFormat the format OpenSharing needs to serve the table, such as Delta
  */
-public record TableProperties(String subtype, DataSourceFormat dataSourceFormat)
+public record TableProperties(TableSubtype subtype, DataSourceFormat dataSourceFormat)
     implements AdditionalProperties {
 
   @Override
