@@ -21,7 +21,6 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
 import io.opensharing.catalog.TableProperties;
-import io.opensharing.catalog.TableSubtype;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.io.ByteArrayInputStream;
@@ -48,7 +47,8 @@ class LocalCatalogConnectorTest {
           type: SCHEMA
         - identifier: main.sales.table1
           type: TABLE
-          subtype: MANAGED
+          attributes:
+            subtype: MANAGED
           storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
           format: delta
         - identifier: main.finance.ledger
@@ -73,7 +73,7 @@ class LocalCatalogConnectorTest {
 
     assertEquals(TABLE1, asset.location().storageLocation());
     assertEquals(
-        new TableProperties(TableSubtype.MANAGED, DataSourceFormat.DELTA),
+        new TableProperties(DataSourceFormat.DELTA, Map.of("subtype", "MANAGED")),
         asset.additionalProperties());
   }
 
@@ -212,13 +212,13 @@ class LocalCatalogConnectorTest {
                 new LocalCatalogFile.Asset(
                     "main.sales.table1",
                     AssetType.TABLE,
-                    "MANAGED",
                     TABLE1,
                     null,
                     "delta",
                     null,
                     List.of(),
-                    List.of())));
+                    List.of(),
+                    Map.of("subtype", "MANAGED"))));
 
     StorageCredentials credentials =
         new LocalCatalogConnector(file)
@@ -479,19 +479,6 @@ class LocalCatalogConnectorTest {
           - identifier: main.sales.orders
             storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
             format: orc
-        """;
-
-    assertThrows(CatalogException.class, () -> connector(yaml));
-  }
-
-  @Test
-  void rejectsUnsupportedTableSubtypeAtLoad() {
-    String yaml =
-        """
-        assets:
-          - identifier: main.sales.orders_view
-            subtype: VIEW
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
         """;
 
     assertThrows(CatalogException.class, () -> connector(yaml));

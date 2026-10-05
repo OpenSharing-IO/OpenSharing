@@ -3,7 +3,6 @@ package io.opensharing.catalog.local;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.DataSourceFormat;
-import io.opensharing.catalog.TableSubtype;
 import java.util.List;
 import java.util.Map;
 
@@ -46,13 +45,13 @@ public record LocalCatalogFile(
   public record Asset(
       String identifier,
       AssetType type,
-      String subtype,
       String storageLocation,
       String metadataLocation,
       String format,
       String catalogAssetId,
       List<String> auxiliaryLocations,
-      List<String> sharableBy) {
+      List<String> sharableBy,
+      Map<String, String> attributes) {
 
     public Asset {
       if (identifier == null || identifier.isBlank()) {
@@ -61,10 +60,8 @@ public record LocalCatalogFile(
       type = type == null ? AssetType.TABLE : type;
       auxiliaryLocations = auxiliaryLocations == null ? List.of() : List.copyOf(auxiliaryLocations);
       sharableBy = sharableBy == null ? List.of() : List.copyOf(sharableBy);
+      attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
       DataSourceFormat.fromWireName(format);
-      if (type == AssetType.TABLE) {
-        TableSubtype.parse(subtype);
-      }
     }
   }
 }

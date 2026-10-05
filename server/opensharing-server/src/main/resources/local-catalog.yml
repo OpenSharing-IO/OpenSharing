@@ -18,6 +18,7 @@ assets:
     type: SCHEMA
 
   - identifier: main.sales.table1
-    subtype: MANAGED
+    attributes:
+      subtype: MANAGED
     storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
     format: delta
