@@ -3,6 +3,7 @@ package io.opensharing.catalog;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class ResolvedAssetTest {
@@ -15,7 +16,7 @@ class ResolvedAssetTest {
         IllegalArgumentException.class,
         () ->
             ResolvedAsset.builder(AssetType.SCHEMA, "main.sales")
-                .additionalProperties(new TableProperties(TableSubtype.MANAGED, DataSourceFormat.DELTA))
+                .additionalProperties(new TableProperties(DataSourceFormat.DELTA, Map.of()))
                 .build());
   }
 }
