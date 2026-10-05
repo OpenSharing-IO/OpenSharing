@@ -8,13 +8,14 @@ import org.junit.jupiter.api.Test;
 class ResolvedAssetTest {
 
   @Test
-  void onlyTablesHaveAFormat() {
-    assertNull(ResolvedAsset.builder(AssetType.SCHEMA, "main.sales").build().dataSourceFormat());
+  void onlyTablesHaveTableProperties() {
+    assertNull(
+        ResolvedAsset.builder(AssetType.SCHEMA, "main.sales").build().additionalProperties());
     assertThrows(
         IllegalArgumentException.class,
         () ->
             ResolvedAsset.builder(AssetType.SCHEMA, "main.sales")
-                .dataSourceFormat(DataSourceFormat.DELTA)
+                .additionalProperties(new TableProperties("MANAGED", DataSourceFormat.DELTA))
                 .build());
   }
 }
