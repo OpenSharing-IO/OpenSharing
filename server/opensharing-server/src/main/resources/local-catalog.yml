@@ -25,6 +25,7 @@ assets:
 
   - identifier: main.sales.orders
     type: TABLE
-    subtype: MANAGED
+    attributes:
+      subtype: MANAGED
     storageLocation: s3://test/main.sales.orders/
     format: delta
