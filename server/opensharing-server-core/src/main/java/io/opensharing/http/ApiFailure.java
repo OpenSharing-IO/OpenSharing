@@ -1,10 +1,13 @@
 package io.opensharing.http;
 
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.CatalogAuthenticationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
+import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -59,9 +62,7 @@ public record ApiFailure(HttpStatus status, String errorCode, String message) {
               HttpStatus.BAD_REQUEST,
               ErrorCodes.INVALID_PARAMETER_VALUE,
               missing.getParameterName() + " is required");
-      case HttpMessageNotReadableException ignored ->
-          new ApiFailure(
-              HttpStatus.BAD_REQUEST, ErrorCodes.MALFORMED_REQUEST, "request body is malformed");
+      case HttpMessageNotReadableException unreadable -> describe(unreadable);
       case DataIntegrityViolationException conflict -> {
         log.debug("Rejected request that violated a uniqueness constraint", conflict);
         yield new ApiFailure(
@@ -95,6 +96,34 @@ public record ApiFailure(HttpStatus status, String errorCode, String message) {
         .findFirst()
         .map(error -> error.getField() + " " + error.getDefaultMessage())
         .orElse("request validation failed");
+  }
+
+  /** An unknown enum value is a bad parameter, not a malformed body. */
+  private static ApiFailure describe(HttpMessageNotReadableException unreadable) {
+    if (unreadable.getCause() instanceof InvalidFormatException invalid
+        && invalid.getTargetType() != null
+        && invalid.getTargetType().isEnum()) {
+      return new ApiFailure(
+          HttpStatus.BAD_REQUEST,
+          ErrorCodes.INVALID_PARAMETER_VALUE,
+          fieldPath(invalid)
+              + " must be one of "
+              + Arrays.toString(invalid.getTargetType().getEnumConstants()));
+    }
+    return new ApiFailure(
+        HttpStatus.BAD_REQUEST, ErrorCodes.MALFORMED_REQUEST, "request body is malformed");
+  }
+
+  private static String fieldPath(InvalidFormatException invalid) {
+    StringBuilder path = new StringBuilder();
+    for (JsonMappingException.Reference reference : invalid.getPath()) {
+      if (reference.getFieldName() != null) {
+        path.append(path.isEmpty() ? "" : ".").append(reference.getFieldName());
+      } else {
+        path.append('[').append(reference.getIndex()).append(']');
+      }
+    }
+    return path.isEmpty() ? "value" : path.toString();
   }
 
   private static String describe(MethodArgumentTypeMismatchException mistyped) {
