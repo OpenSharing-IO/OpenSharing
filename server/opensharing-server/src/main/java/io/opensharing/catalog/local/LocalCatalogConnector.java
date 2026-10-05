@@ -140,7 +140,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
   public List<StorageCredentials> getStorageCredentials(
       CredentialRequest request, AuthContext auth) {
     LocalCatalogFile.Asset asset =
-        requireAsset(Asset.of(request.assetType(), request.assetFullName()), auth);
+        requireAsset(new Asset(request.assetType(), request.assetFullName()), auth);
     String location = request.storageLocation();
     if (location == null || location.isBlank()) {
       location = asset.storageLocation();
