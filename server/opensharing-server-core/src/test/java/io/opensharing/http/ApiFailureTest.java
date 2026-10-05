@@ -24,7 +24,7 @@ class ApiFailureTest {
 
   @Test
   void mapsCatalogMissesAndDenials() {
-    Asset lookup = Asset.of(AssetType.TABLE, "main.sales.missing");
+    Asset lookup = new Asset(AssetType.TABLE, "main.sales.missing");
     ApiFailure missing = ApiFailure.of(new AssetNotFoundException(lookup));
     assertEquals(HttpStatus.NOT_FOUND, missing.status());
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, missing.errorCode());
