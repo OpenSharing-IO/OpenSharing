@@ -8,6 +8,7 @@ import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.catalog.TableProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,10 +28,11 @@ class CatalogConfigurationTest {
     UserContext user = UserContext.fromUserIdAndName("alice@example.com", "alice@example.com");
 
     assertEquals("local", catalog.name());
-    assertEquals(
-        DataSourceFormat.DELTA,
-        catalog
-            .resolveAsset(new Asset(AssetType.TABLE, "main.sales.table1"), AuthContext.of(user))
-            .dataSourceFormat());
+    TableProperties table =
+        (TableProperties)
+            catalog
+                .resolveAsset(new Asset(AssetType.TABLE, "main.sales.table1"), AuthContext.of(user))
+                .additionalProperties();
+    assertEquals(DataSourceFormat.DELTA, table.dataSourceFormat());
   }
 }
