@@ -16,6 +16,7 @@ import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
+import io.opensharing.catalog.TableProperties;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.security.SecureRandom;
@@ -128,14 +129,17 @@ public final class LocalCatalogConnector implements CatalogConnector {
 
   private static ResolvedAsset resolved(LocalCatalogFile.Asset asset) {
     return ResolvedAsset.builder(asset.type(), asset.identifier())
-        .subtype(asset.subtype())
         .catalogAssetId(asset.catalogAssetId() != null ? asset.catalogAssetId() : asset.identifier())
         .location(
             new AssetLocation(
                 asset.storageLocation(),
                 asset.metadataLocation(),
                 asset.auxiliaryLocations()))
-        .dataSourceFormat(DataSourceFormat.fromWireName(asset.format()))
+        .additionalProperties(
+            asset.type() == AssetType.TABLE
+                ? new TableProperties(
+                    asset.subtype(), DataSourceFormat.fromWireName(asset.format()))
+                : null)
         .build();
   }
 

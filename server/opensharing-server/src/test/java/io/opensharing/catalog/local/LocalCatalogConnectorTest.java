@@ -20,6 +20,7 @@ import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
+import io.opensharing.catalog.TableProperties;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.io.ByteArrayInputStream;
@@ -70,8 +71,8 @@ class LocalCatalogConnectorTest {
     ResolvedAsset asset = resolve(CATALOG, "main.sales.table1", ALICE);
 
     assertEquals(TABLE1, asset.location().storageLocation());
-    assertEquals(DataSourceFormat.DELTA, asset.dataSourceFormat());
-    assertEquals("MANAGED", asset.subtype());
+    assertEquals(
+        new TableProperties("MANAGED", DataSourceFormat.DELTA), asset.additionalProperties());
   }
 
   @Test
@@ -79,7 +80,8 @@ class LocalCatalogConnectorTest {
     ResolvedAsset asset = resolve(CATALOG, "main.finance.ledger", ALICE);
 
     assertEquals(AssetType.TABLE, asset.type());
-    assertEquals(DataSourceFormat.DELTA, asset.dataSourceFormat());
+    TableProperties table = (TableProperties) asset.additionalProperties();
+    assertEquals(DataSourceFormat.DELTA, table.dataSourceFormat());
   }
 
   @Test
