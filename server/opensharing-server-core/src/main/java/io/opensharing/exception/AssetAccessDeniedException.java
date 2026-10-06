@@ -17,6 +17,6 @@ public class AssetAccessDeniedException extends CatalogException {
     if (user != null && user.userId() != null) {
       return "'" + user.userId() + "'";
     }
-    return "the calling user";
+    return "The calling user";
   }
 }
