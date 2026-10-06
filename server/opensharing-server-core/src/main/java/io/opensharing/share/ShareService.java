@@ -109,6 +109,7 @@ public class ShareService {
   @GetMapping("/{share}/permissions")
   public ListResponse<SharePermissionResponse> listPermissions(
       UserContext user, @PathVariable String share) {
+    // TODO: page with maxResults and pageToken.
     return ListResponse.of(
         permissions.list(shares.require(share)).stream()
             .map(SharePermissionResponse::from)
