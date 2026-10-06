@@ -130,11 +130,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
   private static ResolvedAsset resolved(LocalCatalogFile.Asset asset) {
     return ResolvedAsset.builder(asset.type(), asset.identifier())
         .catalogAssetId(asset.catalogAssetId() != null ? asset.catalogAssetId() : asset.identifier())
-        .location(
-            new AssetLocation(
-                asset.storageLocation(),
-                asset.metadataLocation(),
-                asset.auxiliaryLocations()))
+        .location(new AssetLocation(asset.storageLocation(), asset.auxiliaryLocations()))
         .additionalProperties(
             asset.type() == AssetType.TABLE
                 ? new TableProperties(

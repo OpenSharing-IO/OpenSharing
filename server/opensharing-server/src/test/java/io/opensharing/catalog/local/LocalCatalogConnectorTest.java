@@ -213,7 +213,6 @@ class LocalCatalogConnectorTest {
                     "main.sales.table1",
                     AssetType.TABLE,
                     TABLE1,
-                    null,
                     "delta",
                     null,
                     List.of(),

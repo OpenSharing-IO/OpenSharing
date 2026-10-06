@@ -46,7 +46,6 @@ public record LocalCatalogFile(
       String identifier,
       AssetType type,
       String storageLocation,
-      String metadataLocation,
       String format,
       String catalogAssetId,
       List<String> auxiliaryLocations,
