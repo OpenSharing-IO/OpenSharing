@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import io.opensharing.auth.TokenHashes;
 import io.opensharing.http.ErrorCodes;
+import jakarta.persistence.EntityManager;
 import java.net.URI;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,8 +35,7 @@ class ActivationControllerTest {
   private static final String RECIPIENTS = "/api/1.0/opensharing/provider/recipients";
 
   @Autowired private MockMvc mvc;
-  @Autowired private RecipientRepository recipients;
-  @Autowired private RecipientTokenRepository tokens;
+  @Autowired private EntityManager entityManager;
 
   @Test
   void unknownActivationCodeIsNotFound() throws Exception {
@@ -78,10 +78,7 @@ class ActivationControllerTest {
             .getResponse()
             .getContentAsString();
     String bearer = JsonPath.read(profile, "$.bearerToken");
-    RecipientTokenEntity stored =
-        tokens
-            .findFirstByRecipientOrderByCreatedAtDesc(recipients.findByName("acme").orElseThrow())
-            .orElseThrow();
+    RecipientTokenEntity stored = newestToken("acme");
     assertNull(stored.getActivationCode());
     assertTrue(stored.isActivated());
     assertEquals(TokenHashes.sha256(bearer), stored.getTokenHash());
@@ -98,4 +95,14 @@ class ActivationControllerTest {
         .andExpect(jsonPath("$.activationUrl").doesNotExist());
   }
 
+  private RecipientTokenEntity newestToken(String recipient) {
+    return entityManager
+        .createQuery(
+            "select t from RecipientTokenEntity t where t.recipient.name = :name"
+                + " order by t.createdAt desc",
+            RecipientTokenEntity.class)
+        .setParameter("name", recipient)
+        .setMaxResults(1)
+        .getSingleResult();
+  }
 }

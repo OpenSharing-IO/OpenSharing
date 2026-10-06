@@ -1,5 +1,6 @@
 package io.opensharing.config;
 
+import io.opensharing.recipient.RecipientTokenSettings;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -73,10 +74,10 @@ public class OpenSharingProperties {
   public static class RecipientTokens {
 
     /** Lifetime of a new token when the request does not set one. */
-    private Duration defaultTtl = Duration.ofDays(90);
+    private Duration defaultTtl = RecipientTokenSettings.DEFAULTS.defaultTtl();
 
     /** How long replaced tokens keep working after a rotation that does not set one. */
-    private Duration rotationGrace = Duration.ZERO;
+    private Duration rotationGrace = RecipientTokenSettings.DEFAULTS.rotationGrace();
 
     public Duration getDefaultTtl() {
       return defaultTtl;
