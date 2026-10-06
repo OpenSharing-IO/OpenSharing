@@ -1,7 +1,14 @@
 package io.opensharing.share;
 
 import io.opensharing.ObjectNames;
+import io.opensharing.asset.SharedDataObjectStore;
+import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
+import io.opensharing.catalog.Asset;
+import io.opensharing.catalog.AssetType;
+import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import java.util.Map;
@@ -13,9 +20,13 @@ import java.util.Map;
 public class ShareService {
 
   private final ShareStore shares;
+  private final SharedDataObjectStore objects;
+  private final CatalogConnector catalog;
 
-  public ShareService(ShareStore shares) {
+  public ShareService(ShareStore shares, SharedDataObjectStore objects, CatalogConnector catalog) {
     this.shares = shares;
+    this.objects = objects;
+    this.catalog = catalog;
   }
 
   /** Creates a share owned by {@code user}. */
@@ -35,25 +46,109 @@ public class ShareService {
     return ListResponse.of(shares.list().stream().map(ShareResponse::from).toList());
   }
 
-  /** Gets a share by name in any case. */
-  public ShareResponse get(String share) {
-    return ShareResponse.from(shares.require(share));
+  /** Gets a share by name in any case, with the objects in it when {@code includeSharedData}. */
+  public ShareResponse get(String share, boolean includeSharedData) {
+    ShareEntity entity = shares.require(share);
+    return includeSharedData
+        ? ShareResponse.from(entity, objects.list(entity))
+        : ShareResponse.from(entity);
   }
 
-  /** Updates the fields set in {@code request}. Owner only. */
+  /**
+   * Applies the object adds and removes in order, then updates the fields set in {@code request}.
+   * Owner only.
+   */
   public ShareResponse update(UserContext user, String share, UpdateShareRequest request) {
+    ShareEntity entity = shares.requireOwned(share, user);
+    Map<String, String> properties = validateProperties(request.properties());
+    for (UpdateShareRequest.Update update : request.updates()) {
+      if (update == null || update.action() == null) {
+        throw ApiException.invalidParameter("updates.action is required");
+      }
+      if (update.dataObject() == null) {
+        throw ApiException.invalidParameter("updates.dataObject is required");
+      }
+      switch (update.action()) {
+        case ADD -> addObject(entity, user, update.dataObject());
+        case REMOVE -> removeObject(entity, update.dataObject());
+      }
+    }
     return ShareResponse.from(
         shares.update(
-            user,
-            share,
-            request.displayName(),
-            request.comment(),
-            validateProperties(request.properties())));
+            user, share, request.displayName(), request.comment(), properties));
   }
 
   /** Deletes the share. Owner only. */
   public void delete(UserContext user, String share) {
     shares.delete(share, user);
+  }
+
+  // Resolves the object in the catalog on behalf of the caller and checks the declared type.
+  private void addObject(
+      ShareEntity share, UserContext user, UpdateShareRequest.DataObject dataObject) {
+    String name = requireText(dataObject.name(), "dataObject.name");
+    if (name.length() > 512) {
+      throw ApiException.invalidParameter("dataObject.name must not exceed 512 characters");
+    }
+    AssetType type = requireType(dataObject.type());
+    Alias alias = parseAlias(dataObject.sharedAs(), type, name);
+    ResolvedAsset resolved = catalog.resolveAsset(new Asset(type, name), AuthContext.of(user));
+    if (resolved.type() != type) {
+      throw new CatalogException(
+          "catalog resolved '" + name + "' as " + resolved.type() + " instead of " + type);
+    }
+    objects.add(share, name, type, resolved, alias.schema(), alias.table());
+  }
+
+  // Removes by alias when sharedAs is given, otherwise by catalog name.
+  private void removeObject(ShareEntity share, UpdateShareRequest.DataObject dataObject) {
+    AssetType type = requireType(dataObject.type());
+    if (dataObject.sharedAs() != null && !dataObject.sharedAs().isBlank()) {
+      Alias alias = parseAlias(dataObject.sharedAs(), type, null);
+      objects.removeByAlias(share, type, alias.schema(), alias.table());
+    } else {
+      objects.removeByName(
+          share, type, requireText(dataObject.name(), "dataObject.name or dataObject.sharedAs"));
+    }
+  }
+
+  /**
+   * Lowercased {@code sharedAs}, or {@code name} if omitted; catalog prefix is dropped.
+   *
+   * <p>{@code Main.Sales.Orders} (TABLE) → {@code sales} / {@code orders}. {@code Main.Sales}
+   * (SCHEMA) → {@code sales}. {@code Sales.Orders} (TABLE) → {@code sales} / {@code orders}.
+   */
+  private static Alias parseAlias(String sharedAs, AssetType type, String name) {
+    String raw = sharedAs == null || sharedAs.isBlank() ? name : sharedAs;
+    if (raw == null || raw.isBlank()) {
+      throw ApiException.invalidParameter("dataObject.sharedAs is required");
+    }
+    raw = ObjectNames.normalize(raw);
+    String[] parts = raw.split("\\.", -1);
+    if (type == AssetType.SCHEMA) {
+      return new Alias(ObjectNames.validateSchemaName(parts[parts.length - 1]), "");
+    }
+    if (parts.length < 2) {
+      throw ApiException.invalidParameter(
+          "dataObject.sharedAs must have at least 2 dot-separated names");
+    }
+    return new Alias(
+        ObjectNames.validateSchemaName(parts[parts.length - 2]),
+        ObjectNames.validateAssetName(parts[parts.length - 1]));
+  }
+
+  private static AssetType requireType(AssetType type) {
+    if (type == null) {
+      throw ApiException.invalidParameter("dataObject.type is required");
+    }
+    return type;
+  }
+
+  private static String requireText(String value, String field) {
+    if (value == null || value.isBlank()) {
+      throw ApiException.invalidParameter(field + " is required");
+    }
+    return value;
   }
 
   private static Map<String, String> validateProperties(Map<String, String> properties) {
@@ -67,4 +162,6 @@ public class ShareService {
     }
     return properties;
   }
+
+  private record Alias(String schema, String table) {}
 }
