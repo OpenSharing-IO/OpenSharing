@@ -39,10 +39,6 @@ server:
 opensharing:
   # Prefix the protocol-serving endpoints are mounted under; this is what goes in a profile file.
   protocol-prefix: /api/1.0/opensharing
-  hosting:
-    # standalone: run as its own Spring Boot process.
-    # embedded: a host application registers an OpenSharing server inside its own process.
-    mode: standalone
   asset-credentials:
     # Lifetime of the cloud credentials the catalog vends for reading an asset's storage.
     ttl: 1h
