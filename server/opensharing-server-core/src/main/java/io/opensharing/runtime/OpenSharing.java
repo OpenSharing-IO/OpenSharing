@@ -5,6 +5,7 @@ import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.recipient.RecipientService;
 import io.opensharing.recipient.RecipientStore;
+import io.opensharing.recipient.RecipientTokenSettings;
 import io.opensharing.share.SharePermissionStore;
 import io.opensharing.share.ShareService;
 import io.opensharing.share.ShareStore;
@@ -20,7 +21,8 @@ public final class OpenSharing {
   private final ShareService shares;
   private final RecipientService recipients;
 
-  private OpenSharing(CatalogConnector catalog, Transactions tx) {
+  private OpenSharing(
+      CatalogConnector catalog, Transactions tx, RecipientTokenSettings recipientTokens) {
     this.catalog = catalog;
     RecipientStore recipientStore = new RecipientStore(tx);
     this.shares =
@@ -30,7 +32,7 @@ public final class OpenSharing {
             new SharePermissionStore(tx),
             recipientStore,
             catalog);
-    this.recipients = new RecipientService(recipientStore);
+    this.recipients = new RecipientService(recipientStore, recipientTokens);
   }
 
   public static Builder builder() {
@@ -53,6 +55,7 @@ public final class OpenSharing {
 
     private CatalogConnector catalog;
     private Transactions transactions;
+    private RecipientTokenSettings recipientTokens = RecipientTokenSettings.DEFAULTS;
 
     private Builder() {}
 
@@ -68,6 +71,12 @@ public final class OpenSharing {
       return this;
     }
 
+    /** Lifetimes of issued recipient tokens, {@link RecipientTokenSettings#DEFAULTS} if unset. */
+    public Builder recipientTokens(RecipientTokenSettings recipientTokens) {
+      this.recipientTokens = recipientTokens;
+      return this;
+    }
+
     public OpenSharing build() {
       if (catalog == null) {
         throw new IllegalStateException("OpenSharing requires a CatalogConnector from the host");
@@ -75,7 +84,7 @@ public final class OpenSharing {
       if (transactions == null) {
         throw new IllegalStateException("OpenSharing requires Transactions from the host");
       }
-      return new OpenSharing(catalog, transactions);
+      return new OpenSharing(catalog, transactions, recipientTokens);
     }
   }
 }

@@ -9,8 +9,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 /**
  * A recipient credential. Its activation code is plaintext until redeemed; only the bearer hash is
@@ -27,7 +25,7 @@ import org.hibernate.annotations.OnDeleteAction;
     })
 public class RecipientTokenEntity extends BaseEntity {
 
-  /** The recipient the token belongs to. Tokens are deleted with their recipient. */
+  /** The recipient the token belongs to. {@code RecipientStore} deletes tokens with it. */
   @ManyToOne(fetch = FetchType.EAGER, optional = false)
   @JoinColumn(name = "recipient_id", nullable = false)
   private RecipientEntity recipient;
