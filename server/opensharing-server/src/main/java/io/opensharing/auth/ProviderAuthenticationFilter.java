@@ -11,7 +11,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -72,13 +71,13 @@ public class ProviderAuthenticationFilter extends OncePerRequestFilter {
   // RFC 9110 requires a 401 to name the expected scheme in WWW-Authenticate.
   private void reject(HttpServletResponse response, String message) throws IOException {
     response.setHeader("WWW-Authenticate", "Bearer");
-    write(response, HttpStatus.UNAUTHORIZED, ErrorCodes.UNAUTHENTICATED, message);
+    write(response, HttpServletResponse.SC_UNAUTHORIZED, ErrorCodes.UNAUTHENTICATED, message);
   }
 
   private void write(
-      HttpServletResponse response, HttpStatus status, String errorCode, String message)
+      HttpServletResponse response, int status, String errorCode, String message)
       throws IOException {
-    response.setStatus(status.value());
+    response.setStatus(status);
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
     objectMapper.writeValue(response.getOutputStream(), new ErrorResponse(errorCode, message));
   }

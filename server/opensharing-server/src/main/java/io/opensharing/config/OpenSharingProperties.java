@@ -6,13 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "opensharing")
 public class OpenSharingProperties {
 
-  private final Hosting hosting = new Hosting();
   private final Provider provider = new Provider();
   private final Catalog catalog = new Catalog();
-
-  public Hosting getHosting() {
-    return hosting;
-  }
 
   public Provider getProvider() {
     return provider;
@@ -31,25 +26,6 @@ public class OpenSharingProperties {
     return value != null && value.length() > 1 && value.endsWith("/")
         ? value.substring(0, value.length() - 1)
         : value;
-  }
-
-  /** Standalone process vs embedded in a host. */
-  public static class Hosting {
-
-    public enum Mode {
-      STANDALONE,
-      EMBEDDED
-    }
-
-    private Mode mode = Mode.STANDALONE;
-
-    public Mode getMode() {
-      return mode;
-    }
-
-    public void setMode(Mode mode) {
-      this.mode = mode;
-    }
   }
 
   /** Provider-admin HTTP surface. */

@@ -1,10 +1,8 @@
 package io.opensharing.share;
 
-import io.opensharing.ObjectNames;
-import io.opensharing.http.ListResponse;
 import io.opensharing.auth.UserContext;
-import jakarta.validation.Valid;
-import org.springframework.data.domain.Pageable;
+import io.opensharing.http.ListResponse;
+import io.opensharing.runtime.OpenSharing;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,54 +23,42 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("${opensharing.provider.base-path}/shares")
 public class ShareAdminController {
 
-  private final ShareStore shares;
+  private final ShareService shares;
 
-  public ShareAdminController(ShareStore shares) {
-    this.shares = shares;
+  public ShareAdminController(OpenSharing openSharing) {
+    this.shares = openSharing.shares();
   }
 
   /** {@code POST /shares}: creates a share owned by the caller. Needs CREATE_SHARE. */
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
-  public ShareResponse create(UserContext user, @Valid @RequestBody CreateShareRequest request) {
-    return ShareResponse.from(
-        shares.create(
-            user,
-            ObjectNames.validateShareName(request.name()),
-            request.displayName(),
-            request.comment(),
-            request.properties()));
+  public ShareResponse create(UserContext user, @RequestBody CreateShareRequest request) {
+    return shares.create(user, request);
   }
 
   /** {@code GET /shares}: lists every share by name, unpaged. */
   @GetMapping
   public ListResponse<ShareResponse> list(UserContext user) {
-    // TODO: page with maxResults and pageToken.
-    return ListResponse.of(
-        shares.list(Pageable.unpaged()).stream().map(ShareResponse::from).toList());
+    return shares.list();
   }
 
   /** {@code GET /shares/{share}}: gets a share by name in any case. */
   @GetMapping("/{share}")
   public ShareResponse get(UserContext user, @PathVariable String share) {
-    return ShareResponse.from(shares.require(share));
+    return shares.get(share);
   }
 
   /** {@code PATCH /shares/{share}}: updates the fields set in the body. Owner only. */
   @PatchMapping("/{share}")
   public ShareResponse update(
-      UserContext user,
-      @PathVariable String share,
-      @Valid @RequestBody UpdateShareRequest request) {
-    return ShareResponse.from(
-        shares.update(
-            user, share, request.displayName(), request.comment(), request.properties()));
+      UserContext user, @PathVariable String share, @RequestBody UpdateShareRequest request) {
+    return shares.update(user, share, request);
   }
 
   /** {@code DELETE /shares/{share}}: deletes the share. Owner only. */
   @DeleteMapping("/{share}")
   public ResponseEntity<Void> delete(UserContext user, @PathVariable String share) {
-    shares.delete(share, user);
+    shares.delete(user, share);
     return ResponseEntity.noContent().build();
   }
 }
