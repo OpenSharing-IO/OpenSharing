@@ -47,6 +47,7 @@ public class ShareAdminController {
   /** {@code GET /shares}: lists every share by name, unpaged. */
   @GetMapping
   public ListResponse<ShareResponse> list(UserContext user) {
+    // TODO: page with maxResults and pageToken.
     return ListResponse.of(
         shares.list(Pageable.unpaged()).stream().map(ShareResponse::from).toList());
   }
