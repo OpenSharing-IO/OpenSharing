@@ -1,5 +1,6 @@
 package io.opensharing.http;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import io.opensharing.exception.AssetAccessDeniedException;
@@ -7,20 +8,16 @@ import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.CatalogAuthenticationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
+import java.sql.SQLException;
 import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.MissingServletRequestParameterException;
-import org.springframework.web.method.annotation.HandlerMethodValidationException;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-/** Maps a failure to an HTTP status, protocol error code, and caller-facing message. */
-public record ApiFailure(HttpStatus status, String errorCode, String message) {
+/**
+ * Maps a failure to an HTTP status, protocol error code, and caller-facing message. Hosts map
+ * their own framework's failures first and pass everything else here.
+ */
+public record ApiFailure(int status, String errorCode, String message) {
 
   private static final Logger log = LoggerFactory.getLogger(ApiFailure.class);
 
@@ -29,89 +26,52 @@ public record ApiFailure(HttpStatus status, String errorCode, String message) {
       case ApiException api ->
           new ApiFailure(api.getStatus(), api.getErrorCode(), api.getMessage());
       case AssetNotFoundException missing ->
-          new ApiFailure(
-              HttpStatus.NOT_FOUND, ErrorCodes.RESOURCE_DOES_NOT_EXIST, missing.getMessage());
+          new ApiFailure(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, missing.getMessage());
       case AssetAccessDeniedException denied ->
-          new ApiFailure(HttpStatus.FORBIDDEN, ErrorCodes.PERMISSION_DENIED, denied.getMessage());
+          new ApiFailure(403, ErrorCodes.PERMISSION_DENIED, denied.getMessage());
       case UnsupportedAssetTypeException unsupported ->
-          new ApiFailure(
-              HttpStatus.BAD_REQUEST,
-              ErrorCodes.INVALID_PARAMETER_VALUE,
-              unsupported.getMessage());
+          new ApiFailure(400, ErrorCodes.INVALID_PARAMETER_VALUE, unsupported.getMessage());
       case CatalogAuthenticationException rejected -> {
         log.error("The sharing server could not authenticate to the catalog", rejected);
         yield new ApiFailure(
-            HttpStatus.BAD_GATEWAY,
+            502,
             ErrorCodes.CATALOG_ERROR,
             "the sharing server could not authenticate to the catalog");
       }
       case CatalogException failed -> {
         log.error("Catalog request failed", failed);
-        yield new ApiFailure(
-            HttpStatus.BAD_GATEWAY, ErrorCodes.CATALOG_ERROR, failed.getMessage());
+        yield new ApiFailure(502, ErrorCodes.CATALOG_ERROR, failed.getMessage());
       }
-      case MethodArgumentNotValidException invalid ->
-          new ApiFailure(
-              HttpStatus.BAD_REQUEST, ErrorCodes.INVALID_PARAMETER_VALUE, describe(invalid));
-      case HandlerMethodValidationException ignored -> validationFailed();
-      case MethodArgumentTypeMismatchException mistyped ->
-          new ApiFailure(
-              HttpStatus.BAD_REQUEST, ErrorCodes.INVALID_PARAMETER_VALUE, describe(mistyped));
-      case MissingServletRequestParameterException missing ->
-          new ApiFailure(
-              HttpStatus.BAD_REQUEST,
-              ErrorCodes.INVALID_PARAMETER_VALUE,
-              missing.getParameterName() + " is required");
-      case HttpMessageNotReadableException unreadable -> describe(unreadable);
-      case DataIntegrityViolationException conflict -> {
-        log.debug("Rejected request that violated a uniqueness constraint", conflict);
-        yield new ApiFailure(
-            HttpStatus.CONFLICT,
-            ErrorCodes.RESOURCE_ALREADY_EXISTS,
-            "the object already exists or conflicts with an existing object");
-      }
-      case NoResourceFoundException ignored ->
-          new ApiFailure(
-              HttpStatus.NOT_FOUND,
-              ErrorCodes.RESOURCE_DOES_NOT_EXIST,
-              "the endpoint does not exist");
+      case JsonProcessingException unreadable -> describe(unreadable);
       case IllegalArgumentException illegal ->
-          new ApiFailure(
-              HttpStatus.BAD_REQUEST, ErrorCodes.INVALID_PARAMETER_VALUE, illegal.getMessage());
+          new ApiFailure(400, ErrorCodes.INVALID_PARAMETER_VALUE, illegal.getMessage());
       default -> {
+        if (violatesConstraint(e)) {
+          log.debug("Rejected request that violated a uniqueness constraint", e);
+          yield new ApiFailure(
+              409,
+              ErrorCodes.RESOURCE_ALREADY_EXISTS,
+              "the object already exists or conflicts with an existing object");
+        }
         log.error("Unhandled server error", e);
-        yield new ApiFailure(
-            HttpStatus.INTERNAL_SERVER_ERROR, ErrorCodes.INTERNAL_ERROR, "internal server error");
+        yield new ApiFailure(500, ErrorCodes.INTERNAL_ERROR, "internal server error");
       }
     };
   }
 
-  private static ApiFailure validationFailed() {
-    return new ApiFailure(
-        HttpStatus.BAD_REQUEST, ErrorCodes.INVALID_PARAMETER_VALUE, "request validation failed");
-  }
-
-  private static String describe(MethodArgumentNotValidException invalid) {
-    return invalid.getBindingResult().getFieldErrors().stream()
-        .findFirst()
-        .map(error -> error.getField() + " " + error.getDefaultMessage())
-        .orElse("request validation failed");
-  }
-
   /** An unknown enum value is a bad parameter, not a malformed body. */
-  private static ApiFailure describe(HttpMessageNotReadableException unreadable) {
-    if (unreadable.getCause() instanceof InvalidFormatException invalid
+  private static ApiFailure describe(JsonProcessingException unreadable) {
+    if (unreadable instanceof InvalidFormatException invalid
         && invalid.getTargetType() != null
         && invalid.getTargetType().isEnum()) {
       return new ApiFailure(
-          HttpStatus.BAD_REQUEST,
+          400,
           ErrorCodes.INVALID_PARAMETER_VALUE,
           fieldPath(invalid)
               + " must be one of "
               + Arrays.toString(invalid.getTargetType().getEnumConstants()));
     }
-    return new ApiFailure(
-        HttpStatus.BAD_REQUEST, ErrorCodes.MALFORMED_REQUEST, "request body is malformed");
+    return new ApiFailure(400, ErrorCodes.MALFORMED_REQUEST, "request body is malformed");
   }
 
   private static String fieldPath(InvalidFormatException invalid) {
@@ -126,11 +86,16 @@ public record ApiFailure(HttpStatus status, String errorCode, String message) {
     return path.isEmpty() ? "value" : path.toString();
   }
 
-  private static String describe(MethodArgumentTypeMismatchException mistyped) {
-    Class<?> wanted = mistyped.getRequiredType();
-    boolean numeric = wanted == Integer.class || wanted == Long.class;
-    return numeric
-        ? mistyped.getName() + " must be a number"
-        : mistyped.getName() + " is not a valid value";
+  // SQLSTATE class 23 is an integrity constraint violation in every database. Hosts wrap it in
+  // their own persistence exceptions, so look for it anywhere in the cause chain.
+  private static boolean violatesConstraint(Throwable e) {
+    for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+      if (cause instanceof SQLException sql
+          && sql.getSQLState() != null
+          && sql.getSQLState().startsWith("23")) {
+        return true;
+      }
+    }
+    return false;
   }
 }
