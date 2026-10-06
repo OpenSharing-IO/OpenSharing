@@ -62,6 +62,7 @@ public class RecipientAdminController {
   /** {@code GET /recipients}: lists every recipient by name, unpaged. */
   @GetMapping
   public ListResponse<RecipientResponse> list(UserContext user) {
+    // TODO: page with maxResults and pageToken.
     return ListResponse.of(
         recipients.list(Pageable.unpaged()).stream().map(this::toResponse).toList());
   }
