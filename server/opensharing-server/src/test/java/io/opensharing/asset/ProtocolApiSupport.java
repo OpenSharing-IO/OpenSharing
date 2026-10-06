@@ -206,7 +206,6 @@ public abstract class ProtocolApiSupport {
             boolean historical,
             boolean includeRefreshToken,
             boolean includeEndStreamAction,
-            List<String> predicateHints,
             String jsonPredicateHints,
             Long limitHint) {
           if (version != null && timestamp != null) {

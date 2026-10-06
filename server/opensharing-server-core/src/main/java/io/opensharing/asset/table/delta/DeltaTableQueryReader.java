@@ -6,7 +6,6 @@ import io.delta.kernel.ScanBuilder;
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.data.FilteredColumnarBatch;
 import io.delta.kernel.data.Row;
-import io.delta.kernel.expressions.And;
 import io.delta.kernel.expressions.Predicate;
 import io.delta.kernel.internal.InternalScanFileUtils;
 import io.delta.kernel.internal.ScanImpl;
@@ -33,16 +32,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
 import org.springframework.stereotype.Component;
 
 /**
  * Reads Query Table snapshot files from a Delta log. The parquet or delta response is NDJSON:
- * protocol, metaData, then one file action per data file. predicateHints, jsonPredicateHints, and
- * limitHint only skip files; clients still filter rows.
+ * protocol, metaData, then one file action per data file. jsonPredicateHints and limitHint only
+ * skip files; clients still filter rows.
  */
 @Component
 public class DeltaTableQueryReader {
@@ -81,7 +78,6 @@ public class DeltaTableQueryReader {
       boolean historical,
       boolean includeRefreshToken,
       boolean includeEndStreamAction,
-      List<String> predicateHints,
       String jsonPredicateHints,
       Long limitHint) {
     if (version != null && timestamp != null) {
@@ -120,14 +116,7 @@ public class DeltaTableQueryReader {
     long numRecords = 0;
     ScanBuilder builder = snapshot.getScanBuilder();
     Optional<Predicate> filter =
-        Stream.of(
-                SqlPredicateHints.toPredicate(
-                    predicateHints,
-                    snapshot.getSchema(),
-                    impl.getMetadata().getPartitionColNames()),
-                JsonPredicateHints.toPredicate(jsonPredicateHints, snapshot.getSchema()))
-            .flatMap(Optional::stream)
-            .reduce((left, right) -> new And(left, right));
+        JsonPredicateHints.toPredicate(jsonPredicateHints, snapshot.getSchema());
     Scan scan = filter.map(builder::withFilter).orElse(builder).build();
     // Stats are only read with includeStats; they feed file stats and limitHint record counts.
     try (CloseableIterator<FilteredColumnarBatch> batches =

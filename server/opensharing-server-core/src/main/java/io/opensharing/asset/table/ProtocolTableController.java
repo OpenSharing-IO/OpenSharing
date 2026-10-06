@@ -32,6 +32,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -52,6 +54,8 @@ import org.springframework.web.bind.annotation.RestController;
     value = "${opensharing.protocol-prefix}/shares/{share}",
     produces = "application/json;charset=UTF-8")
 public class ProtocolTableController {
+
+  private static final Logger log = LoggerFactory.getLogger(ProtocolTableController.class);
 
   private final RecipientStore recipients;
   private final ShareStore shares;
@@ -215,6 +219,15 @@ public class ProtocolTableController {
       throw ApiException.invalidParameter(
           "refreshToken cannot be used when querying a specific version.");
     }
+    Long version = body.version();
+    if (body.refreshToken() != null && !body.refreshToken().isBlank()) {
+      version = RefreshTokens.versionOf(body.refreshToken(), resolved.identifier());
+    }
+    boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
+    boolean includeEndStreamAction = DeltaSharingCapabilities.includeEndStreamAction(capabilities);
+    if (body.predicateHints() != null && !body.predicateHints().isEmpty()) {
+      log.debug("Ignoring deprecated predicateHints {}", body.predicateHints());
+    }
     DeltaTableQueryReader.Result result =
         queryReader.read(
             resolved,
@@ -224,7 +237,6 @@ public class ProtocolTableController {
             historical,
             includeRefreshToken,
             includeEndStreamAction,
-            body.predicateHints(),
             body.jsonPredicateHints(),
             limitHint(body));
     var response =
