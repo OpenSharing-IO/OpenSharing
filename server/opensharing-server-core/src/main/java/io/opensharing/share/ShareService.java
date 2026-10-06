@@ -11,26 +11,13 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientStore;
-import jakarta.validation.Valid;
 import java.util.Map;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Provider HTTP API for share CRUD and recipient grants. Callers are authenticated by {@code
- * ProviderAuthenticationFilter}; any caller may read shares, only the owner may change them.
+ * Provider share CRUD and recipient grants. The host authenticates the caller and checks
+ * CREATE_SHARE before {@link #create}; any caller may read shares, only the owner may change them.
  */
 public class ShareService {
 
@@ -40,7 +27,7 @@ public class ShareService {
   private final RecipientStore recipients;
   private final CatalogConnector catalog;
 
-  public ShareAdminController(
+  public ShareService(
       ShareStore shares,
       SharedDataObjectStore objects,
       SharePermissionStore permissions,
@@ -110,10 +97,8 @@ public class ShareService {
     shares.delete(share, user);
   }
 
-  /** {@code GET /shares/{share}/permissions}: lists who holds which privilege on the share. */
-  @GetMapping("/{share}/permissions")
-  public ListResponse<SharePermissionResponse> listPermissions(
-      UserContext user, @PathVariable String share) {
+  /** Lists who holds which privilege on the share, by recipient name, unpaged. */
+  public ListResponse<SharePermissionResponse> listPermissions(String share) {
     // TODO: page with maxResults and pageToken.
     return ListResponse.of(
         permissions.list(shares.require(share)).stream()
@@ -121,22 +106,17 @@ public class ShareService {
             .toList());
   }
 
-  /**
-   * {@code PATCH /shares/{share}/permissions}: grants and revokes privileges in order, then returns
-   * the share's permissions. Owner only.
-   */
-  @PatchMapping("/{share}/permissions")
+  /** Grants and revokes privileges in order, then returns the share's permissions. Owner only. */
   public ListResponse<SharePermissionResponse> updatePermissions(
-      UserContext user,
-      @PathVariable String share,
-      @Valid @RequestBody UpdateSharePermissionsRequest request) {
+      UserContext user, String share, UpdateSharePermissionsRequest request) {
     ShareEntity entity = shares.requireOwned(share, user);
     for (UpdateSharePermissionsRequest.Change change : request.changes()) {
-      var recipient = recipients.require(change.recipientName());
+      RecipientEntity recipient =
+          recipients.require(requireText(change.recipientName(), "changes.recipientName"));
       change.remove().forEach(privilege -> permissions.revoke(entity, recipient, privilege));
       change.add().forEach(privilege -> permissions.grant(entity, recipient, privilege));
     }
-    return listPermissions(user, share);
+    return listPermissions(share);
   }
 
   // Resolves the object in the catalog on behalf of the caller and checks the declared type.
