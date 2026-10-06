@@ -3,6 +3,8 @@ package io.opensharing.runtime;
 import io.opensharing.Transactions;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.recipient.RecipientService;
+import io.opensharing.recipient.RecipientStore;
 import io.opensharing.share.ShareService;
 import io.opensharing.share.ShareStore;
 
@@ -15,10 +17,12 @@ public final class OpenSharing {
 
   private final CatalogConnector catalog;
   private final ShareService shares;
+  private final RecipientService recipients;
 
   private OpenSharing(CatalogConnector catalog, Transactions tx) {
     this.catalog = catalog;
     this.shares = new ShareService(new ShareStore(tx), new SharedDataObjectStore(tx), catalog);
+    this.recipients = new RecipientService(new RecipientStore(tx));
   }
 
   public static Builder builder() {
@@ -31,6 +35,10 @@ public final class OpenSharing {
 
   public ShareService shares() {
     return shares;
+  }
+
+  public RecipientService recipients() {
+    return recipients;
   }
 
   public static final class Builder {

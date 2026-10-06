@@ -8,8 +8,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 /** A token issued to a recipient. {@code activationCode} is stored plaintext until redeemed. */
 @Entity
@@ -21,10 +19,9 @@ import org.hibernate.annotations.OnDeleteAction;
             columnNames = "activation_code"))
 public class RecipientTokenEntity extends BaseEntity {
 
-  /** The recipient the token belongs to. Tokens are deleted with their recipient. */
+  /** The recipient the token belongs to. {@code RecipientStore} deletes tokens with it. */
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "recipient_id", nullable = false)
-  @OnDelete(action = OnDeleteAction.CASCADE)
   private RecipientEntity recipient;
 
   /** One-time code embedded in the activation URL. */

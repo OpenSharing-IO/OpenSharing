@@ -8,7 +8,6 @@ public class OpenSharingProperties {
 
   /** Path prefix recipient activation URLs are built under. */
   private String activationPrefix = "/api/1.0/opensharing/activations";
-  private final Hosting hosting = new Hosting();
   private final Provider provider = new Provider();
   private final Catalog catalog = new Catalog();
 
@@ -18,10 +17,6 @@ public class OpenSharingProperties {
 
   public void setActivationPrefix(String activationPrefix) {
     this.activationPrefix = prefix(activationPrefix);
-  }
-
-  public Hosting getHosting() {
-    return hosting;
   }
 
   public Provider getProvider() {
