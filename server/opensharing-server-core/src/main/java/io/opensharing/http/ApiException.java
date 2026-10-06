@@ -1,20 +1,18 @@
 package io.opensharing.http;
 
-import org.springframework.http.HttpStatus;
-
 /** An error with an explicit protocol error code and HTTP status. */
 public class ApiException extends RuntimeException {
 
-  private final HttpStatus status;
+  private final int status;
   private final String errorCode;
 
-  public ApiException(HttpStatus status, String errorCode, String message) {
+  public ApiException(int status, String errorCode, String message) {
     super(message);
     this.status = status;
     this.errorCode = errorCode;
   }
 
-  public HttpStatus getStatus() {
+  public int getStatus() {
     return status;
   }
 
@@ -23,30 +21,30 @@ public class ApiException extends RuntimeException {
   }
 
   public static ApiException notFound(String message) {
-    return new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.RESOURCE_DOES_NOT_EXIST, message);
+    return new ApiException(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, message);
   }
 
   public static ApiException alreadyExists(String message) {
-    return new ApiException(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_ALREADY_EXISTS, message);
+    return new ApiException(409, ErrorCodes.RESOURCE_ALREADY_EXISTS, message);
   }
 
   public static ApiException conflict(String message) {
-    return new ApiException(HttpStatus.CONFLICT, ErrorCodes.RESOURCE_CONFLICT, message);
+    return new ApiException(409, ErrorCodes.RESOURCE_CONFLICT, message);
   }
 
   public static ApiException invalidParameter(String message) {
-    return new ApiException(HttpStatus.BAD_REQUEST, ErrorCodes.INVALID_PARAMETER_VALUE, message);
+    return new ApiException(400, ErrorCodes.INVALID_PARAMETER_VALUE, message);
   }
 
   public static ApiException permissionDenied(String message) {
-    return new ApiException(HttpStatus.FORBIDDEN, ErrorCodes.PERMISSION_DENIED, message);
+    return new ApiException(403, ErrorCodes.PERMISSION_DENIED, message);
   }
 
   public static ApiException unauthenticated(String message) {
-    return new ApiException(HttpStatus.UNAUTHORIZED, ErrorCodes.UNAUTHENTICATED, message);
+    return new ApiException(401, ErrorCodes.UNAUTHENTICATED, message);
   }
 
   public static ApiException notImplemented(String message) {
-    return new ApiException(HttpStatus.NOT_IMPLEMENTED, ErrorCodes.NOT_IMPLEMENTED, message);
+    return new ApiException(501, ErrorCodes.NOT_IMPLEMENTED, message);
   }
 }
