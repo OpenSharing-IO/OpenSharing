@@ -11,12 +11,11 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 /**
  * One privilege a recipient holds on a share. A recipient holds each privilege on a share at most
- * once. Rows are deleted with their share or recipient.
+ * once. {@code ShareStore} and {@code RecipientStore} delete the rows with their share or
+ * recipient.
  */
 @Entity
 @Table(
@@ -30,13 +29,11 @@ public class SharePermissionEntity extends BaseEntity {
   /** Loaded eagerly because responses read the share's name after the store returns. */
   @ManyToOne(fetch = FetchType.EAGER, optional = false)
   @JoinColumn(name = "share_id", nullable = false)
-  @OnDelete(action = OnDeleteAction.CASCADE)
   private ShareEntity share;
 
   /** Loaded eagerly because responses read the recipient's name after the store returns. */
   @ManyToOne(fetch = FetchType.EAGER, optional = false)
   @JoinColumn(name = "recipient_id", nullable = false)
-  @OnDelete(action = OnDeleteAction.CASCADE)
   private RecipientEntity recipient;
 
   @Enumerated(EnumType.STRING)

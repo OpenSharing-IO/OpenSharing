@@ -5,6 +5,7 @@ import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.recipient.RecipientService;
 import io.opensharing.recipient.RecipientStore;
+import io.opensharing.share.SharePermissionStore;
 import io.opensharing.share.ShareService;
 import io.opensharing.share.ShareStore;
 
@@ -21,8 +22,15 @@ public final class OpenSharing {
 
   private OpenSharing(CatalogConnector catalog, Transactions tx) {
     this.catalog = catalog;
-    this.shares = new ShareService(new ShareStore(tx), new SharedDataObjectStore(tx), catalog);
-    this.recipients = new RecipientService(new RecipientStore(tx));
+    RecipientStore recipientStore = new RecipientStore(tx);
+    this.shares =
+        new ShareService(
+            new ShareStore(tx),
+            new SharedDataObjectStore(tx),
+            new SharePermissionStore(tx),
+            recipientStore,
+            catalog);
+    this.recipients = new RecipientService(recipientStore);
   }
 
   public static Builder builder() {
