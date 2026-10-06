@@ -1,13 +1,9 @@
 package io.opensharing.recipient;
 
-import io.opensharing.ObjectNames;
 import io.opensharing.auth.UserContext;
 import io.opensharing.config.OpenSharingProperties;
-import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
-import jakarta.validation.Valid;
-import java.util.UUID;
-import org.springframework.data.domain.Pageable;
+import io.opensharing.runtime.OpenSharing;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,11 +25,11 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @RequestMapping("${opensharing.provider.base-path}/recipients")
 public class RecipientAdminController {
 
-  private final RecipientStore recipients;
+  private final RecipientService recipients;
   private final OpenSharingProperties properties;
 
-  public RecipientAdminController(RecipientStore recipients, OpenSharingProperties properties) {
-    this.recipients = recipients;
+  public RecipientAdminController(OpenSharing openSharing, OpenSharingProperties properties) {
+    this.recipients = openSharing.recipients();
     this.properties = properties;
   }
 
@@ -43,34 +39,20 @@ public class RecipientAdminController {
    */
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
-  public RecipientResponse create(
-      UserContext user, @Valid @RequestBody CreateRecipientRequest request) {
-    if (request.authenticationType() != AuthenticationType.TOKEN) {
-      throw ApiException.invalidParameter(
-          "authenticationType " + request.authenticationType() + " is not supported yet");
-    }
-    RecipientEntity recipient =
-        recipients.create(
-            user,
-            ObjectNames.validateRecipientName(request.name()),
-            request.comment(),
-            request.authenticationType(),
-            UUID.randomUUID().toString());
-    return toResponse(recipient);
+  public RecipientResponse create(UserContext user, @RequestBody CreateRecipientRequest request) {
+    return recipients.create(user, request, activationBaseUrl());
   }
 
   /** {@code GET /recipients}: lists every recipient by name, unpaged. */
   @GetMapping
   public ListResponse<RecipientResponse> list(UserContext user) {
-    // TODO: page with maxResults and pageToken.
-    return ListResponse.of(
-        recipients.list(Pageable.unpaged()).stream().map(this::toResponse).toList());
+    return recipients.list(activationBaseUrl());
   }
 
   /** {@code GET /recipients/{recipient}}: gets a recipient by name in any case. */
   @GetMapping("/{recipient}")
   public RecipientResponse get(UserContext user, @PathVariable String recipient) {
-    return toResponse(recipients.require(recipient));
+    return recipients.get(recipient, activationBaseUrl());
   }
 
   /** {@code PATCH /recipients/{recipient}}: updates the fields set in the body. Owner only. */
@@ -78,28 +60,21 @@ public class RecipientAdminController {
   public RecipientResponse update(
       UserContext user,
       @PathVariable String recipient,
-      @Valid @RequestBody UpdateRecipientRequest request) {
-    return toResponse(recipients.update(user, recipient, request.comment()));
+      @RequestBody UpdateRecipientRequest request) {
+    return recipients.update(user, recipient, request, activationBaseUrl());
   }
 
   /** {@code DELETE /recipients/{recipient}}: deletes the recipient and its tokens. Owner only. */
   @DeleteMapping("/{recipient}")
   public ResponseEntity<Void> delete(UserContext user, @PathVariable String recipient) {
-    recipients.delete(recipient, user);
+    recipients.delete(user, recipient);
     return ResponseEntity.noContent().build();
   }
 
-  private RecipientResponse toResponse(RecipientEntity recipient) {
-    String code = recipients.findActivationCode(recipient);
-    return RecipientResponse.from(recipient, code == null ? null : activationUrl(code));
-  }
-
-  // Absolute URL on this server, so the recipient can open it as is.
-  private String activationUrl(String code) {
+  // Absolute URL on this server, so the recipient can open the link as is.
+  private String activationBaseUrl() {
     return ServletUriComponentsBuilder.fromCurrentContextPath()
         .path(properties.getActivationPrefix())
-        .path("/")
-        .path(code)
         .toUriString();
   }
 }
