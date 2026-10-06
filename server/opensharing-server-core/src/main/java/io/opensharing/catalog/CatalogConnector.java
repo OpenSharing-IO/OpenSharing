@@ -4,6 +4,7 @@ import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetNotFoundException;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.util.List;
 
@@ -55,8 +56,20 @@ public interface CatalogConnector {
   List<StorageCredentials> getStorageCredentials(CredentialRequest request, AuthContext auth);
 
   /**
-   * The catalog owns authorization: checks that the caller has {@code privilege} for the action. A
-   * null {@code privilege} means authentication only.
+   * Authenticates the caller and, when {@code privilege} is set, checks that they hold it. The
+   * catalog owns authorization: OpenSharing only names the sharing privilege an action needs, and
+   * it is up to each connector to support the sharing privileges, mapping them to its own
+   * catalog's privileges as needed.
+   *
+   * @param auth who is calling. When {@code user().userAuthToken()} is set, as on a user's own
+   *     request, the catalog authenticates that token; otherwise {@code user().userId()} names the
+   *     user, and {@code serverId}, when set, is the OpenSharing server acting on their behalf
+   * @param privilege the privilege the action needs, or null to authenticate only
+   * @return the caller as the catalog knows them. {@code userId} must be set: OpenSharing keeps it
+   *     as the caller's durable identity, such as the owner of the shares they create, and uses it
+   *     on later calls made for them. {@code userName} is optional and only used for display
+   * @throws CatalogAuthorizationException if the caller cannot be authenticated or lacks {@code
+   *     privilege}
    */
   UserContext authorize(AuthContext auth, Privilege privilege);
 }
