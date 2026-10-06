@@ -4,6 +4,7 @@ import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetNotFoundException;
+import io.opensharing.exception.CatalogAuthenticationException;
 import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.util.List;
@@ -70,6 +71,8 @@ public interface CatalogConnector {
    *     on later calls made for them. {@code userName} is optional and only used for display
    * @throws CatalogAuthorizationException if the caller cannot be authenticated or lacks {@code
    *     privilege}
+   * @throws CatalogAuthenticationException if the catalog rejects the OpenSharing server's own
+   *     credentials, whoever the caller is
    */
   UserContext authorize(AuthContext auth, Privilege privilege);
 }
