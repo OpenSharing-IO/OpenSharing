@@ -1,6 +1,7 @@
 package io.opensharing.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
@@ -9,6 +10,7 @@ import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.catalog.TableProperties;
+import io.opensharing.runtime.OpenSharing;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 class CatalogConfigurationTest {
 
   @Autowired private CatalogConnector catalog;
+  @Autowired private OpenSharing openSharing;
 
   @Test
   void loadsTheConfiguredLocalCatalog() {
@@ -34,5 +37,10 @@ class CatalogConfigurationTest {
                 .resolveAsset(new Asset(AssetType.TABLE, "main.sales.table1"), AuthContext.of(user))
                 .additionalProperties();
     assertEquals(DataSourceFormat.DELTA, table.dataSourceFormat());
+  }
+
+  @Test
+  void buildsOpenSharingWithTheConfiguredCatalog() {
+    assertSame(catalog, openSharing.catalog());
   }
 }
