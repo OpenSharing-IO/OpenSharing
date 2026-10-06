@@ -39,8 +39,10 @@ public interface CatalogConnector {
    * nextPageToken} until it is null, and may stop early. A catalog without native paging may read
    * the whole listing and return a slice of it.
    *
+   * @param parent the container to list, such as a schema
    * @param maxResults the most assets to return on this page; must be positive
    * @param pageToken null for the first page, otherwise a token from the same listing
+   * @param auth the caller's credentials; the catalog returns only the assets they may see
    */
   default AssetPage listChildren(
       Asset parent, int maxResults, String pageToken, AuthContext auth) {
