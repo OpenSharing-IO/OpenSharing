@@ -36,11 +36,12 @@ public interface CatalogConnector {
    * cannot enumerate throw {@link UnsupportedAssetTypeException}.
    *
    * <p>Callers pass a null {@code pageToken} for the first page, then the previous page's {@code
-   * nextPageToken} until it is null, and may stop early. A catalog without native paging may read
-   * the whole listing and return a slice of it.
+   * nextPageToken} until it is null, and may stop early. A catalog without native paging may
+   * return the whole listing in one page.
    *
    * @param parent the container to list, such as a schema
-   * @param maxResults the most assets to return on this page; must be positive
+   * @param maxResults the most assets the caller wants on this page; must be positive, but a
+   *     catalog without native paging may return more
    * @param pageToken null for the first page, otherwise a token from the same listing
    * @param auth the caller's credentials; the catalog returns only the assets they may see
    */
