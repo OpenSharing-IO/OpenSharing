@@ -14,12 +14,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import org.hibernate.annotations.OnDelete;
-import org.hibernate.annotations.OnDeleteAction;
 
 /**
  * A catalog object included in a share under a recipient-visible alias. A share may include each
- * catalog object once and use each alias once. Rows are deleted with their share.
+ * catalog object once and use each alias once. {@code ShareStore} deletes them with their share.
  */
 @Entity
 @Table(
@@ -35,7 +33,6 @@ public class SharedDataObjectEntity extends BaseEntity {
   /** The owning share. Lazy because callers already hold the share they query by. */
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "share_id", nullable = false)
-  @OnDelete(action = OnDeleteAction.CASCADE)
   private ShareEntity share;
 
   /** The catalog's own stable id for the object, when the catalog reports one. */

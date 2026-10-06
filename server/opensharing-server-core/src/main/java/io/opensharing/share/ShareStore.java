@@ -97,12 +97,17 @@ public class ShareStore {
                 .getResultList());
   }
 
-  /** Deletes a share. Only the owner may delete it. */
+  /** Deletes a share and the objects in it. Only the owner may delete it. */
   public void delete(String name, UserContext user) {
     tx.inTransaction(
         false,
         em -> {
-          em.remove(requireOwned(em, name, user));
+          ShareEntity share = requireOwned(em, name, user);
+          // DELETE FROM os_shared_data_objects WHERE share_id = ?
+          em.createQuery("delete from SharedDataObjectEntity o where o.share.id = :shareId")
+              .setParameter("shareId", share.getId())
+              .executeUpdate();
+          em.remove(share);
           return null;
         });
   }

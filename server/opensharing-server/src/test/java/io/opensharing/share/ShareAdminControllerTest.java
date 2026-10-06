@@ -9,8 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import io.opensharing.asset.SharedDataObjectRepository;
+import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.http.ErrorCodes;
+import jakarta.persistence.EntityManager;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -31,7 +33,7 @@ class ShareAdminControllerTest {
   private static final String SHARES = "/api/1.0/opensharing/provider/shares";
 
   @Autowired private MockMvc mvc;
-  @Autowired private SharedDataObjectRepository objects;
+  @Autowired private EntityManager entityManager;
 
   @Test
   void requiresACatalogAuthorizedPrincipal() throws Exception {
@@ -189,8 +191,8 @@ class ShareAdminControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.comment").value("updated"));
 
-    assertEquals(1, objects.count());
-    var stored = objects.findAll().getFirst();
+    assertEquals(1, storedObjects().size());
+    var stored = storedObjects().getFirst();
     assertEquals("sales", stored.getSharedAsSchema());
     assertEquals("orders", stored.getSharedAsTable());
     assertEquals("sales.orders", stored.getSharedAs());
@@ -227,7 +229,7 @@ class ShareAdminControllerTest {
                     """))
         .andExpect(status().isOk());
 
-    assertEquals(0, objects.count());
+    assertEquals(0, storedObjects().size());
 
     // SCHEMA add uses the last name segment as the shared schema.
     mvc.perform(
@@ -248,7 +250,7 @@ class ShareAdminControllerTest {
                     """))
         .andExpect(status().isOk());
 
-    stored = objects.findAll().getFirst();
+    stored = storedObjects().getFirst();
     assertEquals("sales", stored.getSharedAsSchema());
     assertEquals("", stored.getSharedAsTable());
     assertEquals("sales", stored.getSharedAs());
@@ -269,7 +271,7 @@ class ShareAdminControllerTest {
                     """))
         .andExpect(status().isOk());
 
-    assertEquals(0, objects.count());
+    assertEquals(0, storedObjects().size());
 
     // Owner adds a table with an explicit sharedAs alias.
     mvc.perform(
@@ -295,7 +297,7 @@ class ShareAdminControllerTest {
     mvc.perform(delete(SHARES + "/sales").header("Authorization", "Bearer alice-token"))
         .andExpect(status().isNoContent());
 
-    assertEquals(0, objects.count());
+    assertEquals(0, storedObjects().size());
 
     // Deleted share is 404.
     mvc.perform(get(SHARES + "/sales").header("Authorization", "Bearer alice-token"))
@@ -467,5 +469,11 @@ class ShareAdminControllerTest {
             .header("Authorization", "Bearer " + token)
             .contentType(MediaType.APPLICATION_JSON)
             .content(body));
+  }
+
+  private List<SharedDataObjectEntity> storedObjects() {
+    return entityManager
+        .createQuery("select o from SharedDataObjectEntity o", SharedDataObjectEntity.class)
+        .getResultList();
   }
 }
