@@ -1,22 +1,19 @@
 package io.opensharing.asset.table;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import io.opensharing.asset.ProtocolApiSupport;
 import io.opensharing.http.ErrorCodes;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.web.servlet.ResultActions;
 
 /**
  * Recipient Query Table through the local catalog, Kernel, and real cloud Delta logs. Individual
@@ -29,7 +26,7 @@ import org.springframework.test.web.servlet.ResultActions;
     })
 @TestPropertySource(properties = "opensharing.catalog.local.file=classpath:local-catalog-cloud.yml")
 @Timeout(60)
-class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
+class ProtocolTableQueryIntegrationTest extends ProtocolTableIntegrationSupport {
 
   @Test
   @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
@@ -161,6 +158,18 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
   }
 
+  @Test
+  @EnabledIfEnvironmentVariable(named = "AZURE_TEST_ACCOUNT_KEY", matches = ".+")
+  void queriesAzureTableFiles() throws Exception {
+    queryCloudTableFiles("azure-query", "main.sales.azure", "sales.azure", "sig=");
+  }
+
+  @Test
+  @EnabledIfEnvironmentVariable(named = "GOOGLE_APPLICATION_CREDENTIALS", matches = ".+")
+  void queriesGoogleTableFiles() throws Exception {
+    queryCloudTableFiles("gcs-query", "main.sales.gcs", "sales.gcs", "X-Goog-Signature=");
+  }
+
   private static void assertParquetQuery(String ndjson) {
     assertTrue(ndjson.contains("\"protocol\""), ndjson);
     assertTrue(ndjson.contains("\"metaData\""), ndjson);
@@ -177,24 +186,24 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
     assertTrue(ndjson.contains("\"deltaSingleAction\""), ndjson);
   }
 
-  private String shareTable(String share, String catalogName, String sharedAs) throws Exception {
-    createShare(share);
-    addObject(share, "TABLE", catalogName, sharedAs);
-    String bearer = createAndActivateRecipient(share + "-partner");
-    grant(share, share + "-partner");
-    return bearer;
-  }
+  // The cloud copies of table1 have one commit, version 0, with one file in partition c2=foo bar.
+  private void queryCloudTableFiles(
+      String share, String catalogName, String sharedAs, String signature) throws Exception {
+    String bearer = shareTable(share, catalogName, sharedAs);
+    String endpoint = tableEndpoint(share, sharedAs) + "/query";
 
-  private ResultActions query(String endpoint, String bearer, String body, String capabilities)
-      throws Exception {
-    var request =
-        post(endpoint)
-            .header("Authorization", "Bearer " + bearer)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(body);
-    if (capabilities != null) {
-      request = request.header("delta-sharing-capabilities", capabilities);
-    }
-    return mvc.perform(request);
+    String latest = ok(query(endpoint, bearer, "{}", null), "0");
+    assertParquetQuery(latest);
+    assertEquals(1, count(latest, "file"), latest);
+    assertTrue(latest.contains(signature), latest);
+    assertDeltaQuery(ok(query(endpoint, bearer, "{}", "responseformat=delta"), "0"));
+
+    // A historical query reports the version on metaData and on every file.
+    String historical = ok(query(endpoint, bearer, "{\"version\":0}", null), "0");
+    assertEquals(2, historical.split("\"version\":0", -1).length - 1, historical);
+    // A version after the latest is INVALID_PARAMETER_VALUE.
+    query(endpoint, bearer, "{\"version\":1}", null)
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
   }
 }
