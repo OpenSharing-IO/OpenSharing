@@ -38,8 +38,13 @@ import org.springframework.stereotype.Component;
 
 /**
  * Reads Query Table snapshot files from a Delta log. The parquet or delta response is NDJSON:
- * protocol, metaData, then one file action per data file. jsonPredicateHints and limitHint only
- * skip files; clients still filter rows.
+ * protocol, metaData, then one file action per data file, and an endStreamAction when requested.
+ *
+ * <p>Every file URL is presigned for {@code opensharing.delta.url-ttl}, so the client reads the
+ * data files directly from storage without the provider's credentials.
+ *
+ * <p>jsonPredicateHints and limitHint only decide which files are returned. Clients still filter
+ * rows and apply the limit themselves, so returning extra files is always correct.
  */
 @Component
 public class DeltaTableQueryReader {
@@ -65,6 +70,9 @@ public class DeltaTableQueryReader {
    * @param timestamp read the latest version committed at or before this time
    * @param refreshToken a refresh token from an earlier response; reads the version it pins
    * @param includeRefreshToken put a refresh token for this snapshot in the endStreamAction
+   * @param includeEndStreamAction end the response with an endStreamAction
+   * @param jsonPredicateHints the request's hint; an unusable hint returns every file
+   * @param limitHint stop once the returned files hold at least this many records; null for all
    */
   public Result read(
       ResolvedAsset table,
@@ -112,8 +120,12 @@ public class DeltaTableQueryReader {
             crc == null ? null : crc.getNumFiles(),
             format));
 
+    // The earliest URL expiry among the files, reported in the endStreamAction.
     Long minUrlExpirationTimestamp = null;
+    // Live records in the files returned so far, compared against limitHint.
     long numRecords = 0;
+    // Scan files are the add actions that are live in the snapshot after log replay. With a
+    // filter, Kernel also prunes partitions and skips files whose min/max stats cannot match.
     ScanBuilder builder = snapshot.getScanBuilder();
     Optional<Predicate> filter =
         JsonPredicateHints.toPredicate(jsonPredicateHints, snapshot.getSchema());
@@ -124,8 +136,10 @@ public class DeltaTableQueryReader {
       files:
       while (batches.hasNext()) {
         FilteredColumnarBatch batch = batches.next();
+        // getRows skips rows the selection vector drops, such as files removed by later commits.
         try (CloseableIterator<Row> rows = batch.getRows()) {
           while (rows.hasNext()) {
+            // Checked before each file, so the last file returned may go past the limit.
             if (limitHint != null && numRecords >= limitHint) {
               break files;
             }
@@ -174,6 +188,7 @@ public class DeltaTableQueryReader {
     // Hashing the log path, not the URL, keeps the id stable across queries and re-signing.
     String id = FileIdHash.hash(add.getPath(), fileIdHash, format);
     String stats = add.getStatsJson().orElse(null);
+    // Rows a deletion vector marks deleted do not count toward limitHint.
     long numRecords =
         numRecords(stats)
             - add.getDeletionVector().map(DeletionVectorDescriptor::getCardinality).orElse(0L);
