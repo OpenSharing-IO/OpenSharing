@@ -21,4 +21,8 @@ public record QueryTableRequest(
 
   static final QueryTableRequest EMPTY =
       new QueryTableRequest(null, null, null, null, null, null, null, null, null, null, null);
+
+  public QueryTableRequest {
+    refreshToken = refreshToken == null || refreshToken.isBlank() ? null : refreshToken;
+  }
 }

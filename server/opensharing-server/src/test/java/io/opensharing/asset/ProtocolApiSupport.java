@@ -196,11 +196,11 @@ public abstract class ProtocolApiSupport {
         public DeltaTableQueryReader.Result read(
             ResolvedAsset table,
             AuthContext auth,
-            String capabilities,
-            String fileIdHash,
-            boolean historical,
-            boolean includeRefreshToken,
-            boolean includeEndStreamAction) {
+            DeltaTableQueryReader.ResponseOptions options,
+            Long version,
+            Instant timestamp,
+            String refreshToken,
+            boolean includeRefreshToken) {
           if (version != null && timestamp != null) {
             throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
           }
@@ -208,7 +208,7 @@ public abstract class ProtocolApiSupport {
               DeltaSharingCapabilities.choose(options.capabilities())
                   == DeltaSharingCapabilities.ResponseFormat.DELTA;
           String ndjson = delta ? STUB_QUERY_DELTA : STUB_QUERY_PARQUET;
-          if (includeRefreshToken || includeEndStreamAction) {
+          if (includeRefreshToken || options.includeEndStreamAction()) {
             ndjson +=
                 TableActions.endStreamAction(
                     includeRefreshToken ? "stub-refresh-token" : null, null, 4102444800000L);
