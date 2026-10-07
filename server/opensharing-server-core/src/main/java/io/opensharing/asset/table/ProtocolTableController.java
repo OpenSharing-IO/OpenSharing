@@ -208,13 +208,25 @@ public class ProtocolTableController {
     if (hasPushdownHint(body)) {
       throw ApiException.notImplemented("predicate and limit pushdown is not supported");
     }
+    boolean historical = body.version() != null || body.timestamp() != null;
+    boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
+    if (includeRefreshToken && historical) {
+      throw ApiException.invalidParameter(
+          "includeRefreshToken cannot be used when querying a specific version.");
+    }
+    if (body.refreshToken() != null && historical) {
+      throw ApiException.invalidParameter(
+          "refreshToken cannot be used when querying a specific version.");
+    }
     DeltaTableQueryReader.Result result =
         queryReader.read(
             resolved,
             owner(entity),
             options,
             body.version(),
-            parseTimestamp(body.timestamp()));
+            parseTimestamp(body.timestamp()),
+            body.refreshToken(),
+            includeRefreshToken);
     return queryResponse(result, options);
   }
 
@@ -233,7 +245,9 @@ public class ProtocolTableController {
   private static DeltaTableQueryReader.ResponseOptions responseOptions(
       String capabilities, String fileIdHashHeader) {
     return new DeltaTableQueryReader.ResponseOptions(
-        capabilities, FileIdHash.parse(fileIdHashHeader));
+        capabilities,
+        FileIdHash.parse(fileIdHashHeader),
+        DeltaSharingCapabilities.includeEndStreamAction(capabilities));
   }
 
   private static ResponseEntity<String> queryResponse(
@@ -243,7 +257,8 @@ public class ProtocolTableController {
             .header("Delta-Table-Version", Long.toString(result.version()))
             .header(
                 DeltaSharingCapabilities.HEADER,
-                DeltaSharingCapabilities.responded(options.capabilities()))
+                DeltaSharingCapabilities.responded(
+                    options.capabilities(), options.includeEndStreamAction()))
             .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"));
     if (options.fileIdHash() != null) {
       response = response.header(FileIdHash.HEADER, options.fileIdHash());

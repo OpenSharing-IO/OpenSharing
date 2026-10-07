@@ -117,6 +117,13 @@ public final class TableActions {
                 new DeltaSingleAction(add))));
   }
 
+  public static String endStreamAction(
+      String refreshToken, String nextPageToken, Long minUrlExpirationTimestamp) {
+    return line(
+        new EndStreamLine(
+            new EndStreamAction(refreshToken, nextPageToken, minUrlExpirationTimestamp)));
+  }
+
   /**
    * Replace the add path with a signed file URL. When {@code deletionVectorUrl} is set, rewrite the
    * on-disk deletion vector as a path-type descriptor so clients fetch the signed object.
@@ -249,4 +256,10 @@ public final class TableActions {
 
   public record DeltaSingleAction(
       @JsonSerialize(using = KernelActionSerializer.class) AddFile add) {}
+
+  public record EndStreamLine(EndStreamAction endStreamAction) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record EndStreamAction(
+      String refreshToken, String nextPageToken, Long minUrlExpirationTimestamp) {}
 }

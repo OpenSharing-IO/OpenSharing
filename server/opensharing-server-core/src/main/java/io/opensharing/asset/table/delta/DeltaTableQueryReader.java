@@ -16,6 +16,7 @@ import io.delta.kernel.utils.FileStatus;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.asset.table.FileIdHash;
+import io.opensharing.asset.table.RefreshTokens;
 import io.opensharing.asset.table.TableActions;
 import io.opensharing.asset.table.signer.SignedUrl;
 import io.opensharing.asset.table.signer.UrlSigners;
@@ -33,7 +34,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Reads Query Table snapshot files from a Delta log. The parquet or delta response is NDJSON:
- * protocol, metaData, then one file action per data file.
+ * protocol, metaData, then one file action per data file, and an endStreamAction when requested.
  *
  * <p>Every file URL is presigned for {@code opensharing.delta.url-ttl}, so the client reads the
  * data files directly from storage without the provider's credentials.
@@ -58,18 +59,26 @@ public class DeltaTableQueryReader {
    * @param auth the share owner the catalog vends storage credentials for
    * @param version the table version to read; null with a null {@code timestamp} reads the latest
    * @param timestamp read the latest version committed at or before this time
+   * @param refreshToken a refresh token from an earlier response; reads the version it pins
+   * @param includeRefreshToken put a refresh token for this snapshot in the endStreamAction
    */
   public Result read(
       ResolvedAsset table,
       AuthContext auth,
       ResponseOptions options,
       Long version,
-      Instant timestamp) {
+      Instant timestamp,
+      String refreshToken,
+      boolean includeRefreshToken) {
     if (version != null && timestamp != null) {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
     // A time-travel query reports the snapshot version in metaData and on every file.
     boolean historical = version != null || timestamp != null;
+    // A refresh token pins the version it was issued for without making the query historical.
+    if (refreshToken != null) {
+      version = RefreshTokens.versionOf(refreshToken, table.identifier());
+    }
 
     DeltaKernel.Session session = open(table, auth);
     Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
@@ -97,6 +106,14 @@ public class DeltaTableQueryReader {
       throw new UncheckedIOException(e);
     }
 
+    // A refresh token can only travel in an endStreamAction, so asking for one adds the action.
+    if (includeRefreshToken || options.includeEndStreamAction()) {
+      out.endStreamAction(
+          includeRefreshToken
+              ? RefreshTokens.encode(
+                  table.identifier(), snapshot.getVersion(), Instant.now().plus(urlTtl()))
+              : null);
+    }
     return new Result(snapshot.getVersion(), out.ndjson());
   }
 
@@ -127,11 +144,14 @@ public class DeltaTableQueryReader {
    *
    * @param capabilities the request's {@code delta-sharing-capabilities} header; picks the format
    * @param fileIdHash the parsed {@code fileidhash} header, or null to follow the format
+   * @param includeEndStreamAction end the response with an endStreamAction
    */
-  public record ResponseOptions(String capabilities, String fileIdHash) {}
+  public record ResponseOptions(
+      String capabilities, String fileIdHash, boolean includeEndStreamAction) {}
 
   /**
-   * Builds one NDJSON response. File URLs are presigned with the table's storage credentials.
+   * Builds one NDJSON response. File URLs are presigned with the table's storage credentials, and
+   * the earliest expiry among them is reported in the endStreamAction.
    */
   private final class ResponseWriter {
 
@@ -141,6 +161,7 @@ public class DeltaTableQueryReader {
     private final String capabilities;
     private final String fileIdHash;
     private final StringBuilder ndjson = new StringBuilder();
+    private Long minUrlExpirationTimestamp;
 
     ResponseWriter(DeltaKernel.Session session, ResolvedAsset table, ResponseOptions options) {
       this.format = DeltaSharingCapabilities.choose(options.capabilities());
@@ -203,6 +224,11 @@ public class DeltaTableQueryReader {
       }
     }
 
+    /** {@code refreshToken} may be null. */
+    void endStreamAction(String refreshToken) {
+      ndjson.append(TableActions.endStreamAction(refreshToken, null, minUrlExpirationTimestamp));
+    }
+
     String ndjson() {
       return ndjson.toString();
     }
@@ -231,6 +257,10 @@ public class DeltaTableQueryReader {
         deletionVectorFileId = FileIdHash.hash(dvPath, fileIdHash, format);
         expirationTimestamp = Math.min(expirationTimestamp, signedDv.expiration().toEpochMilli());
       }
+      minUrlExpirationTimestamp =
+          minUrlExpirationTimestamp == null
+              ? expirationTimestamp
+              : Math.min(minUrlExpirationTimestamp, expirationTimestamp);
       return new SignedFile(
           file.url(),
           FileIdHash.hash(logPath, fileIdHash, format),
