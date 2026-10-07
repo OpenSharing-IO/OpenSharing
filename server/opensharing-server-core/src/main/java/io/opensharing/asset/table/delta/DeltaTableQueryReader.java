@@ -1,10 +1,14 @@
 package io.opensharing.asset.table.delta;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.delta.kernel.Scan;
+import io.delta.kernel.ScanBuilder;
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.data.FilteredColumnarBatch;
 import io.delta.kernel.data.Row;
+import io.delta.kernel.expressions.Predicate;
 import io.delta.kernel.internal.InternalScanFileUtils;
+import io.delta.kernel.internal.ScanImpl;
 import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.internal.actions.AddFile;
 import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
@@ -38,9 +42,14 @@ import org.springframework.stereotype.Component;
  *
  * <p>Every file URL is presigned for {@code opensharing.delta.url-ttl}, so the client reads the
  * data files directly from storage without the provider's credentials.
+ *
+ * <p>jsonPredicateHints and limitHint only decide which files are returned. Clients still filter
+ * rows and apply the limit themselves, so returning extra files is always correct.
  */
 @Component
 public class DeltaTableQueryReader {
+
+  private static final ObjectMapper JSON = new ObjectMapper();
 
   private final DeltaKernel kernel;
   private final OpenSharingProperties properties;
@@ -61,6 +70,8 @@ public class DeltaTableQueryReader {
    * @param timestamp read the latest version committed at or before this time
    * @param refreshToken a refresh token from an earlier response; reads the version it pins
    * @param includeRefreshToken put a refresh token for this snapshot in the endStreamAction
+   * @param jsonPredicateHints the request's hint; an unusable hint returns every file
+   * @param limitHint stop once the returned files hold at least this many records; null for all
    */
   public Result read(
       ResolvedAsset table,
@@ -69,7 +80,9 @@ public class DeltaTableQueryReader {
       Long version,
       Instant timestamp,
       String refreshToken,
-      boolean includeRefreshToken) {
+      boolean includeRefreshToken,
+      String jsonPredicateHints,
+      Long limitHint) {
     if (version != null && timestamp != null) {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
@@ -91,14 +104,27 @@ public class DeltaTableQueryReader {
     out.protocol(impl.getProtocol(), null);
     out.metadata(impl.getMetadata(), fileVersion, crcFor(impl, snapshot.getVersion()));
 
-    // Scan files are the add actions that are live in the snapshot after log replay.
-    Scan scan = snapshot.getScanBuilder().build();
-    try (CloseableIterator<FilteredColumnarBatch> batches = scan.getScanFiles(session.engine())) {
+    // Live records in the files returned so far, compared against limitHint.
+    long numRecords = 0;
+    // Scan files are the add actions that are live in the snapshot after log replay. With a
+    // filter, Kernel also prunes partitions and skips files whose min/max stats cannot match.
+    ScanBuilder builder = snapshot.getScanBuilder();
+    Optional<Predicate> filter =
+        JsonPredicateHints.toPredicate(jsonPredicateHints, snapshot.getSchema());
+    Scan scan = filter.map(builder::withFilter).orElse(builder).build();
+    // Stats are only read with includeStats; they feed file stats and limitHint record counts.
+    try (CloseableIterator<FilteredColumnarBatch> batches =
+        ((ScanImpl) scan).getScanFiles(session.engine(), true)) {
+      files:
       while (batches.hasNext()) {
         // getRows skips rows the selection vector drops, such as files removed by later commits.
         try (CloseableIterator<Row> rows = batches.next().getRows()) {
           while (rows.hasNext()) {
-            out.snapshotFile(rows.next(), fileVersion, fileTimestamp);
+            // Checked before each file, so the last file returned may go past the limit.
+            if (limitHint != null && numRecords >= limitHint) {
+              break files;
+            }
+            numRecords += out.snapshotFile(rows.next(), fileVersion, fileTimestamp);
           }
         }
       }
@@ -123,6 +149,18 @@ public class DeltaTableQueryReader {
 
   private Duration urlTtl() {
     return properties.getDelta().getUrlTtl();
+  }
+
+  // Files without stats count as zero records, so limitHint never stops early on them.
+  private static long numRecords(String stats) {
+    if (stats == null || stats.isBlank()) {
+      return 0;
+    }
+    try {
+      return JSON.readTree(stats).path("numRecords").asLong(0);
+    } catch (IOException unreadable) {
+      return 0;
+    }
   }
 
   /**
@@ -192,8 +230,11 @@ public class DeltaTableQueryReader {
               format));
     }
 
-    /** Appends the file action for a snapshot scan file. */
-    void snapshotFile(Row scanFile, Long version, Long timestamp) {
+    /**
+     * Appends the file action for a snapshot scan file and returns its live record count, which
+     * excludes rows a deletion vector marks deleted.
+     */
+    long snapshotFile(Row scanFile, Long version, Long timestamp) {
       AddFile add = new AddFile(scanFile.getStruct(InternalScanFileUtils.ADD_FILE_ORDINAL));
       FileStatus status = InternalScanFileUtils.getAddFileStatus(scanFile);
       SignedFile signed = sign(status.getPath(), add.getPath(), add.getDeletionVector());
@@ -222,6 +263,8 @@ public class DeltaTableQueryReader {
                 timestamp,
                 signed.expirationTimestamp()));
       }
+      return numRecords(stats)
+          - add.getDeletionVector().map(DeletionVectorDescriptor::getCardinality).orElse(0L);
     }
 
     /** {@code refreshToken} may be null. */

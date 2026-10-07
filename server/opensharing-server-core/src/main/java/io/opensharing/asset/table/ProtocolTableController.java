@@ -32,6 +32,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -52,6 +54,8 @@ import org.springframework.web.bind.annotation.RestController;
     value = "${opensharing.protocol-prefix}/shares/{share}",
     produces = "application/json;charset=UTF-8")
 public class ProtocolTableController {
+
+  private static final Logger log = LoggerFactory.getLogger(ProtocolTableController.class);
 
   private final RecipientStore recipients;
   private final ShareStore shares;
@@ -186,7 +190,7 @@ public class ProtocolTableController {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(matching));
   }
 
-  // Snapshot Query Table only. Pushdown hints and startingVersion are not implemented.
+  // Snapshot Query Table only. startingVersion is not implemented.
   @PostMapping(
       value = "/schemas/{schema}/tables/{table}/query",
       produces = "application/x-ndjson;charset=UTF-8")
@@ -205,9 +209,6 @@ public class ProtocolTableController {
     if (body.startingVersion() != null || body.endingVersion() != null) {
       throw ApiException.notImplemented("startingVersion queries are not supported");
     }
-    if (hasPushdownHint(body)) {
-      throw ApiException.notImplemented("predicate and limit pushdown is not supported");
-    }
     boolean historical = body.version() != null || body.timestamp() != null;
     boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
     if (includeRefreshToken && historical) {
@@ -218,6 +219,9 @@ public class ProtocolTableController {
       throw ApiException.invalidParameter(
           "refreshToken cannot be used when querying a specific version.");
     }
+    if (body.predicateHints() != null && !body.predicateHints().isEmpty()) {
+      log.debug("Ignoring deprecated predicateHints {}", body.predicateHints());
+    }
     DeltaTableQueryReader.Result result =
         queryReader.read(
             resolved,
@@ -226,7 +230,9 @@ public class ProtocolTableController {
             body.version(),
             parseTimestamp(body.timestamp()),
             body.refreshToken(),
-            includeRefreshToken);
+            includeRefreshToken,
+            body.jsonPredicateHints(),
+            limitHint(body));
     return queryResponse(result, options);
   }
 
@@ -361,10 +367,12 @@ public class ProtocolTableController {
     }
   }
 
-  private static boolean hasPushdownHint(QueryTableRequest body) {
-    return (body.predicateHints() != null && !body.predicateHints().isEmpty())
-        || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank())
-        || body.limitHint() != null;
+  // limitHint counts unfiltered file records, so it is dropped when any predicate hint is present.
+  private static Long limitHint(QueryTableRequest body) {
+    boolean hasPredicate =
+        (body.predicateHints() != null && !body.predicateHints().isEmpty())
+            || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank());
+    return hasPredicate || body.limitHint() == null ? null : body.limitHint().longValue();
   }
 
   private static ApiException tableNotFound(ShareEntity share, String schema, String table) {

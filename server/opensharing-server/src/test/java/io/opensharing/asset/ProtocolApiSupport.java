@@ -17,6 +17,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.http.ApiException;
 import java.net.URI;
 import java.time.Instant;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -200,7 +201,9 @@ public abstract class ProtocolApiSupport {
             Long version,
             Instant timestamp,
             String refreshToken,
-            boolean includeRefreshToken) {
+            boolean includeRefreshToken,
+            String jsonPredicateHints,
+            Long limitHint) {
           if (version != null && timestamp != null) {
             throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
           }
