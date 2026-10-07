@@ -2,7 +2,10 @@ package io.opensharing.asset.table;
 
 import java.util.List;
 
-/** Optional body for Query Table. Snapshot queries use version or timestamp; streaming is not implemented. */
+/**
+ * Optional body for Query Table. Snapshot queries use version or timestamp; streaming is not
+ * implemented.
+ */
 public record QueryTableRequest(
     List<String> predicateHints,
     String jsonPredicateHints,

@@ -194,16 +194,15 @@ public abstract class ProtocolApiSupport {
         @Override
         public DeltaTableQueryReader.Result read(
             ResolvedAsset table,
-            Long version,
-            Instant timestamp,
             AuthContext auth,
-            String capabilities,
-            String fileIdHash) {
+            DeltaTableQueryReader.ResponseOptions options,
+            Long version,
+            Instant timestamp) {
           if (version != null && timestamp != null) {
             throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
           }
           boolean delta =
-              DeltaSharingCapabilities.choose(capabilities)
+              DeltaSharingCapabilities.choose(options.capabilities())
                   == DeltaSharingCapabilities.ResponseFormat.DELTA;
           return new DeltaTableQueryReader.Result(
               version == null && timestamp == null ? 123 : 45,

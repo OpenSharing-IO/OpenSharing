@@ -186,7 +186,7 @@ public class ProtocolTableController {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(matching));
   }
 
-  // Snapshot Query Table only. Predicate/limit pushdown and startingVersion/endingVersion are NOT_IMPLEMENTED.
+  // Snapshot Query Table only. Pushdown hints and startingVersion are not implemented.
   @PostMapping(
       value = "/schemas/{schema}/tables/{table}/query",
       produces = "application/x-ndjson;charset=UTF-8")
@@ -199,7 +199,26 @@ public class ProtocolTableController {
       @RequestHeader(value = "delta-sharing-capabilities", required = false) String capabilities,
       @RequestHeader(value = FileIdHash.HEADER, required = false) String fileIdHashHeader) {
     ShareEntity entity = requireGrantedShare(principal, share);
-    ResolvedAsset resolved = resolveTable(entity, schema, table);
+    ResolvedAsset resolved = requireUrlAccess(resolveTable(entity, schema, table), schema, table);
+    QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
+    var options = responseOptions(capabilities, fileIdHashHeader);
+    if (body.startingVersion() != null || body.endingVersion() != null) {
+      throw ApiException.notImplemented("startingVersion queries are not supported");
+    }
+    if (hasPushdownHint(body)) {
+      throw ApiException.notImplemented("predicate and limit pushdown is not supported");
+    }
+    DeltaTableQueryReader.Result result =
+        queryReader.read(
+            resolved,
+            owner(entity),
+            options,
+            body.version(),
+            parseTimestamp(body.timestamp()));
+    return queryResponse(result, options);
+  }
+
+  private ResolvedAsset requireUrlAccess(ResolvedAsset resolved, String schema, String table) {
     List<String> accessModes = TableAccessModes.forTable(resolved);
     if (accessModes == null || !accessModes.contains("url")) {
       throw ApiException.invalidParameter(
@@ -208,29 +227,26 @@ public class ProtocolTableController {
     if (!properties.getDelta().isUrlAccessEnabled()) {
       throw ApiException.invalidParameter("url access is disabled");
     }
-    QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
-    if (body.startingVersion() != null || body.endingVersion() != null) {
-      throw ApiException.notImplemented("startingVersion queries are not supported");
-    }
-    if (hasPushdownHint(body)) {
-      throw ApiException.notImplemented("predicate and limit pushdown is not supported");
-    }
-    String fileIdHash = FileIdHash.parse(fileIdHashHeader);
-    DeltaTableQueryReader.Result result =
-        queryReader.read(
-            resolved,
-            body.version(),
-            parseTimestamp(body.timestamp()),
-            owner(entity),
-            capabilities,
-            fileIdHash);
+    return resolved;
+  }
+
+  private static DeltaTableQueryReader.ResponseOptions responseOptions(
+      String capabilities, String fileIdHashHeader) {
+    return new DeltaTableQueryReader.ResponseOptions(
+        capabilities, FileIdHash.parse(fileIdHashHeader));
+  }
+
+  private static ResponseEntity<String> queryResponse(
+      DeltaTableQueryReader.Result result, DeltaTableQueryReader.ResponseOptions options) {
     var response =
         ResponseEntity.ok()
             .header("Delta-Table-Version", Long.toString(result.version()))
-            .header(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(capabilities))
+            .header(
+                DeltaSharingCapabilities.HEADER,
+                DeltaSharingCapabilities.responded(options.capabilities()))
             .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"));
-    if (fileIdHash != null) {
-      response = response.header(FileIdHash.HEADER, fileIdHash);
+    if (options.fileIdHash() != null) {
+      response = response.header(FileIdHash.HEADER, options.fileIdHash());
     }
     return response.body(result.ndjson());
   }
