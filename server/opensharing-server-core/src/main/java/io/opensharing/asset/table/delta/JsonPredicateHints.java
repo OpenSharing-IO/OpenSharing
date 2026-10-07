@@ -169,8 +169,11 @@ final class JsonPredicateHints {
   }
 
   /**
-   * Kernel filters must be predicates, but the protocol lets a bool column or literal stand alone:
-   * a column becomes {@code column = true}, and a literal becomes always true or always false.
+   * Kernel only filters on predicates, but a hint may put a bare bool column or literal where a
+   * condition goes: at the root or as a child of {@code and}, {@code or} or {@code not}. A bool
+   * column {@code c} becomes {@code c = true}, which also drops rows where {@code c} is null. A
+   * bool literal becomes {@code AlwaysTrue} or {@code AlwaysFalse}. Any other non-predicate fails,
+   * which drops the hint.
    */
   private static Predicate asPredicate(Expression expression, StructType schema) {
     if (expression instanceof Predicate predicate) {
