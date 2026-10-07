@@ -5,6 +5,7 @@ import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
+import io.opensharing.asset.table.delta.DeltaTableQueryReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.AssetLookup;
@@ -59,6 +60,7 @@ public class ProtocolTableController {
   private final CatalogConnector catalog;
   private final DeltaKernel kernel;
   private final DeltaTableMetadataReader metadataReader;
+  private final DeltaTableQueryReader queryReader;
   private final Listings listings;
   private final OpenSharingProperties properties;
 
@@ -70,6 +72,7 @@ public class ProtocolTableController {
       CatalogConnector catalog,
       DeltaKernel kernel,
       DeltaTableMetadataReader metadataReader,
+      DeltaTableQueryReader queryReader,
       Listings listings,
       OpenSharingProperties properties) {
     this.recipients = recipients;
@@ -79,6 +82,7 @@ public class ProtocolTableController {
     this.catalog = catalog;
     this.kernel = kernel;
     this.metadataReader = metadataReader;
+    this.queryReader = queryReader;
     this.listings = listings;
     this.properties = properties;
   }
@@ -182,6 +186,71 @@ public class ProtocolTableController {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(matching));
   }
 
+  // Snapshot Query Table only. Pushdown hints and startingVersion are not implemented.
+  @PostMapping(
+      value = "/schemas/{schema}/tables/{table}/query",
+      produces = "application/x-ndjson;charset=UTF-8")
+  public ResponseEntity<String> query(
+      RecipientPrincipal principal,
+      @PathVariable String share,
+      @PathVariable String schema,
+      @PathVariable String table,
+      @RequestBody(required = false) QueryTableRequest request,
+      @RequestHeader(value = "delta-sharing-capabilities", required = false) String capabilities,
+      @RequestHeader(value = FileIdHash.HEADER, required = false) String fileIdHashHeader) {
+    ShareEntity entity = requireGrantedShare(principal, share);
+    ResolvedAsset resolved = requireUrlAccess(resolveTable(entity, schema, table), schema, table);
+    QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
+    var options = responseOptions(capabilities, fileIdHashHeader);
+    if (body.startingVersion() != null || body.endingVersion() != null) {
+      throw ApiException.notImplemented("startingVersion queries are not supported");
+    }
+    if (hasPushdownHint(body)) {
+      throw ApiException.notImplemented("predicate and limit pushdown is not supported");
+    }
+    DeltaTableQueryReader.Result result =
+        queryReader.read(
+            resolved,
+            owner(entity),
+            options,
+            body.version(),
+            parseTimestamp(body.timestamp()));
+    return queryResponse(result, options);
+  }
+
+  private ResolvedAsset requireUrlAccess(ResolvedAsset resolved, String schema, String table) {
+    List<String> accessModes = TableAccessModes.forTable(resolved);
+    if (accessModes == null || !accessModes.contains("url")) {
+      throw ApiException.invalidParameter(
+          "table '" + schema + "." + table + "' does not support url access");
+    }
+    if (!properties.getDelta().isUrlAccessEnabled()) {
+      throw ApiException.invalidParameter("url access is disabled");
+    }
+    return resolved;
+  }
+
+  private static DeltaTableQueryReader.ResponseOptions responseOptions(
+      String capabilities, String fileIdHashHeader) {
+    return new DeltaTableQueryReader.ResponseOptions(
+        capabilities, FileIdHash.parse(fileIdHashHeader));
+  }
+
+  private static ResponseEntity<String> queryResponse(
+      DeltaTableQueryReader.Result result, DeltaTableQueryReader.ResponseOptions options) {
+    var response =
+        ResponseEntity.ok()
+            .header("Delta-Table-Version", Long.toString(result.version()))
+            .header(
+                DeltaSharingCapabilities.HEADER,
+                DeltaSharingCapabilities.responded(options.capabilities()))
+            .contentType(MediaType.parseMediaType("application/x-ndjson;charset=UTF-8"));
+    if (options.fileIdHash() != null) {
+      response = response.header(FileIdHash.HEADER, options.fileIdHash());
+    }
+    return response.body(result.ndjson());
+  }
+
   private static String credentialLocation(
       ResolvedAsset table, TemporaryTableCredentialsRequest request) {
     String location = request == null ? null : request.location();
@@ -273,8 +342,14 @@ public class ProtocolTableController {
     try {
       return Instant.parse(value);
     } catch (DateTimeParseException invalid) {
-      throw ApiException.invalidParameter("startingTimestamp must be an ISO8601 UTC timestamp");
+      throw ApiException.invalidParameter("timestamp must be an ISO8601 UTC timestamp");
     }
+  }
+
+  private static boolean hasPushdownHint(QueryTableRequest body) {
+    return (body.predicateHints() != null && !body.predicateHints().isEmpty())
+        || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank())
+        || body.limitHint() != null;
   }
 
   private static ApiException tableNotFound(ShareEntity share, String schema, String table) {
