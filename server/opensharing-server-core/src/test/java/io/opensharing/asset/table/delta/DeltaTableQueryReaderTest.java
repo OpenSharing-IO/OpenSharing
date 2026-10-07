@@ -119,12 +119,10 @@ class DeltaTableQueryReaderTest {
         .read(
             table,
             null,
+            new DeltaTableQueryReader.ResponseOptions(null, null, false),
             null,
             null,
             null,
-            null,
-            false,
-            false,
             false,
             jsonPredicateHints,
             limitHint)

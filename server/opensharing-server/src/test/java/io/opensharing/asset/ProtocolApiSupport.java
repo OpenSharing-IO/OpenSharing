@@ -200,12 +200,8 @@ public abstract class ProtocolApiSupport {
             DeltaTableQueryReader.ResponseOptions options,
             Long version,
             Instant timestamp,
-            AuthContext auth,
-            String capabilities,
-            String fileIdHash,
-            boolean historical,
+            String refreshToken,
             boolean includeRefreshToken,
-            boolean includeEndStreamAction,
             String jsonPredicateHints,
             Long limitHint) {
           if (version != null && timestamp != null) {

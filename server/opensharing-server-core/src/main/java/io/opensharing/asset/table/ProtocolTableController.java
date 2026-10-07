@@ -190,7 +190,7 @@ public class ProtocolTableController {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(matching));
   }
 
-  // Snapshot Query Table only. startingVersion/endingVersion are NOT_IMPLEMENTED.
+  // Snapshot Query Table only. startingVersion is not implemented.
   @PostMapping(
       value = "/schemas/{schema}/tables/{table}/query",
       produces = "application/x-ndjson;charset=UTF-8")
@@ -219,12 +219,6 @@ public class ProtocolTableController {
       throw ApiException.invalidParameter(
           "refreshToken cannot be used when querying a specific version.");
     }
-    Long version = body.version();
-    if (body.refreshToken() != null && !body.refreshToken().isBlank()) {
-      version = RefreshTokens.versionOf(body.refreshToken(), resolved.identifier());
-    }
-    boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
-    boolean includeEndStreamAction = DeltaSharingCapabilities.includeEndStreamAction(capabilities);
     if (body.predicateHints() != null && !body.predicateHints().isEmpty()) {
       log.debug("Ignoring deprecated predicateHints {}", body.predicateHints());
     }
@@ -232,13 +226,38 @@ public class ProtocolTableController {
         queryReader.read(
             resolved,
             owner(entity),
-            capabilities,
-            fileIdHash,
-            historical,
+            options,
+            body.version(),
+            parseTimestamp(body.timestamp()),
+            body.refreshToken(),
             includeRefreshToken,
-            includeEndStreamAction,
             body.jsonPredicateHints(),
             limitHint(body));
+    return queryResponse(result, options);
+  }
+
+  private ResolvedAsset requireUrlAccess(ResolvedAsset resolved, String schema, String table) {
+    List<String> accessModes = TableAccessModes.forTable(resolved);
+    if (accessModes == null || !accessModes.contains("url")) {
+      throw ApiException.invalidParameter(
+          "table '" + schema + "." + table + "' does not support url access");
+    }
+    if (!properties.getDelta().isUrlAccessEnabled()) {
+      throw ApiException.invalidParameter("url access is disabled");
+    }
+    return resolved;
+  }
+
+  private static DeltaTableQueryReader.ResponseOptions responseOptions(
+      String capabilities, String fileIdHashHeader) {
+    return new DeltaTableQueryReader.ResponseOptions(
+        capabilities,
+        FileIdHash.parse(fileIdHashHeader),
+        DeltaSharingCapabilities.includeEndStreamAction(capabilities));
+  }
+
+  private static ResponseEntity<String> queryResponse(
+      DeltaTableQueryReader.Result result, DeltaTableQueryReader.ResponseOptions options) {
     var response =
         ResponseEntity.ok()
             .header("Delta-Table-Version", Long.toString(result.version()))

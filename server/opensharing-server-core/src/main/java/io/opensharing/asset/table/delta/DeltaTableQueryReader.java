@@ -70,7 +70,6 @@ public class DeltaTableQueryReader {
    * @param timestamp read the latest version committed at or before this time
    * @param refreshToken a refresh token from an earlier response; reads the version it pins
    * @param includeRefreshToken put a refresh token for this snapshot in the endStreamAction
-   * @param includeEndStreamAction end the response with an endStreamAction
    * @param jsonPredicateHints the request's hint; an unusable hint returns every file
    * @param limitHint stop once the returned files hold at least this many records; null for all
    */
@@ -80,12 +79,8 @@ public class DeltaTableQueryReader {
       ResponseOptions options,
       Long version,
       Instant timestamp,
-      AuthContext auth,
-      String capabilities,
-      String fileIdHash,
-      boolean historical,
+      String refreshToken,
       boolean includeRefreshToken,
-      boolean includeEndStreamAction,
       String jsonPredicateHints,
       Long limitHint) {
     if (version != null && timestamp != null) {
@@ -109,19 +104,6 @@ public class DeltaTableQueryReader {
     out.protocol(impl.getProtocol(), null);
     out.metadata(impl.getMetadata(), fileVersion, crcFor(impl, snapshot.getVersion()));
 
-    StringBuilder ndjson = new StringBuilder();
-    ndjson.append(TableActions.protocol(impl.getProtocol(), null, format));
-    ndjson.append(
-        TableActions.metadata(
-            impl.getMetadata(),
-            table,
-            historical ? snapshot.getVersion() : null,
-            crc == null ? null : crc.getTableSizeBytes(),
-            crc == null ? null : crc.getNumFiles(),
-            format));
-
-    // The earliest URL expiry among the files, reported in the endStreamAction.
-    Long minUrlExpirationTimestamp = null;
     // Live records in the files returned so far, compared against limitHint.
     long numRecords = 0;
     // Scan files are the add actions that are live in the snapshot after log replay. With a
@@ -135,30 +117,14 @@ public class DeltaTableQueryReader {
         ((ScanImpl) scan).getScanFiles(session.engine(), true)) {
       files:
       while (batches.hasNext()) {
-        FilteredColumnarBatch batch = batches.next();
         // getRows skips rows the selection vector drops, such as files removed by later commits.
-        try (CloseableIterator<Row> rows = batch.getRows()) {
+        try (CloseableIterator<Row> rows = batches.next().getRows()) {
           while (rows.hasNext()) {
             // Checked before each file, so the last file returned may go past the limit.
             if (limitHint != null && numRecords >= limitHint) {
               break files;
             }
-            FileAction file =
-                fileLine(
-                    rows.next(),
-                    format,
-                    fileIdHash,
-                    fileVersion,
-                    fileTimestamp,
-                    session.location(),
-                    session.credentials(),
-                    urlTtl);
-            ndjson.append(file.line());
-            numRecords += file.numRecords();
-            minUrlExpirationTimestamp =
-                minUrlExpirationTimestamp == null
-                    ? file.expirationTimestamp()
-                    : Math.min(minUrlExpirationTimestamp, file.expirationTimestamp());
+            numRecords += out.snapshotFile(rows.next(), fileVersion, fileTimestamp);
           }
         }
       }
@@ -181,59 +147,8 @@ public class DeltaTableQueryReader {
     return kernel.open(table, auth, urlTtl());
   }
 
-    AddFile add = new AddFile(scanFile.getStruct(InternalScanFileUtils.ADD_FILE_ORDINAL));
-    SignedUrl signed = signers.sign(status.getPath(), credentials, urlTtl);
-    String url = signed.url();
-    long expirationTimestamp = signed.expiration().toEpochMilli();
-    // Hashing the log path, not the URL, keeps the id stable across queries and re-signing.
-    String id = FileIdHash.hash(add.getPath(), fileIdHash, format);
-    String stats = add.getStatsJson().orElse(null);
-    // Rows a deletion vector marks deleted do not count toward limitHint.
-    long numRecords =
-        numRecords(stats)
-            - add.getDeletionVector().map(DeletionVectorDescriptor::getCardinality).orElse(0L);
-
-    if (format == ResponseFormat.DELTA) {
-      String deletionVectorFileId = null;
-      String deletionVectorUrl = null;
-
-      // storageType i = inline bitmap (no object to sign). u/p are on-disk; sign those and set
-      // deletionVectorFileId.
-      DeletionVectorDescriptor dv =
-          add.getDeletionVector().filter(DeletionVectorDescriptor::isOnDisk).orElse(null);
-      if (dv != null) {
-        String dvPath = dv.getAbsolutePath(HadoopStorageConfiguration.kernelPath(tableLocation));
-        SignedUrl signedDv = signers.sign(dvPath, credentials, urlTtl);
-        deletionVectorUrl = signedDv.url();
-        deletionVectorFileId = FileIdHash.hash(dvPath, fileIdHash, format);
-        expirationTimestamp =
-            Math.min(expirationTimestamp, signedDv.expiration().toEpochMilli());
-      }
-
-      // The delta format nests the add action, with its paths replaced by presigned URLs.
-      return new FileAction(
-          TableActions.deltaFile(
-              id,
-              deletionVectorFileId,
-              expirationTimestamp,
-              version,
-              timestamp,
-              TableActions.withPath(add, url, deletionVectorUrl)),
-          expirationTimestamp,
-          numRecords);
-    }
-    return new FileAction(
-        TableActions.parquetFile(
-            url,
-            id,
-            partitionValues,
-            status.getSize(),
-            stats,
-            version,
-            timestamp,
-            expirationTimestamp),
-        expirationTimestamp,
-        numRecords);
+  private Duration urlTtl() {
+    return properties.getDelta().getUrlTtl();
   }
 
   // Files without stats count as zero records, so limitHint never stops early on them.
@@ -262,5 +177,147 @@ public class DeltaTableQueryReader {
   /** {@code version} is the snapshot read, returned as the {@code Delta-Table-Version} header. */
   public record Result(long version, String ndjson) {}
 
-  private record FileAction(String line, long expirationTimestamp, long numRecords) {}
+  /**
+   * How one response is written.
+   *
+   * @param capabilities the request's {@code delta-sharing-capabilities} header; picks the format
+   * @param fileIdHash the parsed {@code fileidhash} header, or null to follow the format
+   * @param includeEndStreamAction end the response with an endStreamAction
+   */
+  public record ResponseOptions(
+      String capabilities, String fileIdHash, boolean includeEndStreamAction) {}
+
+  /**
+   * Builds one NDJSON response. File URLs are presigned with the table's storage credentials, and
+   * the earliest expiry among them is reported in the endStreamAction.
+   */
+  private final class ResponseWriter {
+
+    final ResponseFormat format;
+    private final DeltaKernel.Session session;
+    private final ResolvedAsset table;
+    private final String capabilities;
+    private final String fileIdHash;
+    private final StringBuilder ndjson = new StringBuilder();
+    private Long minUrlExpirationTimestamp;
+
+    ResponseWriter(DeltaKernel.Session session, ResolvedAsset table, ResponseOptions options) {
+      this.format = DeltaSharingCapabilities.choose(options.capabilities());
+      this.session = session;
+      this.table = table;
+      this.capabilities = options.capabilities();
+      this.fileIdHash = options.fileIdHash();
+    }
+
+    void requireReaderFeatures(Protocol protocol) {
+      DeltaSharingCapabilities.requireReaderFeatures(capabilities, format, protocol);
+    }
+
+    /** {@code version} is null for the leading protocol and set for a later one. */
+    void protocol(Protocol protocol, Long version) {
+      ndjson.append(TableActions.protocol(protocol, version, format));
+    }
+
+    /** {@code crc} supplies the table size and file count; null omits them. */
+    void metadata(Metadata metadata, Long version, CRCInfo crc) {
+      ndjson.append(
+          TableActions.metadata(
+              metadata,
+              table,
+              version,
+              crc == null ? null : crc.getTableSizeBytes(),
+              crc == null ? null : crc.getNumFiles(),
+              format));
+    }
+
+    /**
+     * Appends the file action for a snapshot scan file and returns its live record count, which
+     * excludes rows a deletion vector marks deleted.
+     */
+    long snapshotFile(Row scanFile, Long version, Long timestamp) {
+      AddFile add = new AddFile(scanFile.getStruct(InternalScanFileUtils.ADD_FILE_ORDINAL));
+      FileStatus status = InternalScanFileUtils.getAddFileStatus(scanFile);
+      SignedFile signed = sign(status.getPath(), add.getPath(), add.getDeletionVector());
+      String stats = add.getStatsJson().orElse(null);
+      if (format == ResponseFormat.DELTA) {
+        // The delta format nests the add action, with its paths replaced by presigned URLs.
+        ndjson.append(
+            TableActions.deltaFile(
+                signed.id(),
+                signed.deletionVectorFileId(),
+                signed.expirationTimestamp(),
+                version,
+                timestamp,
+                TableActions.withPath(add, signed.url(), signed.deletionVectorUrl())));
+      } else {
+        // Parquet file actions always carry partitionValues, empty for an unpartitioned table.
+        Map<String, String> partitionValues = InternalScanFileUtils.getPartitionValues(scanFile);
+        ndjson.append(
+            TableActions.parquetFile(
+                signed.url(),
+                signed.id(),
+                partitionValues == null ? Map.of() : partitionValues,
+                status.getSize(),
+                stats,
+                version,
+                timestamp,
+                signed.expirationTimestamp()));
+      }
+      return numRecords(stats)
+          - add.getDeletionVector().map(DeletionVectorDescriptor::getCardinality).orElse(0L);
+    }
+
+    /** {@code refreshToken} may be null. */
+    void endStreamAction(String refreshToken) {
+      ndjson.append(TableActions.endStreamAction(refreshToken, null, minUrlExpirationTimestamp));
+    }
+
+    String ndjson() {
+      return ndjson.toString();
+    }
+
+    /**
+     * Presigns the data file and, for delta responses, its on-disk deletion vector. Inline
+     * deletion vectors have no object to sign. Ids hash the log path, not the URL, so they stay
+     * stable across queries and re-signing.
+     */
+    private SignedFile sign(
+        String absolutePath, String logPath, Optional<DeletionVectorDescriptor> deletionVector) {
+      Duration urlTtl = urlTtl();
+      SignedUrl file = signers.sign(absolutePath, session.credentials(), urlTtl);
+      long expirationTimestamp = file.expiration().toEpochMilli();
+      String deletionVectorUrl = null;
+      String deletionVectorFileId = null;
+      DeletionVectorDescriptor dv =
+          format == ResponseFormat.DELTA
+              ? deletionVector.filter(DeletionVectorDescriptor::isOnDisk).orElse(null)
+              : null;
+      if (dv != null) {
+        String dvPath =
+            dv.getAbsolutePath(HadoopStorageConfiguration.kernelPath(session.location()));
+        SignedUrl signedDv = signers.sign(dvPath, session.credentials(), urlTtl);
+        deletionVectorUrl = signedDv.url();
+        deletionVectorFileId = FileIdHash.hash(dvPath, fileIdHash, format);
+        expirationTimestamp = Math.min(expirationTimestamp, signedDv.expiration().toEpochMilli());
+      }
+      minUrlExpirationTimestamp =
+          minUrlExpirationTimestamp == null
+              ? expirationTimestamp
+              : Math.min(minUrlExpirationTimestamp, expirationTimestamp);
+      return new SignedFile(
+          file.url(),
+          FileIdHash.hash(logPath, fileIdHash, format),
+          deletionVectorUrl,
+          deletionVectorFileId,
+          expirationTimestamp);
+    }
+  }
+
+  /** {@code expirationTimestamp} is the earlier of the file and deletion vector URL expiries. */
+  private record SignedFile(
+      String url,
+      String id,
+      String deletionVectorUrl,
+      String deletionVectorFileId,
+      long expirationTimestamp) {}
 }
