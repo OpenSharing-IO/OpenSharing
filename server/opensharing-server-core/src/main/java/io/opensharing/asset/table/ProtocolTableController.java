@@ -206,11 +206,7 @@ public class ProtocolTableController {
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     var options = responseOptions(capabilities, fileIdHashHeader);
     if (body.startingVersion() != null || body.endingVersion() != null) {
-      return queryResponse(
-          queryChanges(body, resolved, entity, capabilities, fileIdHash, includeEndStreamAction),
-          capabilities,
-          includeEndStreamAction,
-          fileIdHash);
+      return queryResponse(queryChanges(body, resolved, entity, options), options);
     }
     boolean historical = body.version() != null || body.timestamp() != null;
     boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
@@ -239,14 +235,24 @@ public class ProtocolTableController {
     return queryResponse(result, options);
   }
 
+  private ResolvedAsset requireUrlAccess(ResolvedAsset resolved, String schema, String table) {
+    List<String> accessModes = TableAccessModes.forTable(resolved);
+    if (accessModes == null || !accessModes.contains("url")) {
+      throw ApiException.invalidParameter(
+          "table '" + schema + "." + table + "' does not support url access");
+    }
+    if (!properties.getDelta().isUrlAccessEnabled()) {
+      throw ApiException.invalidParameter("url access is disabled");
+    }
+    return resolved;
+  }
+
   // Predicate and limit hints apply to snapshot files only, so they are ignored here.
   private DeltaTableQueryReader.Result queryChanges(
       QueryTableRequest body,
       ResolvedAsset resolved,
       ShareEntity entity,
-      String capabilities,
-      String fileIdHash,
-      boolean includeEndStreamAction) {
+      DeltaTableQueryReader.ResponseOptions options) {
     Long startingVersion = body.startingVersion();
     Long endingVersion = body.endingVersion();
     if (startingVersion == null) {
@@ -256,8 +262,7 @@ public class ProtocolTableController {
       throw ApiException.invalidParameter(
           "Only one of version, timestamp, and startingVersion can be set");
     }
-    if (Boolean.TRUE.equals(body.includeRefreshToken())
-        || (body.refreshToken() != null && !body.refreshToken().isBlank())) {
+    if (Boolean.TRUE.equals(body.includeRefreshToken()) || body.refreshToken() != null) {
       throw ApiException.invalidParameter(
           "includeRefreshToken and refreshToken cannot be used with startingVersion");
     }
@@ -270,13 +275,11 @@ public class ProtocolTableController {
     }
     return queryReader.readChanges(
         resolved,
+        owner(entity),
+        options,
         startingVersion,
         endingVersion,
-        owner(entity),
-        capabilities,
-        fileIdHash,
-        Boolean.TRUE.equals(body.includeHistoricalProtocol()),
-        includeEndStreamAction);
+        Boolean.TRUE.equals(body.includeHistoricalProtocol()));
   }
 
   private static DeltaTableQueryReader.ResponseOptions responseOptions(

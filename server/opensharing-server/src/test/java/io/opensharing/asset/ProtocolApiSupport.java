@@ -228,15 +228,13 @@ public abstract class ProtocolApiSupport {
         @Override
         public DeltaTableQueryReader.Result readChanges(
             ResolvedAsset table,
+            AuthContext auth,
+            DeltaTableQueryReader.ResponseOptions options,
             long startingVersion,
             Long endingVersion,
-            AuthContext auth,
-            String capabilities,
-            String fileIdHash,
-            boolean includeHistoricalProtocol,
-            boolean includeEndStreamAction) {
+            boolean includeHistoricalProtocol) {
           String ndjson = STUB_PARQUET + STUB_CHANGES;
-          if (includeEndStreamAction) {
+          if (options.includeEndStreamAction()) {
             ndjson += TableActions.endStreamAction(null, null, 4102444800000L);
           }
           return new DeltaTableQueryReader.Result(startingVersion, ndjson);

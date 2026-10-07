@@ -99,9 +99,15 @@ public final class TableActions {
                 expirationTimestamp)));
   }
 
-  /** A data change file for a startingVersion query: {@code add} or {@code remove}. */
+  /** Data change file kinds, keyed {@code add} or {@code remove}. */
+  public enum ChangeType {
+    ADD,
+    REMOVE
+  }
+
+  /** A data change file for a startingVersion query. */
   public static String parquetChange(
-      boolean remove,
+      ChangeType type,
       String url,
       String id,
       Map<String, String> partitionValues,
@@ -120,7 +126,11 @@ public final class TableActions {
             version,
             timestamp,
             expirationTimestamp);
-    return line(remove ? new RemoveLine(file) : new AddLine(file));
+    return line(
+        switch (type) {
+          case ADD -> new AddLine(file);
+          case REMOVE -> new RemoveLine(file);
+        });
   }
 
   public static String deltaFile(
@@ -139,14 +149,14 @@ public final class TableActions {
         new DeltaSingleAction(add.toRow(), null));
   }
 
-  /** {@code action} is an add or remove row; {@code remove} picks the deltaSingleAction key. */
+  /** {@code action} is the add or remove row; {@code type} picks its action key. */
   public static String deltaChange(
       String id,
       String deletionVectorFileId,
       Long expirationTimestamp,
       long version,
       long timestamp,
-      boolean remove,
+      ChangeType type,
       Row action) {
     return deltaFile(
         id,
@@ -154,7 +164,10 @@ public final class TableActions {
         expirationTimestamp,
         version,
         timestamp,
-        remove ? new DeltaSingleAction(null, action) : new DeltaSingleAction(action, null));
+        switch (type) {
+          case ADD -> new DeltaSingleAction(action, null);
+          case REMOVE -> new DeltaSingleAction(null, action);
+        });
   }
 
   private static String deltaFile(

@@ -166,13 +166,11 @@ class DeltaTableQueryReaderTest {
         reader
             .readChanges(
                 table,
+                null,
+                new DeltaTableQueryReader.ResponseOptions(capabilities, null, false),
                 startingVersion,
                 endingVersion,
-                null,
-                capabilities,
-                null,
-                historicalProtocol,
-                false)
+                historicalProtocol)
             .ndjson()
             .split("\n"));
   }
