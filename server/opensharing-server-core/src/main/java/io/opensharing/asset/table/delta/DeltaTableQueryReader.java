@@ -32,6 +32,9 @@ import org.springframework.stereotype.Component;
 /**
  * Reads Query Table snapshot files from a Delta log. The parquet or delta response is NDJSON:
  * protocol, metaData, then one file action per data file.
+ *
+ * <p>Every file URL is presigned for {@code opensharing.delta.url-ttl}, so the client reads the
+ * data files directly from storage without the provider's credentials.
  */
 @Component
 public class DeltaTableQueryReader {
@@ -47,6 +50,15 @@ public class DeltaTableQueryReader {
     this.signers = signers;
   }
 
+  /**
+   * Reads one snapshot of {@code table} as Query Table NDJSON.
+   *
+   * @param version the table version to read; null with a null {@code timestamp} reads the latest
+   * @param timestamp read the latest version committed at or before this time
+   * @param auth the share owner the catalog vends storage credentials for
+   * @param capabilities the request's {@code delta-sharing-capabilities} header; picks the format
+   * @param fileIdHash the parsed {@code fileidhash} header, or null to follow the format
+   */
   public Result read(
       ResolvedAsset table,
       Long version,
@@ -61,8 +73,10 @@ public class DeltaTableQueryReader {
     DeltaKernel.Session session = kernel.open(table, auth, properties.getDelta().getUrlTtl());
     Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
     SnapshotImpl impl = (SnapshotImpl) snapshot;
+    // A time-travel query reports the snapshot version in metaData and on every file.
     boolean historical = version != null || timestamp != null;
     ResponseFormat format = DeltaSharingCapabilities.choose(capabilities);
+    // Fails before any file is read when the client cannot read the table in this format.
     DeltaSharingCapabilities.requireReaderFeatures(capabilities, format, impl.getProtocol());
     CRCInfo crc = crcFor(impl, snapshot.getVersion());
     Long fileVersion = historical ? snapshot.getVersion() : null;
@@ -81,10 +95,12 @@ public class DeltaTableQueryReader {
             format));
 
     try {
+      // Scan files are the add actions that are live in the snapshot after log replay.
       Scan scan = snapshot.getScanBuilder().build();
       try (CloseableIterator<FilteredColumnarBatch> batches = scan.getScanFiles(session.engine())) {
         while (batches.hasNext()) {
           FilteredColumnarBatch batch = batches.next();
+          // getRows skips rows the selection vector drops, such as files removed by later commits.
           try (CloseableIterator<Row> rows = batch.getRows()) {
             while (rows.hasNext()) {
               ndjson.append(
@@ -108,6 +124,10 @@ public class DeltaTableQueryReader {
     return new Result(snapshot.getVersion(), ndjson.toString());
   }
 
+  /**
+   * One file action for a scan file. The URL is presigned with the table's storage credentials;
+   * {@code expirationTimestamp} is the earliest expiry among the URLs in the line.
+   */
   private String fileLine(
       Row scanFile,
       ResponseFormat format,
@@ -119,6 +139,7 @@ public class DeltaTableQueryReader {
       Duration urlTtl) {
     FileStatus status = InternalScanFileUtils.getAddFileStatus(scanFile);
     Map<String, String> partitionValues = InternalScanFileUtils.getPartitionValues(scanFile);
+    // Parquet file actions always carry partitionValues, empty for an unpartitioned table.
     if (partitionValues == null) {
       partitionValues = Map.of();
     }
@@ -127,6 +148,7 @@ public class DeltaTableQueryReader {
     SignedUrl signed = signers.sign(status.getPath(), credentials, urlTtl);
     String url = signed.url();
     long expirationTimestamp = signed.expiration().toEpochMilli();
+    // Hashing the log path, not the URL, keeps the id stable across queries and re-signing.
     String id = FileIdHash.hash(add.getPath(), fileIdHash, format);
     String stats = add.getStatsJson().orElse(null);
 
@@ -147,6 +169,7 @@ public class DeltaTableQueryReader {
             Math.min(expirationTimestamp, signedDv.expiration().toEpochMilli());
       }
 
+      // The delta format nests the add action, with its paths replaced by presigned URLs.
       return TableActions.deltaFile(
           id,
           deletionVectorFileId,
@@ -159,6 +182,10 @@ public class DeltaTableQueryReader {
         url, id, partitionValues, status.getSize(), stats, version, timestamp, expirationTimestamp);
   }
 
+  /**
+   * The snapshot's checksum file, if it was written for exactly {@code version}. Its size and
+   * file count go into metaData; without it they are omitted rather than computed by a scan.
+   */
   private static CRCInfo crcFor(SnapshotImpl snapshot, long version) {
     return snapshot
         .getCurrentCrcInfo()
@@ -166,5 +193,6 @@ public class DeltaTableQueryReader {
         .orElse(null);
   }
 
+  /** {@code version} is the snapshot read, returned as the {@code Delta-Table-Version} header. */
   public record Result(long version, String ndjson) {}
 }
