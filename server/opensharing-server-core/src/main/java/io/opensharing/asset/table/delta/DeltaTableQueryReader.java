@@ -175,7 +175,8 @@ public class DeltaTableQueryReader {
    * Reads data change files committed from {@code startingVersion} through {@code endingVersion},
    * or the latest version when it is null. Protocol and metaData lines come from {@code
    * startingVersion}; later metaData changes follow with their version, and later protocol changes
-   * too when {@code includeHistoricalProtocol} is set on a delta response.
+   * too when {@code includeHistoricalProtocol} is set on a delta response. Versions after the
+   * latest are rejected rather than capped.
    */
   public Result readChanges(
       ResolvedAsset table,
@@ -226,15 +227,21 @@ public class DeltaTableQueryReader {
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     } catch (KernelException | IllegalArgumentException invalid) {
+      // Kernel fails when a commit file in the range is missing, such as after log cleanup.
       throw ApiException.invalidParameter(invalid.getMessage());
     }
 
     if (options.includeEndStreamAction()) {
       out.endStreamAction(null);
     }
+    // The protocol reports the starting version as the table version of a change response.
     return new Result(range.start(), out.ndjson());
   }
 
+  /**
+   * Reads one commit file, which holds every action of its version. Kernel can split a large file
+   * across several batches, each with its own schema ordinals.
+   */
   private static Commit readCommit(DeltaKernel.Session session, FileStatus file)
       throws IOException {
     Commit commit = new Commit(FileNames.deltaVersion(file.getPath()), file.getModificationTime());
@@ -261,6 +268,7 @@ public class DeltaTableQueryReader {
     long version = commit.version;
     // The header already covers the starting version's protocol and metaData.
     boolean later = version > range.start();
+    // A commit has a protocol only when it creates the table or upgrades the protocol.
     for (Protocol protocol : commit.protocols) {
       // A later protocol can need reader features the client did not declare.
       out.requireReaderFeatures(protocol);
@@ -268,11 +276,13 @@ public class DeltaTableQueryReader {
         out.protocol(protocol, version);
       }
     }
+    // A commit has metaData only when it creates the table or changes its schema or properties.
     for (Metadata metadata : commit.metadata) {
       if (later) {
         out.metadata(metadata, version, null);
       }
     }
+    // A commit has add and remove files only when it writes or rewrites data.
     for (ChangeFile file : commit.files) {
       out.changeFile(file, version, commit.timestamp);
     }
@@ -412,8 +422,7 @@ public class DeltaTableQueryReader {
 
     /** Appends a data change file committed at {@code version}, unless it has no dataChange. */
     void changeFile(ChangeFile file, long version, long timestamp) {
-      // Add and remove files without dataChange, such as compaction rewrites, are skipped, as the
-      // OSS server does.
+      // Add and remove files without dataChange, such as compaction rewrites, are skipped.
       if (!file.dataChange()) {
         return;
       }
@@ -488,7 +497,8 @@ public class DeltaTableQueryReader {
           expirationTimestamp);
     }
 
-    // Log paths of data change files are relative to the table root.
+    // Log paths are URI-encoded and usually relative to the table root; resolving an absolute
+    // path against the root keeps it unchanged.
     private String absolutePath(String path) {
       if (tableRoot == null) {
         tableRoot = session.table().getPath(session.engine());
@@ -534,12 +544,17 @@ public class DeltaTableQueryReader {
     final List<Metadata> metadata = new ArrayList<>();
     final List<ChangeFile> files = new ArrayList<>();
 
-    /** The commit file's {@code modificationTime} is the timestamp unless commitInfo has one. */
+    /**
+     * The commit file's {@code modificationTime} is the timestamp unless commitInfo has an
+     * inCommitTimestamp, which tables with in-commit timestamps record because modification times
+     * change when the log is copied.
+     */
     Commit(long version, long modificationTime) {
       this.version = version;
       this.timestamp = modificationTime;
     }
 
+    // Each line of a commit file holds exactly one action, so one column of the row is set.
     void add(Row row, ChangeColumns columns) {
       if (!row.isNullAt(columns.protocol())) {
         protocols.add(Protocol.fromRow(row.getStruct(columns.protocol())));
@@ -584,6 +599,7 @@ public class DeltaTableQueryReader {
               add.getStatsJson().orElse(null),
               add.getDeletionVector());
         }
+        // A remove may omit partitionValues and size.
         case REMOVE -> {
           RemoveFile remove = new RemoveFile(action);
           yield new ChangeFile(
