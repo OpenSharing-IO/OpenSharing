@@ -144,13 +144,14 @@ class DeltaTableQueryReaderTest {
     assertEquals(
         List.of("remove a 1", "add d 1", "metaData 2", "add e 2"),
         describe(changes(1L, null, delta, false).subList(2, 6)));
-    assertEquals(6, changes(1L, null, delta, false).size());
+    List<String> withoutProtocol = changes(1L, null, delta, false);
+    assertEquals(6, withoutProtocol.size());
+    assertFalse(withoutProtocol.get(0).contains("\"version\""), withoutProtocol.get(0));
     List<String> withProtocol = changes(1L, null, delta, true);
     assertEquals(
         List.of("remove a 1", "add d 1", "metaData 2", "add e 2", "protocol 3"),
         describe(withProtocol.subList(2, withProtocol.size())));
-    // The starting protocol has no version; only later protocols do.
-    assertFalse(withProtocol.get(0).contains("\"version\""), withProtocol.get(0));
+    assertTrue(withProtocol.get(0).contains("\"version\":1"), withProtocol.get(0));
   }
 
   @Test

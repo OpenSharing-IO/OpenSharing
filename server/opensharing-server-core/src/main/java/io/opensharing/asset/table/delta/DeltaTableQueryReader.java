@@ -214,7 +214,12 @@ public class DeltaTableQueryReader {
       ResponseOptions options) {
     ResponseWriter out = new ResponseWriter(session, table, options);
     out.requireReaderFeatures(header.getProtocol());
-    out.protocol(header.getProtocol(), null);
+    // With includeHistoricalProtocol, the starting protocol carries its version like later ones.
+    out.protocol(
+        header.getProtocol(),
+        range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA
+            ? header.getVersion()
+            : null);
     out.metadata(header.getMetadata(), header.getVersion(), crcFor(header, header.getVersion()));
 
     Path tablePath = new Path(session.table().getPath(session.engine()));
