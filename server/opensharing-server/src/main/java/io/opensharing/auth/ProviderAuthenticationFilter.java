@@ -59,13 +59,20 @@ public class ProviderAuthenticationFilter extends OncePerRequestFilter {
     chain.doFilter(request, response);
   }
 
-  // Creating a share needs CREATE_SHARE. Other requests only authenticate; ownership of existing
-  // shares is checked by the stores.
+  // Creating a share or recipient needs the matching privilege. Other requests only authenticate;
+  // ownership of existing objects is checked by the stores.
   private static Privilege privilegeFor(HttpServletRequest request) {
-    return "POST".equalsIgnoreCase(request.getMethod())
-            && request.getRequestURI().replaceFirst("/$", "").endsWith("/shares")
-        ? Privilege.CREATE_SHARE
-        : null;
+    if (!"POST".equalsIgnoreCase(request.getMethod())) {
+      return null;
+    }
+    String path = request.getRequestURI().replaceFirst("/$", "");
+    if (path.endsWith("/shares")) {
+      return Privilege.CREATE_SHARE;
+    }
+    if (path.endsWith("/recipients")) {
+      return Privilege.CREATE_RECIPIENT;
+    }
+    return null;
   }
 
   // RFC 9110 requires a 401 to name the expected scheme in WWW-Authenticate.
