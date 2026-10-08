@@ -74,9 +74,14 @@ public record ApiFailure(int status, String errorCode, String message) {
     return new ApiFailure(400, ErrorCodes.MALFORMED_REQUEST, "request body is malformed");
   }
 
+  /**
+   * The JSON path of the invalid value, such as {@code a.b[0].c}, or {@code value}
+   * when the body itself is the invalid value.
+   */
   private static String fieldPath(InvalidFormatException invalid) {
     StringBuilder path = new StringBuilder();
     for (JsonMappingException.Reference reference : invalid.getPath()) {
+      // A reference names an object field, or has a null field name and indexes into an array.
       if (reference.getFieldName() != null) {
         path.append(path.isEmpty() ? "" : ".").append(reference.getFieldName());
       } else {

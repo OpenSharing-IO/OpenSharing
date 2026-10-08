@@ -9,13 +9,24 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import io.opensharing.catalog.AssetType;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.support.DefaultMessageSourceResolvable;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.validation.method.MethodValidationResult;
+import org.springframework.validation.method.ParameterValidationResult;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @SpringBootTest(
     properties = {
@@ -37,28 +48,77 @@ class GlobalExceptionHandlerTest {
   }
 
   @Test
-  void mapsUnknownEnumValuesInABodyAsInvalidParameters() {
+  void mapsInvalidBodiesWithTheFirstFieldError() throws Exception {
+    BeanPropertyBindingResult result = new BeanPropertyBindingResult(new Body(null), "body");
+    result.addError(new FieldError("body", "type", "must not be null"));
+    assertFailure(
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "type must not be null",
+        new MethodArgumentNotValidException(maxResults(), result));
+  }
+
+  @Test
+  void mapsMethodValidationFailures() throws Exception {
+    MethodParameter maxResults = maxResults();
+    ParameterValidationResult invalid =
+        new ParameterValidationResult(
+            maxResults,
+            0,
+            List.of(new DefaultMessageSourceResolvable(null, null, "must be greater than 0")));
+    assertFailure(
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "request validation failed",
+        new HandlerMethodValidationException(
+            MethodValidationResult.create(new Object(), maxResults.getMethod(), List.of(invalid))));
+  }
+
+  @Test
+  void mapsMistypedParameters() throws Exception {
+    assertFailure(
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "maxResults must be a number",
+        new MethodArgumentTypeMismatchException(
+            "ten", Integer.class, "maxResults", maxResults(), null));
+  }
+
+  @Test
+  void mapsMissingParameters() {
+    assertFailure(
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "maxResults is required",
+        new MissingServletRequestParameterException("maxResults", "Integer"));
+  }
+
+  @Test
+  void mapsUnreadableBodiesThroughTheirJsonCause() {
     InvalidFormatException invalid =
         assertThrows(
             InvalidFormatException.class,
             () -> new ObjectMapper().readValue("{\"type\":\"VIEW\"}", Body.class));
-    ApiFailure failure = GlobalExceptionHandler.failureOf(unreadable(invalid));
-    assertEquals(400, failure.status());
-    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, failure.errorCode());
-    assertEquals("type must be one of [TABLE, SCHEMA]", failure.message());
+    assertFailure(
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "type must be one of [TABLE, SCHEMA]",
+        new HttpMessageNotReadableException(
+            "unreadable", invalid, new MockHttpInputMessage(new byte[0])));
   }
 
   @Test
-  void mapsOtherUnreadableBodiesAsMalformed() {
-    ApiFailure failure = GlobalExceptionHandler.failureOf(unreadable(null));
-    assertEquals(400, failure.status());
-    assertEquals(ErrorCodes.MALFORMED_REQUEST, failure.errorCode());
+  void leavesOtherFailuresToApiFailure() {
+    ApiFailure failure = GlobalExceptionHandler.failureOf(ApiException.notFound("no share"));
+    assertEquals(new ApiFailure(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, "no share"), failure);
   }
 
-  private static HttpMessageNotReadableException unreadable(Throwable cause) {
-    return new HttpMessageNotReadableException(
-        "unreadable", cause, new MockHttpInputMessage(new byte[0]));
+  private static void assertFailure(String errorCode, String message, Exception e) {
+    assertEquals(new ApiFailure(400, errorCode, message), GlobalExceptionHandler.failureOf(e));
+  }
+
+  private static MethodParameter maxResults() throws NoSuchMethodException {
+    return new MethodParameter(Endpoint.class.getDeclaredMethod("list", Integer.class), 0);
   }
 
   record Body(AssetType type) {}
+
+  interface Endpoint {
+    void list(Integer maxResults);
+  }
 }
