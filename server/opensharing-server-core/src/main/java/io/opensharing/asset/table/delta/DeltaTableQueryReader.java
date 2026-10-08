@@ -4,9 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.delta.kernel.Scan;
 import io.delta.kernel.ScanBuilder;
 import io.delta.kernel.Snapshot;
+import io.delta.kernel.data.ColumnarBatch;
 import io.delta.kernel.data.FilteredColumnarBatch;
 import io.delta.kernel.data.Row;
+import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.expressions.Predicate;
+import io.delta.kernel.internal.DeltaLogActionUtils;
+import io.delta.kernel.internal.DeltaLogActionUtils.DeltaAction;
 import io.delta.kernel.internal.InternalScanFileUtils;
 import io.delta.kernel.internal.ScanImpl;
 import io.delta.kernel.internal.SnapshotImpl;
@@ -14,7 +18,14 @@ import io.delta.kernel.internal.actions.AddFile;
 import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
 import io.delta.kernel.internal.actions.Metadata;
 import io.delta.kernel.internal.actions.Protocol;
+import io.delta.kernel.internal.actions.RemoveFile;
 import io.delta.kernel.internal.checksum.CRCInfo;
+import io.delta.kernel.internal.fs.Path;
+import io.delta.kernel.internal.util.FileNames;
+import io.delta.kernel.internal.util.Utils;
+import io.delta.kernel.internal.util.VectorUtils;
+import io.delta.kernel.types.LongType;
+import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterator;
 import io.delta.kernel.utils.FileStatus;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
@@ -22,6 +33,7 @@ import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.asset.table.FileIdHash;
 import io.opensharing.asset.table.RefreshTokens;
 import io.opensharing.asset.table.TableActions;
+import io.opensharing.asset.table.TableActions.ChangeType;
 import io.opensharing.asset.table.signer.SignedUrl;
 import io.opensharing.asset.table.signer.UrlSigners;
 import io.opensharing.auth.AuthContext;
@@ -30,26 +42,42 @@ import io.opensharing.config.OpenSharingProperties;
 import io.opensharing.http.ApiException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
- * Reads Query Table snapshot files from a Delta log. The parquet or delta response is NDJSON:
- * protocol, metaData, then one file action per data file, and an endStreamAction when requested.
+ * Reads Query Table files from a Delta log. The parquet or delta response is NDJSON: protocol,
+ * metaData, then one file action per data file, or one add or remove per data change file for a
+ * startingVersion query, and an endStreamAction when requested.
  *
  * <p>Every file URL is presigned for {@code opensharing.delta.url-ttl}, so the client reads the
  * data files directly from storage without the provider's credentials.
  *
- * <p>jsonPredicateHints and limitHint only decide which files are returned. Clients still filter
- * rows and apply the limit themselves, so returning extra files is always correct.
+ * <p>jsonPredicateHints and limitHint only decide which snapshot files are returned. Clients still
+ * filter rows and apply the limit themselves, so returning extra files is always correct.
  */
 @Component
 public class DeltaTableQueryReader {
 
   private static final ObjectMapper JSON = new ObjectMapper();
+
+  // Commit files are read directly because Kernel 4.0's getChanges requires commitInfo fields that
+  // older Delta writers omit; only the commitInfo fields used here are read.
+  private static final StructType CHANGE_SCHEMA =
+      new StructType()
+          .add(DeltaAction.PROTOCOL.colName, DeltaAction.PROTOCOL.schema)
+          .add(DeltaAction.METADATA.colName, DeltaAction.METADATA.schema)
+          .add(DeltaAction.ADD.colName, DeltaAction.ADD.schema)
+          .add(DeltaAction.REMOVE.colName, DeltaAction.REMOVE.schema)
+          .add(
+              DeltaAction.COMMITINFO.colName,
+              new StructType().add("inCommitTimestamp", LongType.LONG));
 
   private final DeltaKernel kernel;
   private final OpenSharingProperties properties;
@@ -143,6 +171,135 @@ public class DeltaTableQueryReader {
     return new Result(snapshot.getVersion(), out.ndjson());
   }
 
+  /**
+   * Reads data change files committed from {@code startingVersion} through {@code endingVersion},
+   * or the latest version when it is null. Protocol and metaData lines come from {@code
+   * startingVersion}; later metaData changes follow with their version, and later protocol changes
+   * too when {@code includeHistoricalProtocol} is set on a delta response. Versions after the
+   * latest are rejected rather than capped.
+   */
+  public Result readChanges(
+      ResolvedAsset table,
+      AuthContext auth,
+      ResponseOptions options,
+      long startingVersion,
+      Long endingVersion,
+      boolean includeHistoricalProtocol) {
+    DeltaKernel.Session session = open(table, auth);
+    long latest = DeltaSnapshots.open(session, null, null).getVersion();
+    requireAtMostLatest("startingVersion", startingVersion, latest);
+    if (endingVersion != null) {
+      requireAtMostLatest("endingVersion", endingVersion, latest);
+    }
+    return changes(
+        session,
+        table,
+        (SnapshotImpl) DeltaSnapshots.open(session, startingVersion, null),
+        new ChangeRange(
+            startingVersion,
+            endingVersion == null ? latest : endingVersion,
+            includeHistoricalProtocol),
+        options);
+  }
+
+  /**
+   * Protocol and metaData from {@code header}, then each commit in {@code range} with its add and
+   * remove files that have dataChange.
+   */
+  private Result changes(
+      DeltaKernel.Session session,
+      ResolvedAsset table,
+      SnapshotImpl header,
+      ChangeRange range,
+      ResponseOptions options) {
+    ResponseWriter out = new ResponseWriter(session, table, options);
+    out.requireReaderFeatures(header.getProtocol());
+    // With includeHistoricalProtocol, the starting protocol carries its version like later ones.
+    out.protocol(
+        header.getProtocol(),
+        range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA
+            ? header.getVersion()
+            : null);
+    out.metadata(header.getMetadata(), header.getVersion(), crcFor(header, header.getVersion()));
+
+    Path tablePath = new Path(session.table().getPath(session.engine()));
+    try {
+      for (FileStatus file :
+          DeltaLogActionUtils.getCommitFilesForVersionRange(
+              session.engine(), tablePath, range.start(), range.end())) {
+        write(out, range, readCommit(session, file));
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    } catch (KernelException | IllegalArgumentException invalid) {
+      // Kernel fails when a commit file in the range is missing, such as after log cleanup.
+      throw ApiException.invalidParameter(invalid.getMessage());
+    }
+
+    if (options.includeEndStreamAction()) {
+      out.endStreamAction(null);
+    }
+    // The protocol reports the starting version as the table version of a change response.
+    return new Result(range.start(), out.ndjson());
+  }
+
+  /**
+   * Reads one commit file, which holds every action of its version. Kernel can split a large file
+   * across several batches, each with its own schema ordinals.
+   */
+  private static Commit readCommit(DeltaKernel.Session session, FileStatus file)
+      throws IOException {
+    Commit commit = new Commit(FileNames.deltaVersion(file.getPath()), file.getModificationTime());
+    try (CloseableIterator<ColumnarBatch> batches =
+        session
+            .engine()
+            .getJsonHandler()
+            .readJsonFiles(
+                Utils.singletonCloseableIterator(file), CHANGE_SCHEMA, Optional.empty())) {
+      while (batches.hasNext()) {
+        ColumnarBatch batch = batches.next();
+        ChangeColumns columns = ChangeColumns.of(batch.getSchema());
+        try (CloseableIterator<Row> rows = batch.getRows()) {
+          while (rows.hasNext()) {
+            commit.add(rows.next(), columns);
+          }
+        }
+      }
+    }
+    return commit;
+  }
+
+  private static void write(ResponseWriter out, ChangeRange range, Commit commit) {
+    long version = commit.version;
+    // The header already covers the starting version's protocol and metaData.
+    boolean later = version > range.start();
+    // A commit has a protocol only when it creates the table or upgrades the protocol.
+    for (Protocol protocol : commit.protocols) {
+      // A later protocol can need reader features the client did not declare.
+      out.requireReaderFeatures(protocol);
+      if (range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA && later) {
+        out.protocol(protocol, version);
+      }
+    }
+    // A commit has metaData only when it creates the table or changes its schema or properties.
+    for (Metadata metadata : commit.metadata) {
+      if (later) {
+        out.metadata(metadata, version, null);
+      }
+    }
+    // A commit has add and remove files only when it writes or rewrites data.
+    for (ChangeFile file : commit.files) {
+      out.changeFile(file, version, commit.timestamp);
+    }
+  }
+
+  private static void requireAtMostLatest(String name, long version, long latest) {
+    if (version > latest) {
+      throw ApiException.invalidParameter(
+          name + " " + version + " is after the latest table version " + latest);
+    }
+  }
+
   private DeltaKernel.Session open(ResolvedAsset table, AuthContext auth) {
     return kernel.open(table, auth, urlTtl());
   }
@@ -200,6 +357,7 @@ public class DeltaTableQueryReader {
     private final String fileIdHash;
     private final StringBuilder ndjson = new StringBuilder();
     private Long minUrlExpirationTimestamp;
+    private String tableRoot;
 
     ResponseWriter(DeltaKernel.Session session, ResolvedAsset table, ResponseOptions options) {
       this.format = DeltaSharingCapabilities.choose(options.capabilities());
@@ -267,6 +425,38 @@ public class DeltaTableQueryReader {
           - add.getDeletionVector().map(DeletionVectorDescriptor::getCardinality).orElse(0L);
     }
 
+    /** Appends a data change file committed at {@code version}, unless it has no dataChange. */
+    void changeFile(ChangeFile file, long version, long timestamp) {
+      // Add and remove files without dataChange, such as compaction rewrites, are skipped.
+      if (!file.dataChange()) {
+        return;
+      }
+      SignedFile signed = sign(absolutePath(file.path()), file.path(), file.deletionVector());
+      if (format == ResponseFormat.DELTA) {
+        ndjson.append(
+            TableActions.deltaChange(
+                signed.id(),
+                signed.deletionVectorFileId(),
+                signed.expirationTimestamp(),
+                version,
+                timestamp,
+                file.type(),
+                TableActions.withPath(file.action(), signed.url(), signed.deletionVectorUrl())));
+      } else {
+        ndjson.append(
+            TableActions.parquetChange(
+                file.type(),
+                signed.url(),
+                signed.id(),
+                file.partitionValues(),
+                file.size(),
+                file.stats(),
+                version,
+                timestamp,
+                signed.expirationTimestamp()));
+      }
+    }
+
     /** {@code refreshToken} may be null. */
     void endStreamAction(String refreshToken) {
       ndjson.append(TableActions.endStreamAction(refreshToken, null, minUrlExpirationTimestamp));
@@ -311,6 +501,15 @@ public class DeltaTableQueryReader {
           deletionVectorFileId,
           expirationTimestamp);
     }
+
+    // Log paths are URI-encoded and usually relative to the table root; resolving an absolute
+    // path against the root keeps it unchanged.
+    private String absolutePath(String path) {
+      if (tableRoot == null) {
+        tableRoot = session.table().getPath(session.engine());
+      }
+      return new Path(new Path(URI.create(tableRoot)), new Path(URI.create(path))).toString();
+    }
   }
 
   /** {@code expirationTimestamp} is the earlier of the file and deletion vector URL expiries. */
@@ -320,4 +519,108 @@ public class DeltaTableQueryReader {
       String deletionVectorUrl,
       String deletionVectorFileId,
       long expirationTimestamp) {}
+
+  /**
+   * The versions and options of a startingVersion query, which also returns later metaData
+   * changes.
+   *
+   * @param includeHistoricalProtocol return protocol changes after {@code start} in delta responses
+   */
+  private record ChangeRange(long start, long end, boolean includeHistoricalProtocol) {}
+
+  /** Ordinals of a commit file batch. */
+  private record ChangeColumns(int protocol, int metadata, int add, int remove, int commitInfo) {
+
+    static ChangeColumns of(StructType schema) {
+      return new ChangeColumns(
+          schema.indexOf(DeltaAction.PROTOCOL.colName),
+          schema.indexOf(DeltaAction.METADATA.colName),
+          schema.indexOf(DeltaAction.ADD.colName),
+          schema.indexOf(DeltaAction.REMOVE.colName),
+          schema.indexOf(DeltaAction.COMMITINFO.colName));
+    }
+  }
+
+  /** The actions of one commit, buffered so its protocol and metaData go out before its files. */
+  private static final class Commit {
+    final long version;
+    long timestamp;
+    final List<Protocol> protocols = new ArrayList<>();
+    final List<Metadata> metadata = new ArrayList<>();
+    final List<ChangeFile> files = new ArrayList<>();
+
+    /**
+     * The commit file's {@code modificationTime} is the timestamp unless commitInfo has an
+     * inCommitTimestamp, which tables with in-commit timestamps record because modification times
+     * change when the log is copied.
+     */
+    Commit(long version, long modificationTime) {
+      this.version = version;
+      this.timestamp = modificationTime;
+    }
+
+    // Each line of a commit file holds exactly one action, so one column of the row is set.
+    void add(Row row, ChangeColumns columns) {
+      if (!row.isNullAt(columns.protocol())) {
+        protocols.add(Protocol.fromRow(row.getStruct(columns.protocol())));
+      } else if (!row.isNullAt(columns.metadata())) {
+        metadata.add(Metadata.fromRow(row.getStruct(columns.metadata())));
+      } else if (!row.isNullAt(columns.add())) {
+        files.add(ChangeFile.of(ChangeType.ADD, row.getStruct(columns.add())));
+      } else if (!row.isNullAt(columns.remove())) {
+        files.add(ChangeFile.of(ChangeType.REMOVE, row.getStruct(columns.remove())));
+      } else if (!row.isNullAt(columns.commitInfo())) {
+        Row commitInfo = row.getStruct(columns.commitInfo());
+        int inCommitTimestamp = commitInfo.getSchema().indexOf("inCommitTimestamp");
+        if (!commitInfo.isNullAt(inCommitTimestamp)) {
+          timestamp = commitInfo.getLong(inCommitTimestamp);
+        }
+      }
+    }
+  }
+
+  /** The fields a change line needs from an add or remove action in the log. */
+  private record ChangeFile(
+      ChangeType type,
+      Row action,
+      String path,
+      boolean dataChange,
+      Map<String, String> partitionValues,
+      long size,
+      String stats,
+      Optional<DeletionVectorDescriptor> deletionVector) {
+
+    static ChangeFile of(ChangeType type, Row action) {
+      return switch (type) {
+        case ADD -> {
+          AddFile add = new AddFile(action);
+          yield new ChangeFile(
+              type,
+              action,
+              add.getPath(),
+              add.getDataChange(),
+              VectorUtils.toJavaMap(add.getPartitionValues()),
+              add.getSize(),
+              add.getStatsJson().orElse(null),
+              add.getDeletionVector());
+        }
+        // A remove may omit partitionValues and size.
+        case REMOVE -> {
+          RemoveFile remove = new RemoveFile(action);
+          yield new ChangeFile(
+              type,
+              action,
+              remove.getPath(),
+              remove.getDataChange(),
+              remove
+                  .getPartitionValues()
+                  .<Map<String, String>>map(VectorUtils::toJavaMap)
+                  .orElse(Map.of()),
+              remove.getSize().orElse(0L),
+              null,
+              remove.getDeletionVector());
+        }
+      };
+    }
+  }
 }

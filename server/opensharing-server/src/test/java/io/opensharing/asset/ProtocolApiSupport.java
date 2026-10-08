@@ -143,6 +143,11 @@ public abstract class ProtocolApiSupport {
             {"file":{"id":"stub-file","expirationTimestamp":4102444800000,"deltaSingleAction":{"add":{"path":"https://example.invalid/stub.parquet","partitionValues":{},"size":1,"modificationTime":0,"dataChange":true}}}}
             """;
 
+    private static final String STUB_CHANGES =
+        """
+        {"add":{"url":"https://example.invalid/stub.parquet","id":"stub-file","partitionValues":{},"size":1,"version":7,"timestamp":0}}
+        """;
+
     @Bean
     @Primary
     @ConditionalOnProperty(
@@ -218,6 +223,21 @@ public abstract class ProtocolApiSupport {
           }
           return new DeltaTableQueryReader.Result(
               version == null && timestamp == null ? 123 : 45, ndjson);
+        }
+
+        @Override
+        public DeltaTableQueryReader.Result readChanges(
+            ResolvedAsset table,
+            AuthContext auth,
+            DeltaTableQueryReader.ResponseOptions options,
+            long startingVersion,
+            Long endingVersion,
+            boolean includeHistoricalProtocol) {
+          String ndjson = STUB_PARQUET + STUB_CHANGES;
+          if (options.includeEndStreamAction()) {
+            ndjson += TableActions.endStreamAction(null, null, 4102444800000L);
+          }
+          return new DeltaTableQueryReader.Result(startingVersion, ndjson);
         }
       };
     }

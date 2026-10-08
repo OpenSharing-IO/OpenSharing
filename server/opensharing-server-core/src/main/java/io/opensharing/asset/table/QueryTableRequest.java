@@ -3,8 +3,8 @@ package io.opensharing.asset.table;
 import java.util.List;
 
 /**
- * Optional body for Query Table. Snapshot queries use version or timestamp; streaming is not
- * implemented.
+ * Optional body for Query Table. Snapshot queries use version or timestamp; startingVersion, with
+ * an optional endingVersion, returns data change files instead.
  */
 public record QueryTableRequest(
     // Deprecated by the protocol in favor of jsonPredicateHints; only logged, never used to filter.

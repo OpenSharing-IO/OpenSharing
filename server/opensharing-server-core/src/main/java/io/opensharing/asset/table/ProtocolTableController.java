@@ -190,7 +190,6 @@ public class ProtocolTableController {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(matching));
   }
 
-  // Snapshot Query Table only. startingVersion is not implemented.
   @PostMapping(
       value = "/schemas/{schema}/tables/{table}/query",
       produces = "application/x-ndjson;charset=UTF-8")
@@ -207,7 +206,7 @@ public class ProtocolTableController {
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     var options = responseOptions(capabilities, fileIdHashHeader);
     if (body.startingVersion() != null || body.endingVersion() != null) {
-      throw ApiException.notImplemented("startingVersion queries are not supported");
+      return queryResponse(queryChanges(body, resolved, entity, options), options);
     }
     boolean historical = body.version() != null || body.timestamp() != null;
     boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
@@ -246,6 +245,41 @@ public class ProtocolTableController {
       throw ApiException.invalidParameter("url access is disabled");
     }
     return resolved;
+  }
+
+  // Predicate and limit hints apply to snapshot files only, so they are ignored here.
+  private DeltaTableQueryReader.Result queryChanges(
+      QueryTableRequest body,
+      ResolvedAsset resolved,
+      ShareEntity entity,
+      DeltaTableQueryReader.ResponseOptions options) {
+    Long startingVersion = body.startingVersion();
+    Long endingVersion = body.endingVersion();
+    if (startingVersion == null) {
+      throw ApiException.invalidParameter("endingVersion requires startingVersion");
+    }
+    if (body.version() != null || body.timestamp() != null) {
+      throw ApiException.invalidParameter(
+          "Only one of version, timestamp, and startingVersion can be set");
+    }
+    if (Boolean.TRUE.equals(body.includeRefreshToken()) || body.refreshToken() != null) {
+      throw ApiException.invalidParameter(
+          "includeRefreshToken and refreshToken cannot be used with startingVersion");
+    }
+    if (startingVersion < 0) {
+      throw ApiException.invalidParameter("startingVersion must be non-negative");
+    }
+    if (endingVersion != null && endingVersion < startingVersion) {
+      throw ApiException.invalidParameter(
+          "endingVersion must be greater than or equal to startingVersion");
+    }
+    return queryReader.readChanges(
+        resolved,
+        owner(entity),
+        options,
+        startingVersion,
+        endingVersion,
+        Boolean.TRUE.equals(body.includeHistoricalProtocol()));
   }
 
   private static DeltaTableQueryReader.ResponseOptions responseOptions(
