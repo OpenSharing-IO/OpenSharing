@@ -3,6 +3,7 @@ package io.opensharing.runtime;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.opensharing.Transactions;
 import io.opensharing.catalog.CatalogConnector;
 import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
@@ -15,16 +16,29 @@ class OpenSharingTest {
   }
 
   @Test
-  void buildsWithTheHostCatalog() {
-    CatalogConnector catalog =
-        (CatalogConnector)
-            Proxy.newProxyInstance(
-                CatalogConnector.class.getClassLoader(),
-                new Class<?>[] {CatalogConnector.class},
-                (proxy, method, args) -> {
-                  throw new UnsupportedOperationException();
-                });
+  void refusesToBuildWithoutTransactions() {
+    assertThrows(
+        IllegalStateException.class,
+        () -> OpenSharing.builder().catalog(unused(CatalogConnector.class)).build());
+  }
 
-    assertSame(catalog, OpenSharing.builder().catalog(catalog).build().catalog());
+  @Test
+  void buildsWithTheHostCatalog() {
+    CatalogConnector catalog = unused(CatalogConnector.class);
+
+    OpenSharing openSharing =
+        OpenSharing.builder().catalog(catalog).transactions(unused(Transactions.class)).build();
+
+    assertSame(catalog, openSharing.catalog());
+  }
+
+  private static <T> T unused(Class<T> type) {
+    return type.cast(
+        Proxy.newProxyInstance(
+            type.getClassLoader(),
+            new Class<?>[] {type},
+            (proxy, method, args) -> {
+              throw new UnsupportedOperationException();
+            }));
   }
 }

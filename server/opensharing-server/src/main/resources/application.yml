@@ -39,6 +39,9 @@ server:
 opensharing:
   # Prefix the protocol-serving endpoints are mounted under; this is what goes in a profile file.
   protocol-prefix: /api/1.0/opensharing
+  provider:
+    # Provider-admin API. Its bearer tokens are authorized by the configured catalog.
+    base-path: /api/1.0/opensharing/provider
   asset-credentials:
     # Lifetime of the cloud credentials the catalog vends for reading an asset's storage.
     ttl: 1h
