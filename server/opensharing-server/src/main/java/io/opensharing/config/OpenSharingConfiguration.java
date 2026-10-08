@@ -1,6 +1,7 @@
 package io.opensharing.config;
 
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.recipient.RecipientTokenSettings;
 import io.opensharing.runtime.OpenSharing;
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.context.annotation.Bean;
@@ -15,10 +16,15 @@ public class OpenSharingConfiguration {
   public OpenSharing openSharing(
       CatalogConnector catalog,
       PlatformTransactionManager transactionManager,
-      EntityManagerFactory entityManagerFactory) {
+      EntityManagerFactory entityManagerFactory,
+      OpenSharingProperties properties) {
     return OpenSharing.builder()
         .catalog(catalog)
         .transactions(new SpringTransactions(transactionManager, entityManagerFactory))
+        .recipientTokens(
+            new RecipientTokenSettings(
+                properties.getRecipientTokens().getDefaultTtl(),
+                properties.getRecipientTokens().getRotationGrace()))
         .build();
   }
 }

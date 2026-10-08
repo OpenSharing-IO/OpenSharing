@@ -71,6 +71,19 @@ public class RecipientAdminController {
     return ResponseEntity.noContent().build();
   }
 
+  /**
+   * {@code POST /recipients/{recipient}/rotate-token}: issues a replacement token with a new
+   * activation URL. Existing tokens stop working after the grace window. Owner only.
+   */
+  @PostMapping("/{recipient}/rotate-token")
+  @ResponseStatus(HttpStatus.CREATED)
+  public IssuedTokenResponse rotateToken(
+      UserContext user,
+      @PathVariable String recipient,
+      @RequestBody(required = false) RotateTokenRequest request) {
+    return recipients.rotateToken(user, recipient, request, activationBaseUrl());
+  }
+
   // Absolute URL on this server, so the recipient can open the link as is.
   private String activationBaseUrl() {
     return ServletUriComponentsBuilder.fromCurrentContextPath()
