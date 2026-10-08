@@ -139,17 +139,16 @@ public final class LocalCatalogConnector implements CatalogConnector {
         .build();
   }
 
-  /** Empty {@code sharableBy} means anyone; otherwise the user name must match. */
+  /**
+   * Empty {@code shareableBy} means anyone; otherwise it lists user ids. The user name is display
+   * only and never grants access.
+   */
   private static boolean allows(LocalCatalogFile.Asset asset, AuthContext auth) {
-    if (asset.sharableBy().isEmpty()) {
+    if (asset.shareableBy().isEmpty()) {
       return true;
     }
     UserContext user = auth == null ? null : auth.user();
-    String name = user == null ? null : user.userName();
-    if (name == null) {
-      return false;
-    }
-    return asset.sharableBy().stream().anyMatch(allowed -> allowed.equalsIgnoreCase(name));
+    return user != null && asset.shareableBy().contains(user.userId());
   }
 
   private LocalCatalogFile.Asset requireAsset(Asset lookup, AuthContext auth) {

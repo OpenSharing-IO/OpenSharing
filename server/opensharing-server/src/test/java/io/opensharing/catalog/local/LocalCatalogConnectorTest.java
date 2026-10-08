@@ -24,6 +24,9 @@ import io.opensharing.catalog.TableProperties;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -36,30 +39,19 @@ class LocalCatalogConnectorTest {
   private static final String TABLE1 =
       "s3://delta-exchange-test/delta-exchange-test/table1/";
 
-  private static final String CATALOG =
-      """
-      credentials:
-        provider: AWS
-        mode: FAKE
-        ttlSeconds: 900
-      assets:
-        - identifier: main.sales
-          type: SCHEMA
-        - identifier: main.sales.table1
-          type: TABLE
-          attributes:
-            subtype: MANAGED
-          storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-          format: delta
-        - identifier: main.finance.ledger
-          storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-          format: delta
-          sharableBy:
-            - alice@example.com
-      """;
-
   private static final UserContext ALICE =
-      UserContext.fromUserIdAndName("alice@example.com", "alice@example.com");
+      UserContext.fromUserIdAndName("catalog-alice-id", "alice");
+  private static final UserContext BOB = UserContext.fromUserIdAndName("catalog-bob-id", "bob");
+
+  /** The sample catalog the server ships with. */
+  private static LocalCatalogConnector sample() {
+    try (InputStream in =
+        LocalCatalogConnectorTest.class.getResourceAsStream("/local-catalog.yml")) {
+      return new LocalCatalogConnector(LocalCatalogLoader.load(in, "classpath:local-catalog.yml"));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
 
   private static LocalCatalogConnector connector(String yaml) {
     return new LocalCatalogConnector(
@@ -69,7 +61,7 @@ class LocalCatalogConnectorTest {
 
   @Test
   void resolvesTableWithFormat() {
-    ResolvedAsset asset = resolve(CATALOG, "main.sales.table1", ALICE);
+    ResolvedAsset asset = resolve("main.sales.table1", ALICE);
 
     assertEquals(TABLE1, asset.location().storageLocation());
     assertEquals(
@@ -79,7 +71,7 @@ class LocalCatalogConnectorTest {
 
   @Test
   void treatsAssetsWithoutAnExplicitTypeAsTables() {
-    ResolvedAsset asset = resolve(CATALOG, "main.finance.ledger", ALICE);
+    ResolvedAsset asset = resolve("main.finance.ledger", ALICE);
 
     assertEquals(AssetType.TABLE, asset.type());
     TableProperties table = (TableProperties) asset.additionalProperties();
@@ -88,12 +80,12 @@ class LocalCatalogConnectorTest {
 
   @Test
   void resolvesNamesCaseInsensitively() {
-    assertEquals(TABLE1, resolve(CATALOG, "MAIN.Sales.Table1", ALICE).location().storageLocation());
+    assertEquals(TABLE1, resolve("MAIN.Sales.Table1", ALICE).location().storageLocation());
   }
 
   @Test
   void rejectsUnknownAsset() {
-    LocalCatalogConnector connector = connector(CATALOG);
+    LocalCatalogConnector connector = sample();
     Asset lookup = new Asset(AssetType.TABLE, "main.sales.missing");
 
     assertThrows(
@@ -103,24 +95,34 @@ class LocalCatalogConnectorTest {
 
   /**
    * Serving consults the same list, of the owner of the share being read through, so this is what
-   * revokes an existing read as well as what refuses a new share. This file authenticates nobody;
-   * it only recognizes names.
+   * revokes an existing read as well as what refuses a new share. The list holds user ids; the
+   * user name never grants access.
    */
   @Test
   void letsOnlyTheListedPrincipalsShareARestrictedAsset() {
     assertEquals(
-        TABLE1, resolve(CATALOG, "main.finance.ledger", ALICE).location().storageLocation());
+        TABLE1, resolve("main.finance.ledger", ALICE).location().storageLocation());
 
-    LocalCatalogConnector connector = connector(CATALOG);
+    LocalCatalogConnector connector = sample();
     Asset lookup = new Asset(AssetType.TABLE, "main.finance.ledger");
-    UserContext bob = UserContext.fromUserIdAndName("bob@example.com", "bob@example.com");
-    assertThrows(AssetAccessDeniedException.class, () -> connector.resolveAsset(lookup, AuthContext.of(bob)));
+    assertThrows(
+        AssetAccessDeniedException.class,
+        () -> connector.resolveAsset(lookup, AuthContext.of(BOB)));
   }
 
   @Test
-  void refusesToVendWhenCallerIsNotOnSharableBy() {
-    LocalCatalogConnector connector = connector(CATALOG);
-    UserContext bob = UserContext.fromUserIdAndName("bob@example.com", "bob@example.com");
+  void matchesShareableByOnUserIdNotUserName() {
+    LocalCatalogConnector connector = sample();
+    Asset lookup = new Asset(AssetType.TABLE, "main.finance.ledger");
+    UserContext impostor = UserContext.fromUserIdAndName("catalog-mallory-id", "alice");
+    assertThrows(
+        AssetAccessDeniedException.class,
+        () -> connector.resolveAsset(lookup, AuthContext.of(impostor)));
+  }
+
+  @Test
+  void refusesToVendWhenCallerIsNotOnShareableBy() {
+    LocalCatalogConnector connector = sample();
     CredentialRequest request =
         new CredentialRequest(
             AssetType.TABLE,
@@ -131,12 +133,13 @@ class LocalCatalogConnectorTest {
             null);
 
     assertThrows(
-        AssetAccessDeniedException.class, () -> connector.getStorageCredentials(request, AuthContext.of(bob)));
+        AssetAccessDeniedException.class,
+        () -> connector.getStorageCredentials(request, AuthContext.of(BOB)));
   }
 
   @Test
   void refusesToVendUnknownAsset() {
-    LocalCatalogConnector connector = connector(CATALOG);
+    LocalCatalogConnector connector = sample();
     CredentialRequest request =
         new CredentialRequest(
             AssetType.TABLE,
@@ -146,12 +149,14 @@ class LocalCatalogConnectorTest {
             StorageOperation.READ,
             null);
 
-    assertThrows(AssetNotFoundException.class, () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
+    assertThrows(
+        AssetNotFoundException.class,
+        () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
   }
 
   @Test
   void refusesToVendALocationOutsideTheAsset() {
-    LocalCatalogConnector connector = connector(CATALOG);
+    LocalCatalogConnector connector = sample();
     CredentialRequest request =
         new CredentialRequest(
             AssetType.TABLE,
@@ -161,17 +166,19 @@ class LocalCatalogConnectorTest {
             StorageOperation.READ,
             null);
 
-    assertThrows(CatalogException.class, () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
+    assertThrows(
+        CatalogException.class,
+        () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
   }
 
-  private static ResolvedAsset resolve(String yaml, String identifier, UserContext user) {
-    return connector(yaml).resolveAsset(new Asset(AssetType.TABLE, identifier), AuthContext.of(user));
+  private static ResolvedAsset resolve(String identifier, UserContext user) {
+    return sample().resolveAsset(new Asset(AssetType.TABLE, identifier), AuthContext.of(user));
   }
 
   @Test
   void vendsPlaceholderCredentialsScopedToTheAssetLocation() {
     List<StorageCredentials> vended =
-        connector(CATALOG)
+        sample()
             .getStorageCredentials(
                 new CredentialRequest(
                     AssetType.TABLE,
@@ -293,7 +300,9 @@ class LocalCatalogConnectorTest {
             StorageOperation.READ,
             null);
 
-    assertThrows(CatalogException.class, () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
+    assertThrows(
+        CatalogException.class,
+        () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
   }
 
   @Test
@@ -330,47 +339,20 @@ class LocalCatalogConnectorTest {
 
   @Test
   void listChildrenOmitsTablesTheCallerMayNotShare() {
-    String yaml =
-        """
-        assets:
-          - identifier: main.sales
-            type: SCHEMA
-          - identifier: main.sales.table1
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-            format: delta
-          - identifier: main.sales.ledger
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-            format: delta
-            sharableBy:
-              - alice@example.com
-        """;
-    UserContext bob = UserContext.fromUserIdAndName("bob@example.com", "bob@example.com");
-
+    Asset finance = new Asset(AssetType.SCHEMA, "main.finance");
     assertEquals(
-        List.of("main.sales.ledger", "main.sales.table1"),
-        connector(yaml)
-            .listChildren(
-                new Asset(AssetType.SCHEMA, "main.sales"),
-                100,
-                null,
-                AuthContext.of(ALICE))
-            .assets()
-            .stream()
+        List.of("main.finance.ledger"),
+        sample().listChildren(finance, 100, null, AuthContext.of(ALICE)).assets().stream()
             .map(ResolvedAsset::fullName)
             .toList());
     assertEquals(
-        List.of("main.sales.table1"),
-        connector(yaml)
-            .listChildren(new Asset(AssetType.SCHEMA, "main.sales"), 100, null, AuthContext.of(bob))
-            .assets()
-            .stream()
-            .map(ResolvedAsset::fullName)
-            .toList());
+        List.of(), sample().listChildren(finance, 100, null, AuthContext.of(BOB)).assets());
   }
+
 
   @Test
   void refusesToListWhatIsNotAContainer() {
-    LocalCatalogConnector connector = connector(CATALOG);
+    LocalCatalogConnector connector = sample();
     Asset table = new Asset(AssetType.TABLE, "main.sales.table1");
 
     assertThrows(
@@ -380,7 +362,7 @@ class LocalCatalogConnectorTest {
 
   @Test
   void refusesToListASchemaItDoesNotHave() {
-    LocalCatalogConnector connector = connector(CATALOG);
+    LocalCatalogConnector connector = sample();
     Asset schema = new Asset(AssetType.SCHEMA, "main.missing");
 
     assertThrows(
@@ -419,7 +401,7 @@ class LocalCatalogConnectorTest {
 
   @Test
   void rejectsPageTokensItDidNotIssue() {
-    LocalCatalogConnector connector = connector(CATALOG);
+    LocalCatalogConnector connector = sample();
     Asset schema = new Asset(AssetType.SCHEMA, "main.sales");
 
     assertThrows(
@@ -432,17 +414,7 @@ class LocalCatalogConnectorTest {
 
   @Test
   void authorizesConfiguredLocalPrincipals() {
-    String yaml =
-        """
-        principals:
-          - bearerToken: alice-token
-            userId: catalog-alice-id
-            userName: alice
-        assets:
-          - identifier: main.sales.table1
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-        """;
-    LocalCatalogConnector connector = connector(yaml);
+    LocalCatalogConnector connector = sample();
 
     UserContext alice =
         connector.authorize(
@@ -454,8 +426,9 @@ class LocalCatalogConnectorTest {
         CatalogAuthorizationException.class,
         () ->
             connector.authorize(
-                new AuthContext(null, new UserContext(null, "bob-token", null)), null));
+                new AuthContext(null, new UserContext(null, "mallory-token", null)), null));
   }
+
 
   @Test
   void rejectsUnknownKeysInCatalogFile() {

@@ -22,3 +22,13 @@ assets:
       subtype: MANAGED
     storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
     format: delta
+
+  - identifier: main.finance
+    type: SCHEMA
+
+  # Only the listed user ids may share this table.
+  - identifier: main.finance.ledger
+    storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
+    format: delta
+    shareableBy:
+      - catalog-alice-id

@@ -26,7 +26,14 @@ public record LocalCatalogFile(
   }
 
   /** Provider identity the local catalog accepts for admin APIs. */
-  public record Principal(String bearerToken, String userId, String userName) {}
+  public record Principal(String bearerToken, String userId, String userName) {
+
+    public Principal {
+      if (userId == null || userId.isBlank()) {
+        throw new IllegalArgumentException("local catalog principal is missing 'userId'");
+      }
+    }
+  }
 
   public record Credentials(
       CloudProvider provider, CredentialMode mode, Integer ttlSeconds, Map<String, String> values) {
@@ -49,7 +56,7 @@ public record LocalCatalogFile(
       String format,
       String catalogAssetId,
       List<String> auxiliaryLocations,
-      List<String> sharableBy,
+      List<String> shareableBy,
       Map<String, String> attributes) {
 
     public Asset {
@@ -58,7 +65,7 @@ public record LocalCatalogFile(
       }
       type = type == null ? AssetType.TABLE : type;
       auxiliaryLocations = auxiliaryLocations == null ? List.of() : List.copyOf(auxiliaryLocations);
-      sharableBy = sharableBy == null ? List.of() : List.copyOf(sharableBy);
+      shareableBy = shareableBy == null ? List.of() : List.copyOf(shareableBy);
       attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
       DataSourceFormat.fromWireName(format);
     }
