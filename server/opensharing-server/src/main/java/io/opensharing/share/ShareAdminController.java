@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Provider HTTP API for share CRUD. Callers are authenticated by {@code
+ * Provider HTTP API for share CRUD and recipient grants. Callers are authenticated by {@code
  * ProviderAuthenticationFilter}; any caller may read shares, only the owner may change them.
  */
 @RestController
@@ -71,5 +71,24 @@ public class ShareAdminController {
   public ResponseEntity<Void> delete(UserContext user, @PathVariable String share) {
     shares.delete(user, share);
     return ResponseEntity.noContent().build();
+  }
+
+  /** {@code GET /shares/{share}/permissions}: lists who holds which privilege on the share. */
+  @GetMapping("/{share}/permissions")
+  public ListResponse<SharePermissionResponse> listPermissions(
+      UserContext user, @PathVariable String share) {
+    return shares.listPermissions(share);
+  }
+
+  /**
+   * {@code PATCH /shares/{share}/permissions}: grants and revokes privileges in order, then returns
+   * the share's permissions. Owner only.
+   */
+  @PatchMapping("/{share}/permissions")
+  public ListResponse<SharePermissionResponse> updatePermissions(
+      UserContext user,
+      @PathVariable String share,
+      @RequestBody UpdateSharePermissionsRequest request) {
+    return shares.updatePermissions(user, share, request);
   }
 }

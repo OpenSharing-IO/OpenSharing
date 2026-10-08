@@ -11,20 +11,31 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import io.opensharing.recipient.RecipientEntity;
+import io.opensharing.recipient.RecipientStore;
 
 /**
- * Provider share CRUD. The host authenticates the caller and checks CREATE_SHARE before {@link
- * #create}; any caller may read shares, only the owner may change them.
+ * Provider share CRUD and recipient grants. The host authenticates the caller and checks
+ * CREATE_SHARE before {@link #create}; any caller may read shares, only the owner may change them.
  */
 public class ShareService {
 
   private final ShareStore shares;
   private final SharedDataObjectStore objects;
+  private final SharePermissionStore permissions;
+  private final RecipientStore recipients;
   private final CatalogConnector catalog;
 
-  public ShareService(ShareStore shares, SharedDataObjectStore objects, CatalogConnector catalog) {
+  public ShareService(
+      ShareStore shares,
+      SharedDataObjectStore objects,
+      SharePermissionStore permissions,
+      RecipientStore recipients,
+      CatalogConnector catalog) {
     this.shares = shares;
     this.objects = objects;
+    this.permissions = permissions;
+    this.recipients = recipients;
     this.catalog = catalog;
   }
 
@@ -79,6 +90,28 @@ public class ShareService {
   /** Deletes the share. Owner only. */
   public void delete(UserContext user, String share) {
     shares.delete(share, user);
+  }
+
+  /** Lists who holds which privilege on the share, by recipient name, unpaged. */
+  public ListResponse<SharePermissionResponse> listPermissions(String share) {
+    // TODO: page with maxResults and pageToken.
+    return ListResponse.of(
+        permissions.list(shares.require(share)).stream()
+            .map(SharePermissionResponse::from)
+            .toList());
+  }
+
+  /** Grants and revokes privileges in order, then returns the share's permissions. Owner only. */
+  public ListResponse<SharePermissionResponse> updatePermissions(
+      UserContext user, String share, UpdateSharePermissionsRequest request) {
+    ShareEntity entity = shares.requireOwned(share, user);
+    for (UpdateSharePermissionsRequest.Change change : request.changes()) {
+      RecipientEntity recipient =
+          recipients.require(requireText(change.recipientName(), "changes.recipientName"));
+      change.remove().forEach(privilege -> permissions.revoke(entity, recipient, privilege));
+      change.add().forEach(privilege -> permissions.grant(entity, recipient, privilege));
+    }
+    return listPermissions(share);
   }
 
   // Resolves the object in the catalog on behalf of the caller and checks the declared type.
