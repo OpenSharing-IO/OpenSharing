@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -42,13 +43,23 @@ public class ShareAdminController {
     return shares.list();
   }
 
-  /** {@code GET /shares/{share}}: gets a share by name in any case. */
+  /**
+   * {@code GET /shares/{share}}: gets a share by name in any case. With {@code
+   * include_shared_data=true}, also lists the objects in the share.
+   */
   @GetMapping("/{share}")
-  public ShareResponse get(UserContext user, @PathVariable String share) {
-    return shares.get(share);
+  public ShareResponse get(
+      UserContext user,
+      @PathVariable String share,
+      @RequestParam(name = "include_shared_data", defaultValue = "false")
+          boolean includeSharedData) {
+    return shares.get(share, includeSharedData);
   }
 
-  /** {@code PATCH /shares/{share}}: updates the fields set in the body. Owner only. */
+  /**
+   * {@code PATCH /shares/{share}}: applies the object adds and removes in order, then updates the
+   * fields set in the body. Owner only.
+   */
   @PatchMapping("/{share}")
   public ShareResponse update(
       UserContext user, @PathVariable String share, @RequestBody UpdateShareRequest request) {
