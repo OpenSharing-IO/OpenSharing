@@ -1,6 +1,8 @@
 package io.opensharing.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -82,7 +84,42 @@ class ProviderListPaginationTest {
   }
 
   @Test
-  void capsAndValidatesPageSizesAndTokens() throws Exception {
+  void resumesFromPageTokens() throws Exception {
+    create(SHARES, "{\"name\":\"tokened\"}");
+    for (String name : List.of("holder-a", "holder-b", "holder-c")) {
+      create(RECIPIENTS, "{\"name\":\"" + name + "\",\"authenticationType\":\"TOKEN\"}");
+      mvc.perform(
+              authorized(patch(SHARES + "/tokened/permissions"))
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      "{\"changes\":[{\"recipientName\":\"" + name + "\",\"add\":[\"SELECT\"]}]}"))
+          .andExpect(status().isOk());
+    }
+    String url = SHARES + "/tokened/permissions";
+
+    String first = fetch(authorized(get(url)).param("maxResults", "1"));
+    assertEquals(List.of("holder-a"), JsonPath.read(first, "$.items[*].recipientName"));
+    String token = nextPageToken(first);
+
+    String rest = fetch(authorized(get(url)).param("pageToken", token));
+    assertEquals(List.of("holder-b", "holder-c"), JsonPath.read(rest, "$.items[*].recipientName"));
+    assertNull(nextPageToken(rest));
+
+    // A token marks a position, not a page size, so it can be replayed with another maxResults.
+    String replayed =
+        fetch(authorized(get(url)).param("pageToken", token).param("maxResults", "1"));
+    assertEquals(List.of("holder-b"), JsonPath.read(replayed, "$.items[*].recipientName"));
+    assertNotNull(nextPageToken(replayed));
+
+    for (String list : List.of(SHARES, RECIPIENTS, url)) {
+      mvc.perform(authorized(get(list)).param("pageToken", "not-a-token"))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+    }
+  }
+
+  @Test
+  void capsAndValidatesPageSizes() throws Exception {
     for (String name : List.of("capped-a", "capped-b", "capped-c", "capped-d")) {
       create(SHARES, "{\"name\":\"" + name + "\"}");
     }
@@ -95,9 +132,6 @@ class ProviderListPaginationTest {
         .andExpect(jsonPath("$.nextPageToken").exists());
 
     mvc.perform(authorized(get(SHARES)).param("maxResults", "-1"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
-    mvc.perform(authorized(get(RECIPIENTS)).param("pageToken", "not-a-token"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
   }
@@ -114,19 +148,26 @@ class ProviderListPaginationTest {
       if (token != null) {
         request.param("pageToken", token);
       }
-      String body =
-          mvc.perform(request)
-              .andExpect(status().isOk())
-              .andReturn()
-              .getResponse()
-              .getContentAsString();
+      String body = fetch(request);
       List<String> page = JsonPath.read(body, "$.items[*]." + field);
       assertTrue(page.size() <= 2, body);
       values.addAll(page);
-      token = (String) JsonPath.<Map<String, Object>>read(body, "$").get("nextPageToken");
+      token = nextPageToken(body);
     } while (token != null);
     assertEquals(values.stream().sorted().distinct().toList(), values);
     return values;
+  }
+
+  private String fetch(MockHttpServletRequestBuilder request) throws Exception {
+    return mvc.perform(request)
+        .andExpect(status().isOk())
+        .andReturn()
+        .getResponse()
+        .getContentAsString();
+  }
+
+  private static String nextPageToken(String body) {
+    return (String) JsonPath.<Map<String, Object>>read(body, "$").get("nextPageToken");
   }
 
   private void create(String url, String body) throws Exception {
