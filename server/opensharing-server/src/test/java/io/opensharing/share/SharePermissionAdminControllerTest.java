@@ -115,4 +115,38 @@ class SharePermissionAdminControllerTest {
         .andExpect(jsonPath("$.errorCode").value(ErrorCodes.RESOURCE_DOES_NOT_EXIST));
   }
 
+  @Test
+  void rejectsNullChangesAndPrivileges() throws Exception {
+    mvc.perform(
+            post(SHARES)
+                .header("Authorization", "Bearer alice-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"guarded\"}"))
+        .andExpect(status().isCreated());
+
+    // A null change is rejected.
+    mvc.perform(
+            patch(SHARES + "/guarded/permissions")
+                .header("Authorization", "Bearer alice-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"changes\":[null]}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE))
+        .andExpect(jsonPath("$.message").value("changes must not contain null"));
+
+    // A null privilege is rejected in add and in remove.
+    for (String list : new String[] {"add", "remove"}) {
+      mvc.perform(
+              patch(SHARES + "/guarded/permissions")
+                  .header("Authorization", "Bearer alice-token")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content(
+                      "{\"changes\":[{\"recipientName\":\"acme\",\"" + list + "\":[null]}]}"))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE))
+          .andExpect(
+              jsonPath("$.message")
+                  .value("changes.add and changes.remove must not contain null"));
+    }
+  }
 }

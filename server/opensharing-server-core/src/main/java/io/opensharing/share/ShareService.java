@@ -14,6 +14,8 @@ import io.opensharing.http.ListResponse;
 import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientStore;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Provider share CRUD and recipient grants. The host authenticates the caller and checks
@@ -111,6 +113,13 @@ public class ShareService {
       UserContext user, String share, UpdateSharePermissionsRequest request) {
     ShareEntity entity = shares.requireOwned(share, user);
     for (UpdateSharePermissionsRequest.Change change : request.changes()) {
+      if (change == null) {
+        throw ApiException.invalidParameter("changes must not contain null");
+      }
+      if (Stream.concat(change.add().stream(), change.remove().stream())
+          .anyMatch(Objects::isNull)) {
+        throw ApiException.invalidParameter("changes.add and changes.remove must not contain null");
+      }
       RecipientEntity recipient =
           recipients.require(requireText(change.recipientName(), "changes.recipientName"));
       change.remove().forEach(privilege -> permissions.revoke(entity, recipient, privilege));
