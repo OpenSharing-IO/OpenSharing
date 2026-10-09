@@ -458,6 +458,16 @@ class ShareAdminControllerTest {
     deleteShare("edge-remove");
   }
 
+  @Test
+  void rejectsNullUpdates() throws Exception {
+    createShare("edge-null");
+    patchShare("edge-null", "{\"updates\":[null]}")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE))
+        .andExpect(jsonPath("$.message").value("updates must not contain null"));
+    deleteShare("edge-null");
+  }
+
   private void createShare(String name) throws Exception {
     mvc.perform(
             post(SHARES)

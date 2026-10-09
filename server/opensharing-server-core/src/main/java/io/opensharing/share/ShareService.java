@@ -62,7 +62,10 @@ public class ShareService {
     ShareEntity entity = shares.requireOwned(share, user);
     Map<String, String> properties = validateProperties(request.properties());
     for (UpdateShareRequest.Update update : request.updates()) {
-      if (update == null || update.action() == null) {
+      if (update == null) {
+        throw ApiException.invalidParameter("updates must not contain null");
+      }
+      if (update.action() == null) {
         throw ApiException.invalidParameter("updates.action is required");
       }
       if (update.dataObject() == null) {

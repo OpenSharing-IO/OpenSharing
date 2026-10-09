@@ -1,6 +1,8 @@
 package io.opensharing.share;
 
 import io.opensharing.catalog.AssetType;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -15,7 +17,7 @@ public record UpdateShareRequest(
     List<Update> updates) {
 
   public UpdateShareRequest {
-    updates = updates == null ? List.of() : List.copyOf(updates);
+    updates = updates == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(updates));
   }
 
   /** One object to add to or remove from the share. */
