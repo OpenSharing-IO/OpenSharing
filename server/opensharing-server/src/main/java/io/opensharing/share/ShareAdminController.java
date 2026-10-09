@@ -37,10 +37,13 @@ public class ShareAdminController {
     return shares.create(user, request);
   }
 
-  /** {@code GET /shares}: lists every share by name, unpaged. */
+  /** {@code GET /shares}: lists one page of shares by name. */
   @GetMapping
-  public ListResponse<ShareResponse> list(UserContext user) {
-    return shares.list();
+  public ListResponse<ShareResponse> list(
+      UserContext user,
+      @RequestParam(required = false) Integer maxResults,
+      @RequestParam(required = false) String pageToken) {
+    return shares.list(maxResults, pageToken);
   }
 
   /**
@@ -73,16 +76,22 @@ public class ShareAdminController {
     return ResponseEntity.noContent().build();
   }
 
-  /** {@code GET /shares/{share}/permissions}: lists who holds which privilege on the share. */
+  /**
+   * {@code GET /shares/{share}/permissions}: lists one page of who holds which privilege on the
+   * share.
+   */
   @GetMapping("/{share}/permissions")
   public ListResponse<SharePermissionResponse> listPermissions(
-      UserContext user, @PathVariable String share) {
-    return shares.listPermissions(share);
+      UserContext user,
+      @PathVariable String share,
+      @RequestParam(required = false) Integer maxResults,
+      @RequestParam(required = false) String pageToken) {
+    return shares.listPermissions(share, maxResults, pageToken);
   }
 
   /**
    * {@code PATCH /shares/{share}/permissions}: grants and revokes privileges in order, then returns
-   * the share's permissions. Owner only.
+   * the first page of the share's permissions. Owner only.
    */
   @PatchMapping("/{share}/permissions")
   public ListResponse<SharePermissionResponse> updatePermissions(

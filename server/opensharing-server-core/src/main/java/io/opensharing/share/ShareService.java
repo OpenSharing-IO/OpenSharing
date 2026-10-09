@@ -11,6 +11,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientStore;
 
@@ -25,18 +26,21 @@ public class ShareService {
   private final SharePermissionStore permissions;
   private final RecipientStore recipients;
   private final CatalogConnector catalog;
+  private final Pagination pagination;
 
   public ShareService(
       ShareStore shares,
       SharedDataObjectStore objects,
       SharePermissionStore permissions,
       RecipientStore recipients,
-      CatalogConnector catalog) {
+      CatalogConnector catalog,
+      Pagination pagination) {
     this.shares = shares;
     this.objects = objects;
     this.permissions = permissions;
     this.recipients = recipients;
     this.catalog = catalog;
+    this.pagination = pagination;
   }
 
   /** Creates a share owned by {@code user}. */
@@ -50,10 +54,9 @@ public class ShareService {
             request.properties()));
   }
 
-  /** Lists every share by name, unpaged. */
-  public ListResponse<ShareResponse> list() {
-    // TODO: page with maxResults and pageToken.
-    return ListResponse.of(shares.list().stream().map(ShareResponse::from).toList());
+  /** Lists one page of shares by name. */
+  public ListResponse<ShareResponse> list(Integer maxResults, String pageToken) {
+    return pagination.page(maxResults, pageToken, shares::list, ShareResponse::from);
   }
 
   /** Gets a share by name in any case, with the objects in it when {@code includeSharedData}. */
@@ -92,16 +95,21 @@ public class ShareService {
     shares.delete(share, user);
   }
 
-  /** Lists who holds which privilege on the share, by recipient name, unpaged. */
-  public ListResponse<SharePermissionResponse> listPermissions(String share) {
-    // TODO: page with maxResults and pageToken.
-    return ListResponse.of(
-        permissions.list(shares.require(share)).stream()
-            .map(SharePermissionResponse::from)
-            .toList());
+  /** Lists one page of who holds which privilege on the share, by recipient name. */
+  public ListResponse<SharePermissionResponse> listPermissions(
+      String share, Integer maxResults, String pageToken) {
+    ShareEntity entity = shares.require(share);
+    return pagination.page(
+        maxResults,
+        pageToken,
+        (offset, limit) -> permissions.list(entity, offset, limit),
+        SharePermissionResponse::from);
   }
 
-  /** Grants and revokes privileges in order, then returns the share's permissions. Owner only. */
+  /**
+   * Grants and revokes privileges in order, then returns the first page of the share's
+   * permissions. Owner only.
+   */
   public ListResponse<SharePermissionResponse> updatePermissions(
       UserContext user, String share, UpdateSharePermissionsRequest request) {
     ShareEntity entity = shares.requireOwned(share, user);
@@ -111,7 +119,7 @@ public class ShareService {
       change.remove().forEach(privilege -> permissions.revoke(entity, recipient, privilege));
       change.add().forEach(privilege -> permissions.grant(entity, recipient, privilege));
     }
-    return listPermissions(share);
+    return listPermissions(share, null, null);
   }
 
   // Resolves the object in the catalog on behalf of the caller and checks the declared type.

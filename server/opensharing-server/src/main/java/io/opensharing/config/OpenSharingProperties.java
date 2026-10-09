@@ -1,5 +1,6 @@
 package io.opensharing.config;
 
+import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientTokenSettings;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -15,6 +16,7 @@ public class OpenSharingProperties {
   private String activationPrefix = "/api/1.0/opensharing/activations";
   private final Provider provider = new Provider();
   private final RecipientTokens recipientTokens = new RecipientTokens();
+  private final PageSizes pagination = new PageSizes();
   private final Catalog catalog = new Catalog();
 
   public String getProtocolPrefix() {
@@ -39,6 +41,10 @@ public class OpenSharingProperties {
 
   public RecipientTokens getRecipientTokens() {
     return recipientTokens;
+  }
+
+  public PageSizes getPagination() {
+    return pagination;
   }
 
   public Catalog getCatalog() {
@@ -93,6 +99,32 @@ public class OpenSharingProperties {
 
     public void setRotationGrace(Duration rotationGrace) {
       this.rotationGrace = rotationGrace;
+    }
+  }
+
+  /** Page sizes of the list APIs. */
+  public static class PageSizes {
+
+    /** Page size when the request sets no maxResults. */
+    private int defaultMaxResults = Pagination.DEFAULTS.defaultMaxResults();
+
+    /** Largest page size a request may ask for; larger requests are capped to it. */
+    private int maxMaxResults = Pagination.DEFAULTS.maxMaxResults();
+
+    public int getDefaultMaxResults() {
+      return defaultMaxResults;
+    }
+
+    public void setDefaultMaxResults(int defaultMaxResults) {
+      this.defaultMaxResults = defaultMaxResults;
+    }
+
+    public int getMaxMaxResults() {
+      return maxMaxResults;
+    }
+
+    public void setMaxMaxResults(int maxMaxResults) {
+      this.maxMaxResults = maxMaxResults;
     }
   }
 
