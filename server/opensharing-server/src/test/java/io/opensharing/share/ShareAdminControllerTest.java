@@ -72,6 +72,24 @@ class ShareAdminControllerTest {
   }
 
   @Test
+  void rejectsNullPropertyValues() throws Exception {
+    // Creating with a null property value is rejected.
+    create("alice-token", "{\"name\":\"nulls\",\"properties\":{\"team\":null}}")
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+
+    // Updating with a null property value is rejected too.
+    create("alice-token", "{\"name\":\"nulls\"}").andExpect(status().isCreated());
+    mvc.perform(
+            patch(SHARES + "/nulls")
+                .header("Authorization", "Bearer alice-token")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"properties\":{\"team\":null}}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value(ErrorCodes.INVALID_PARAMETER_VALUE));
+  }
+
+  @Test
   void updatesOnlyTheFieldsInTheBody() throws Exception {
     // Owner creates a share with every field set.
     create(

@@ -2,7 +2,9 @@ package io.opensharing.share;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.auth.UserContext;
+import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import java.util.Map;
 
 /**
  * Provider share CRUD. The host authenticates the caller and checks CREATE_SHARE before {@link
@@ -24,7 +26,7 @@ public class ShareService {
             ObjectNames.validateShareName(request.name()),
             request.displayName(),
             request.comment(),
-            request.properties()));
+            validateProperties(request.properties())));
   }
 
   /** Lists every share by name, unpaged. */
@@ -42,11 +44,27 @@ public class ShareService {
   public ShareResponse update(UserContext user, String share, UpdateShareRequest request) {
     return ShareResponse.from(
         shares.update(
-            user, share, request.displayName(), request.comment(), request.properties()));
+            user,
+            share,
+            request.displayName(),
+            request.comment(),
+            validateProperties(request.properties())));
   }
 
   /** Deletes the share. Owner only. */
   public void delete(UserContext user, String share) {
     shares.delete(share, user);
+  }
+
+  private static Map<String, String> validateProperties(Map<String, String> properties) {
+    if (properties != null) {
+      for (Map.Entry<String, String> property : properties.entrySet()) {
+        if (property.getValue() == null) {
+          throw ApiException.invalidParameter(
+              "property '" + property.getKey() + "' must not be null");
+        }
+      }
+    }
+    return properties;
   }
 }
