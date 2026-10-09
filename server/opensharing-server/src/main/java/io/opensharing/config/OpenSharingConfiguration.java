@@ -1,6 +1,7 @@
 package io.opensharing.config;
 
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientTokenSettings;
 import io.opensharing.runtime.OpenSharing;
 import jakarta.persistence.EntityManagerFactory;
@@ -25,6 +26,10 @@ public class OpenSharingConfiguration {
             new RecipientTokenSettings(
                 properties.getRecipientTokens().getDefaultTtl(),
                 properties.getRecipientTokens().getRotationGrace()))
+        .pagination(
+            new Pagination(
+                properties.getPagination().getDefaultMaxResults(),
+                properties.getPagination().getMaxMaxResults()))
         .build();
   }
 }

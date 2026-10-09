@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -43,10 +44,13 @@ public class RecipientAdminController {
     return recipients.create(user, request, activationBaseUrl());
   }
 
-  /** {@code GET /recipients}: lists every recipient by name, unpaged. */
+  /** {@code GET /recipients}: lists one page of recipients by name. */
   @GetMapping
-  public ListResponse<RecipientResponse> list(UserContext user) {
-    return recipients.list(activationBaseUrl());
+  public ListResponse<RecipientResponse> list(
+      UserContext user,
+      @RequestParam(required = false) Integer maxResults,
+      @RequestParam(required = false) String pageToken) {
+    return recipients.list(maxResults, pageToken, activationBaseUrl());
   }
 
   /** {@code GET /recipients/{recipient}}: gets a recipient by name in any case. */

@@ -3,6 +3,7 @@ package io.opensharing.runtime;
 import io.opensharing.Transactions;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientService;
 import io.opensharing.recipient.RecipientStore;
 import io.opensharing.recipient.RecipientTokenSettings;
@@ -22,7 +23,10 @@ public final class OpenSharing {
   private final RecipientService recipients;
 
   private OpenSharing(
-      CatalogConnector catalog, Transactions tx, RecipientTokenSettings recipientTokens) {
+      CatalogConnector catalog,
+      Transactions tx,
+      RecipientTokenSettings recipientTokens,
+      Pagination pagination) {
     this.catalog = catalog;
     RecipientStore recipientStore = new RecipientStore(tx);
     this.shares =
@@ -31,8 +35,9 @@ public final class OpenSharing {
             new SharedDataObjectStore(tx),
             new SharePermissionStore(tx),
             recipientStore,
-            catalog);
-    this.recipients = new RecipientService(recipientStore, recipientTokens);
+            catalog,
+            pagination);
+    this.recipients = new RecipientService(recipientStore, recipientTokens, pagination);
   }
 
   public static Builder builder() {
@@ -56,6 +61,7 @@ public final class OpenSharing {
     private CatalogConnector catalog;
     private Transactions transactions;
     private RecipientTokenSettings recipientTokens = RecipientTokenSettings.DEFAULTS;
+    private Pagination pagination = Pagination.DEFAULTS;
 
     private Builder() {}
 
@@ -77,6 +83,12 @@ public final class OpenSharing {
       return this;
     }
 
+    /** Page sizes of the list APIs, {@link Pagination#DEFAULTS} if unset. */
+    public Builder pagination(Pagination pagination) {
+      this.pagination = pagination;
+      return this;
+    }
+
     public OpenSharing build() {
       if (catalog == null) {
         throw new IllegalStateException("OpenSharing requires a CatalogConnector from the host");
@@ -84,7 +96,7 @@ public final class OpenSharing {
       if (transactions == null) {
         throw new IllegalStateException("OpenSharing requires Transactions from the host");
       }
-      return new OpenSharing(catalog, transactions, recipientTokens);
+      return new OpenSharing(catalog, transactions, recipientTokens, pagination);
     }
   }
 }

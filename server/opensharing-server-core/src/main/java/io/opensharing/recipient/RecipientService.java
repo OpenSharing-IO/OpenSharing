@@ -5,6 +5,7 @@ import io.opensharing.auth.TokenHashes;
 import io.opensharing.auth.UserContext;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import io.opensharing.http.Pagination;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -35,11 +36,14 @@ public class RecipientService {
 
   private final RecipientStore recipients;
   private final RecipientTokenSettings tokens;
+  private final Pagination pagination;
   private final SecureRandom random = new SecureRandom();
 
-  public RecipientService(RecipientStore recipients, RecipientTokenSettings tokens) {
+  public RecipientService(
+      RecipientStore recipients, RecipientTokenSettings tokens, Pagination pagination) {
     this.recipients = recipients;
     this.tokens = tokens;
+    this.pagination = pagination;
   }
 
   /** Creates a recipient owned by {@code user}, with a new activation code. */
@@ -65,11 +69,11 @@ public class RecipientService {
     return toResponse(recipient, activationBaseUrl);
   }
 
-  /** Lists every recipient by name, unpaged. */
-  public ListResponse<RecipientResponse> list(String activationBaseUrl) {
-    // TODO: page with maxResults and pageToken.
-    return ListResponse.of(
-        recipients.list().stream().map(r -> toResponse(r, activationBaseUrl)).toList());
+  /** Lists one page of recipients by name. */
+  public ListResponse<RecipientResponse> list(
+      Integer maxResults, String pageToken, String activationBaseUrl) {
+    return pagination.page(
+        maxResults, pageToken, recipients::list, r -> toResponse(r, activationBaseUrl));
   }
 
   /** Gets a recipient by name in any case. */
