@@ -14,6 +14,7 @@ import io.delta.kernel.internal.DeltaLogActionUtils.DeltaAction;
 import io.delta.kernel.internal.InternalScanFileUtils;
 import io.delta.kernel.internal.ScanImpl;
 import io.delta.kernel.internal.SnapshotImpl;
+import io.delta.kernel.internal.TableConfig;
 import io.delta.kernel.internal.TableImpl;
 import io.delta.kernel.internal.actions.AddFile;
 import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
@@ -378,7 +379,7 @@ public class DeltaTableQueryReader {
   }
 
   private static boolean changeDataFeedEnabled(Metadata metadata) {
-    return "true".equals(metadata.getConfiguration().get("delta.enableChangeDataFeed"));
+    return TableConfig.CHANGE_DATA_FEED_ENABLED.fromMetadata(metadata);
   }
 
   private static ApiException changeDataNotRecorded(long version, long start, long end) {
