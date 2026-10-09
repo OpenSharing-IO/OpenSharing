@@ -235,6 +235,39 @@ public class ProtocolTableController {
     return queryResponse(result, options);
   }
 
+  @GetMapping(
+      value = "/schemas/{schema}/tables/{table}/changes",
+      produces = "application/x-ndjson;charset=UTF-8")
+  public ResponseEntity<String> changes(
+      RecipientPrincipal principal,
+      @PathVariable String share,
+      @PathVariable String schema,
+      @PathVariable String table,
+      @RequestParam(required = false) Long startingVersion,
+      @RequestParam(required = false) String startingTimestamp,
+      @RequestParam(required = false) Long endingVersion,
+      @RequestParam(required = false) String endingTimestamp,
+      @RequestParam(required = false) Boolean includeHistoricalMetadata,
+      @RequestParam(required = false) Boolean includeHistoricalProtocol,
+      @RequestHeader(value = "delta-sharing-capabilities", required = false) String capabilities,
+      @RequestHeader(value = FileIdHash.HEADER, required = false) String fileIdHashHeader) {
+    ShareEntity entity = requireGrantedShare(principal, share);
+    ResolvedAsset resolved = requireUrlAccess(resolveTable(entity, schema, table), schema, table);
+    var options = responseOptions(capabilities, fileIdHashHeader);
+    DeltaTableQueryReader.Result result =
+        queryReader.readChangeDataFeed(
+            resolved,
+            owner(entity),
+            options,
+            startingVersion,
+            parseTimestamp(startingTimestamp),
+            endingVersion,
+            parseTimestamp(endingTimestamp),
+            Boolean.TRUE.equals(includeHistoricalMetadata),
+            Boolean.TRUE.equals(includeHistoricalProtocol));
+    return queryResponse(result, options);
+  }
+
   private ResolvedAsset requireUrlAccess(ResolvedAsset resolved, String schema, String table) {
     List<String> accessModes = TableAccessModes.forTable(resolved);
     if (accessModes == null || !accessModes.contains("url")) {

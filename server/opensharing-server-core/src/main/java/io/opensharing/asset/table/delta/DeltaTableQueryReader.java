@@ -14,6 +14,8 @@ import io.delta.kernel.internal.DeltaLogActionUtils.DeltaAction;
 import io.delta.kernel.internal.InternalScanFileUtils;
 import io.delta.kernel.internal.ScanImpl;
 import io.delta.kernel.internal.SnapshotImpl;
+import io.delta.kernel.internal.TableConfig;
+import io.delta.kernel.internal.TableImpl;
 import io.delta.kernel.internal.actions.AddFile;
 import io.delta.kernel.internal.actions.DeletionVectorDescriptor;
 import io.delta.kernel.internal.actions.Metadata;
@@ -25,6 +27,8 @@ import io.delta.kernel.internal.util.FileNames;
 import io.delta.kernel.internal.util.Utils;
 import io.delta.kernel.internal.util.VectorUtils;
 import io.delta.kernel.types.LongType;
+import io.delta.kernel.types.MapType;
+import io.delta.kernel.types.StringType;
 import io.delta.kernel.types.StructType;
 import io.delta.kernel.utils.CloseableIterator;
 import io.delta.kernel.utils.FileStatus;
@@ -49,12 +53,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Component;
 
 /**
- * Reads Query Table files from a Delta log. The parquet or delta response is NDJSON: protocol,
- * metaData, then one file action per data file, or one add or remove per data change file for a
- * startingVersion query, and an endStreamAction when requested.
+ * Reads Query Table and Change Data Feed files from a Delta log. The parquet or delta response is
+ * NDJSON: protocol, metaData, then one file action per data file, or one add, remove, or cdc per
+ * data change file for a startingVersion or Change Data Feed query, and an endStreamAction when
+ * requested.
  *
  * <p>Every file URL is presigned for {@code opensharing.delta.url-ttl}, so the client reads the
  * data files directly from storage without the provider's credentials.
@@ -75,9 +81,15 @@ public class DeltaTableQueryReader {
           .add(DeltaAction.METADATA.colName, DeltaAction.METADATA.schema)
           .add(DeltaAction.ADD.colName, DeltaAction.ADD.schema)
           .add(DeltaAction.REMOVE.colName, DeltaAction.REMOVE.schema)
+          .add(DeltaAction.CDC.colName, DeltaAction.CDC.schema)
           .add(
               DeltaAction.COMMITINFO.colName,
-              new StructType().add("inCommitTimestamp", LongType.LONG));
+              new StructType()
+                  .add("inCommitTimestamp", LongType.LONG)
+                  .add("operation", StringType.STRING)
+                  .add(
+                      "operationMetrics",
+                      new MapType(StringType.STRING, StringType.STRING, true)));
 
   private final DeltaKernel kernel;
   private final OpenSharingProperties properties;
@@ -195,7 +207,7 @@ public class DeltaTableQueryReader {
         session,
         table,
         (SnapshotImpl) DeltaSnapshots.open(session, startingVersion, null),
-        new ChangeRange(
+        ChangeRange.dataChanges(
             startingVersion,
             endingVersion == null ? latest : endingVersion,
             includeHistoricalProtocol),
@@ -203,8 +215,72 @@ public class DeltaTableQueryReader {
   }
 
   /**
-   * Protocol and metaData from {@code header}, then each commit in {@code range} with its add and
-   * remove files that have dataChange.
+   * Reads the Change Data Feed from the start through the end version or timestamp, or the latest
+   * version. Versions take precedence over timestamps, and an end after the latest version is
+   * capped, as in the OSS server. Protocol and metaData lines come from the start version with
+   * {@code includeHistoricalMetadata}, which also returns later metaData changes, and from the
+   * latest version otherwise.
+   */
+  public Result readChangeDataFeed(
+      ResolvedAsset table,
+      AuthContext auth,
+      ResponseOptions options,
+      Long startingVersion,
+      Instant startingTimestamp,
+      Long endingVersion,
+      Instant endingTimestamp,
+      boolean includeHistoricalMetadata,
+      boolean includeHistoricalProtocol) {
+    DeltaKernel.Session session = open(table, auth);
+    SnapshotImpl latest = (SnapshotImpl) DeltaSnapshots.open(session, null, null);
+    TableImpl delta = (TableImpl) session.table();
+    long start;
+    Long end;
+    try {
+      if (startingVersion != null) {
+        start = startingVersion;
+      } else if (startingTimestamp != null) {
+        start =
+            delta.getVersionAtOrAfterTimestamp(session.engine(), startingTimestamp.toEpochMilli());
+      } else {
+        throw ApiException.invalidParameter("startingVersion or startingTimestamp is required");
+      }
+      end =
+          endingVersion != null
+              ? endingVersion
+              : endingTimestamp != null
+                  ? delta.getVersionBeforeOrAtTimestamp(
+                      session.engine(), endingTimestamp.toEpochMilli())
+                  : null;
+    } catch (KernelException | IllegalArgumentException invalid) {
+      throw ApiException.invalidParameter(invalid.getMessage());
+    }
+    if (start < 0) {
+      throw ApiException.invalidParameter("startingVersion must be non-negative");
+    }
+    requireAtMostLatest("startingVersion", start, latest.getVersion());
+    if (end != null && end < start) {
+      throw ApiException.invalidParameter(
+          "endingVersion " + end + " is before startingVersion " + start);
+    }
+    long resolvedEnd = end == null ? latest.getVersion() : Math.min(end, latest.getVersion());
+    SnapshotImpl first = (SnapshotImpl) DeltaSnapshots.open(session, start, null);
+    if (!changeDataFeedEnabled(first.getMetadata())) {
+      throw changeDataNotRecorded(start, start, resolvedEnd);
+    }
+    return changes(
+        session,
+        table,
+        includeHistoricalMetadata ? first : latest,
+        ChangeRange.changeDataFeed(
+            start, resolvedEnd, includeHistoricalMetadata, includeHistoricalProtocol),
+        options);
+  }
+
+  /**
+   * Protocol and metaData from {@code header}, then each commit in {@code range}. A Change Data
+   * Feed commit with cdc files returns only those, and a no-op MERGE returns no files; otherwise
+   * commits return their add and remove files with dataChange.
    */
   private Result changes(
       DeltaKernel.Session session,
@@ -283,14 +359,57 @@ public class DeltaTableQueryReader {
     }
     // A commit has metaData only when it creates the table or changes its schema or properties.
     for (Metadata metadata : commit.metadata) {
-      if (later) {
+      if (range.changeDataFeed() && !changeDataFeedEnabled(metadata)) {
+        throw changeDataNotRecorded(version, range.start(), range.end());
+      }
+      if (range.includeHistoricalMetadata() && later) {
         out.metadata(metadata, version, null);
       }
     }
     // A commit has add and remove files only when it writes or rewrites data.
-    for (ChangeFile file : commit.files) {
+    List<ChangeFile> files = commit.files;
+    if (range.changeDataFeed() && !commit.cdcFiles.isEmpty()) {
+      files = commit.cdcFiles;
+    } else if (range.changeDataFeed() && noOpMerge(commit.commitInfo)) {
+      files = List.of();
+    }
+    for (ChangeFile file : files) {
       out.changeFile(file, version, commit.timestamp);
     }
+  }
+
+  private static boolean changeDataFeedEnabled(Metadata metadata) {
+    return TableConfig.CHANGE_DATA_FEED_ENABLED.fromMetadata(metadata);
+  }
+
+  private static ApiException changeDataNotRecorded(long version, long start, long end) {
+    return ApiException.invalidParameter(
+        "Error getting change data for range ["
+            + start
+            + ", "
+            + end
+            + "] as change data was not recorded for version ["
+            + version
+            + "]");
+  }
+
+  // MERGE can rewrite files with dataChange but change no rows; its metrics say so, and no cdc
+  // is written. Missing metrics do not skip.
+  private static boolean noOpMerge(Row commitInfo) {
+    if (commitInfo == null) {
+      return false;
+    }
+    StructType schema = commitInfo.getSchema();
+    int operation = schema.indexOf("operation");
+    int metrics = schema.indexOf("operationMetrics");
+    if (commitInfo.isNullAt(operation)
+        || !"MERGE".equals(commitInfo.getString(operation))
+        || commitInfo.isNullAt(metrics)) {
+      return false;
+    }
+    Map<String, String> values = VectorUtils.toJavaMap(commitInfo.getMap(metrics));
+    return Stream.of("numTargetRowsInserted", "numTargetRowsUpdated", "numTargetRowsDeleted")
+        .allMatch(metric -> "0".equals(values.get(metric)));
   }
 
   private static void requireAtMostLatest(String name, long version, long latest) {
@@ -521,15 +640,37 @@ public class DeltaTableQueryReader {
       long expirationTimestamp) {}
 
   /**
-   * The versions and options of a startingVersion query, which also returns later metaData
-   * changes.
+   * The versions and options of a change query.
    *
+   * @param changeDataFeed whether this is a Change Data Feed query, which prefers cdc files
+   * @param includeHistoricalMetadata return metaData changes after {@code start}
    * @param includeHistoricalProtocol return protocol changes after {@code start} in delta responses
    */
-  private record ChangeRange(long start, long end, boolean includeHistoricalProtocol) {}
+  private record ChangeRange(
+      long start,
+      long end,
+      boolean changeDataFeed,
+      boolean includeHistoricalMetadata,
+      boolean includeHistoricalProtocol) {
+
+    // startingVersion queries always return later metaData changes.
+    static ChangeRange dataChanges(long start, long end, boolean includeHistoricalProtocol) {
+      return new ChangeRange(start, end, false, true, includeHistoricalProtocol);
+    }
+
+    static ChangeRange changeDataFeed(
+        long start,
+        long end,
+        boolean includeHistoricalMetadata,
+        boolean includeHistoricalProtocol) {
+      return new ChangeRange(
+          start, end, true, includeHistoricalMetadata, includeHistoricalProtocol);
+    }
+  }
 
   /** Ordinals of a commit file batch. */
-  private record ChangeColumns(int protocol, int metadata, int add, int remove, int commitInfo) {
+  private record ChangeColumns(
+      int protocol, int metadata, int add, int remove, int cdc, int commitInfo) {
 
     static ChangeColumns of(StructType schema) {
       return new ChangeColumns(
@@ -537,17 +678,23 @@ public class DeltaTableQueryReader {
           schema.indexOf(DeltaAction.METADATA.colName),
           schema.indexOf(DeltaAction.ADD.colName),
           schema.indexOf(DeltaAction.REMOVE.colName),
+          schema.indexOf(DeltaAction.CDC.colName),
           schema.indexOf(DeltaAction.COMMITINFO.colName));
     }
   }
 
-  /** The actions of one commit, buffered so its protocol and metaData go out before its files. */
+  /**
+   * The actions of one commit, buffered so its protocol and metaData go out before its files and
+   * its cdc files can take precedence over add and remove.
+   */
   private static final class Commit {
     final long version;
     long timestamp;
     final List<Protocol> protocols = new ArrayList<>();
     final List<Metadata> metadata = new ArrayList<>();
     final List<ChangeFile> files = new ArrayList<>();
+    final List<ChangeFile> cdcFiles = new ArrayList<>();
+    Row commitInfo;
 
     /**
      * The commit file's {@code modificationTime} is the timestamp unless commitInfo has an
@@ -569,8 +716,10 @@ public class DeltaTableQueryReader {
         files.add(ChangeFile.of(ChangeType.ADD, row.getStruct(columns.add())));
       } else if (!row.isNullAt(columns.remove())) {
         files.add(ChangeFile.of(ChangeType.REMOVE, row.getStruct(columns.remove())));
+      } else if (!row.isNullAt(columns.cdc())) {
+        cdcFiles.add(ChangeFile.of(ChangeType.CDC, row.getStruct(columns.cdc())));
       } else if (!row.isNullAt(columns.commitInfo())) {
-        Row commitInfo = row.getStruct(columns.commitInfo());
+        commitInfo = row.getStruct(columns.commitInfo());
         int inCommitTimestamp = commitInfo.getSchema().indexOf("inCommitTimestamp");
         if (!commitInfo.isNullAt(inCommitTimestamp)) {
           timestamp = commitInfo.getLong(inCommitTimestamp);
@@ -579,7 +728,7 @@ public class DeltaTableQueryReader {
     }
   }
 
-  /** The fields a change line needs from an add or remove action in the log. */
+  /** The fields a change line needs from an add, remove, or cdc action in the log. */
   private record ChangeFile(
       ChangeType type,
       Row action,
@@ -619,6 +768,19 @@ public class DeltaTableQueryReader {
               remove.getSize().orElse(0L),
               null,
               remove.getDeletionVector());
+        }
+        // cdc files are always data changes and carry no stats or deletion vector.
+        case CDC -> {
+          StructType schema = action.getSchema();
+          yield new ChangeFile(
+              type,
+              action,
+              action.getString(schema.indexOf("path")),
+              true,
+              VectorUtils.toJavaMap(action.getMap(schema.indexOf("partitionValues"))),
+              action.getLong(schema.indexOf("size")),
+              null,
+              Optional.empty());
         }
       };
     }
