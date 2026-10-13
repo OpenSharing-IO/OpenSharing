@@ -17,6 +17,7 @@ public class ServerProperties {
 
   public enum Property {
     PORT("server.port", "8080"),
+    PROVIDER_BASE_PATH("provider.base-path", "/api/1.0/opensharing/provider"),
     CATALOG_TYPE("catalog.type", "local"),
     LOCAL_CATALOG_FILE("catalog.local.file", "classpath:local-catalog.yml");
 

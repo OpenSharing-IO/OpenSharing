@@ -4,13 +4,21 @@ import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.HttpStatusException;
 import com.linecorp.armeria.server.Server;
+import com.linecorp.armeria.server.ServerBuilder;
+import com.linecorp.armeria.server.annotation.JacksonRequestConverterFunction;
+import com.linecorp.armeria.server.annotation.JacksonResponseConverterFunction;
+import io.opensharing.auth.ProviderTokenDecorator;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogLoader;
 import io.opensharing.config.ServerProperties;
 import io.opensharing.config.ServerProperties.Property;
 import io.opensharing.http.ApiExceptionHandler;
+import io.opensharing.http.ApiJson;
+import io.opensharing.persistence.JpaTransactions;
 import io.opensharing.runtime.OpenSharing;
+import io.opensharing.share.ShareAdminService;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -21,41 +29,64 @@ import java.util.Locale;
 public final class OpenSharingServer implements AutoCloseable {
 
   private final Server server;
+  private final JpaTransactions transactions;
   private final OpenSharing openSharing;
 
-  private OpenSharingServer(Server server, OpenSharing openSharing) {
+  private OpenSharingServer(Server server, JpaTransactions transactions, OpenSharing openSharing) {
     this.server = server;
+    this.transactions = transactions;
     this.openSharing = openSharing;
   }
 
   /**
-   * Starts the server with the settings in {@code server.properties}, overridden by JVM system
-   * properties and environment variables, and blocks until the JVM shuts down. Program arguments
-   * are ignored, so settings are passed as {@code -D} JVM options instead.
+   * Starts the server from {@code server.properties}, where JVM system properties and environment
+   * variables override keys, and serves until the JVM shuts down.
    */
   public static void main(String[] args) throws InterruptedException {
     OpenSharingServer server = start(new ServerProperties());
-    server.server.closeOnJvmShutdown();
+    Runtime.getRuntime().addShutdownHook(new Thread(server::close));
     server.server.blockUntilShutdown();
   }
 
   /**
-   * Builds the server from {@code properties} and returns once it is listening. The catalog is
-   * loaded first, so an invalid catalog fails startup before the port is bound.
+   * Starts a server configured by {@code properties} and returns once it is listening. Provider
+   * services are served under {@code provider.base-path}, and any other path gets a 404 in the
+   * protocol's error format. If startup fails, the database connections are closed.
    */
   public static OpenSharingServer start(ServerProperties properties) {
-    OpenSharing openSharing = OpenSharing.builder().catalog(catalog(properties)).build();
-    HttpService notFound =
-        (ctx, req) -> {
-          throw HttpStatusException.of(HttpStatus.NOT_FOUND);
-        };
-    Server server =
-        Server.builder()
-            .http(properties.getPort())
-            .serviceUnder("/", notFound.decorate(new ApiExceptionHandler()))
-            .build();
-    server.start().join();
-    return new OpenSharingServer(server, openSharing);
+    CatalogConnector catalog = catalog(properties);
+    JpaTransactions transactions = new JpaTransactions(OpenSharing.entities());
+    try {
+      OpenSharing openSharing =
+          OpenSharing.builder().catalog(catalog).transactions(transactions).build();
+      ApiExceptionHandler errors = new ApiExceptionHandler();
+      HttpService notFound =
+          (ctx, req) -> {
+            throw HttpStatusException.of(HttpStatus.NOT_FOUND);
+          };
+      ServerBuilder builder =
+          Server.builder()
+              .http(properties.getPort())
+              .annotatedServiceExtensions(
+                  List.of(new JacksonRequestConverterFunction(ApiJson.MAPPER)),
+                  List.of(new JacksonResponseConverterFunction(ApiJson.MAPPER)),
+                  List.of(errors))
+              .serviceUnder("/", notFound.decorate(errors));
+      String providerPath = properties.get(Property.PROVIDER_BASE_PATH);
+      ProviderTokenDecorator providerToken = new ProviderTokenDecorator(catalog);
+      mountProvider(
+          builder,
+          providerPath,
+          providerToken,
+          errors,
+          new ShareAdminService(openSharing.shares()));
+      Server server = builder.build();
+      server.start().join();
+      return new OpenSharingServer(server, transactions, openSharing);
+    } catch (RuntimeException | Error e) {
+      transactions.close();
+      throw e;
+    }
   }
 
   /** The port the server listens on, which it picks itself when configured with 0. */
@@ -63,20 +94,37 @@ public final class OpenSharingServer implements AutoCloseable {
     return server.activeLocalPort();
   }
 
-  /** The OpenSharing instance this server serves. */
+  /** The core services behind the HTTP endpoints, for callers such as tests that need them. */
   public OpenSharing openSharing() {
     return openSharing;
   }
 
-  /** Stops the server and blocks until it has stopped. */
+  /** Stops the server, then closes the database connections its requests used. */
   @Override
   public void close() {
     server.stop().join();
+    transactions.close();
+  }
+
+  // Serves an annotated provider service under the provider path, behind the provider token check.
+  // The token check must sit inside the error decorator, so that its 401s get the protocol body.
+  private static void mountProvider(
+      ServerBuilder builder,
+      String providerPath,
+      ProviderTokenDecorator providerToken,
+      ApiExceptionHandler errors,
+      Object service) {
+    builder
+        .annotatedService()
+        .pathPrefix(providerPath)
+        .decorator(providerToken)
+        .decorator(errors)
+        .build(service);
   }
 
   /**
-   * The catalog named by {@code catalog.type}, matched ignoring case and surrounding spaces. Only
-   * the local catalog ships with this build; it reads {@code catalog.local.file}.
+   * Builds the catalog connector named by {@code catalog.type}, in any case. This build ships only
+   * {@code local}, and fails on any other type.
    */
   static CatalogConnector catalog(ServerProperties properties) {
     String type = properties.get(Property.CATALOG_TYPE);
