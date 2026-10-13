@@ -70,6 +70,7 @@ class OpenSharingServerTest {
   private static ServerProperties properties(String... overrides) {
     Properties props = new Properties();
     props.setProperty("server.port", "0");
+    props.setProperty("server.public-url", "https://sharing.example.com");
     for (int i = 0; i < overrides.length; i += 2) {
       props.setProperty(overrides[i], overrides[i + 1]);
     }
