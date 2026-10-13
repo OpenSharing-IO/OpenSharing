@@ -13,14 +13,19 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import io.opensharing.recipient.RecipientEntity;
+import io.opensharing.recipient.RecipientStore;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
- * Provider share CRUD for a caller the host has authenticated. Creating a share needs CREATE_SHARE
- * from the catalog; any caller may read shares, only the owner may change them.
+ * Provider share CRUD and recipient grants for a caller the host has authenticated. Creating a
+ * share needs CREATE_SHARE from the catalog; any caller may read shares, only the owner may change
+ * them.
  */
 public class ShareService {
 
@@ -28,16 +33,22 @@ public class ShareService {
   private final Transactions tx;
   private final ShareStore shares;
   private final SharedDataObjectStore objects;
+  private final SharePermissionStore permissions;
+  private final RecipientStore recipients;
 
   public ShareService(
       CatalogConnector catalog,
       Transactions tx,
       ShareStore shares,
-      SharedDataObjectStore objects) {
+      SharedDataObjectStore objects,
+      SharePermissionStore permissions,
+      RecipientStore recipients) {
     this.catalog = catalog;
     this.tx = tx;
     this.shares = shares;
     this.objects = objects;
+    this.permissions = permissions;
+    this.recipients = recipients;
   }
 
   /** Creates a share owned by the caller, who needs CREATE_SHARE from the catalog. */
@@ -124,6 +135,52 @@ public class ShareService {
     shares.delete(share, user);
   }
 
+  /** Lists who holds which privilege on the share, by recipient name, unpaged. */
+  public ListResponse<SharePermissionResponse> listPermissions(String share) {
+    // TODO: page with maxResults and pageToken.
+    return ListResponse.of(
+        permissions.list(shares.require(share)).stream()
+            .map(SharePermissionResponse::from)
+            .toList());
+  }
+
+  /**
+   * Applies the changes in order, each revoking then granting, all in one transaction: either every
+   * change commits or none does. Returns the share's permissions. Owner only.
+   */
+  public ListResponse<SharePermissionResponse> updatePermissions(
+      UserContext user, String share, UpdateSharePermissionsRequest request) {
+    shares.requireOwned(share, user);
+    List<RecipientChange> changes = new ArrayList<>();
+    for (UpdateSharePermissionsRequest.Change change : request.changes()) {
+      if (change == null) {
+        throw ApiException.invalidParameter("changes must not contain null");
+      }
+      if (Stream.concat(change.add().stream(), change.remove().stream())
+          .anyMatch(Objects::isNull)) {
+        throw ApiException.invalidParameter("changes.add and changes.remove must not contain null");
+      }
+      RecipientEntity recipient =
+          recipients.require(requireText(change.recipientName(), "changes.recipientName"));
+      changes.add(new RecipientChange(recipient, change));
+    }
+    tx.inTransaction(
+        false,
+        em -> {
+          ShareEntity entity = shares.requireOwned(em, share, user);
+          for (RecipientChange change : changes) {
+            for (SharePrivilege privilege : change.change().remove()) {
+              permissions.revoke(em, entity, change.recipient(), privilege);
+            }
+            for (SharePrivilege privilege : change.change().add()) {
+              permissions.grant(em, entity, change.recipient(), privilege);
+            }
+          }
+          return null;
+        });
+    return listPermissions(share);
+  }
+
   // Resolves the object in the catalog on behalf of the caller and checks the declared type.
   private Addition addition(UserContext user, UpdateShareRequest.DataObject dataObject) {
     String name = requireText(dataObject.name(), "dataObject.name");
@@ -206,6 +263,9 @@ public class ShareService {
   private record Alias(String schema, String table) {}
 
   private record Addition(String name, AssetType type, ResolvedAsset resolved, Alias alias) {}
+
+  private record RecipientChange(
+      RecipientEntity recipient, UpdateSharePermissionsRequest.Change change) {}
 
   // Exactly one of alias and name is set.
   private record Removal(AssetType type, Alias alias, String name) {
