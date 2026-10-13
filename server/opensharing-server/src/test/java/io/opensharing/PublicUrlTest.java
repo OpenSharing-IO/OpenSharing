@@ -59,7 +59,7 @@ class PublicUrlTest {
                       .contentType(MediaType.JSON)
                       .add("authorization", "Bearer alice-token")
                       .build(),
-                  "{\"name\":\"acme\",\"authenticationType\":\"TOKEN\"}")
+                  "{\"name\":\"acme\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":30}")
               .aggregate()
               .join();
 
