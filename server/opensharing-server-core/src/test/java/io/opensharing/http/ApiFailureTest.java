@@ -78,11 +78,15 @@ class ApiFailureTest {
         ErrorCodes.CATALOG_ERROR,
         "catalog unreachable",
         new CatalogException("catalog unreachable"));
+  }
+
+  @Test
+  void mapsCatalogAuthorizationFailuresAsPermissionDenied() {
     assertFailure(
-        502,
-        ErrorCodes.CATALOG_ERROR,
-        "user lacks USE CATALOG",
-        new CatalogAuthorizationException("user lacks USE CATALOG"));
+        403,
+        ErrorCodes.PERMISSION_DENIED,
+        "user lacks CREATE_SHARE",
+        new CatalogAuthorizationException("user lacks CREATE_SHARE"));
   }
 
   @Test

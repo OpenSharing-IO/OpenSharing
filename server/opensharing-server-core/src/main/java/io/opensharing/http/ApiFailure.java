@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.CatalogAuthenticationException;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.sql.SQLException;
@@ -38,6 +39,8 @@ public record ApiFailure(int status, String errorCode, String message) {
             ErrorCodes.CATALOG_ERROR,
             "the sharing server could not authenticate to the catalog");
       }
+      case CatalogAuthorizationException refused ->
+          new ApiFailure(403, ErrorCodes.PERMISSION_DENIED, refused.getMessage());
       case CatalogException failed -> {
         log.error("Catalog request failed", failed);
         yield new ApiFailure(502, ErrorCodes.CATALOG_ERROR, failed.getMessage());
