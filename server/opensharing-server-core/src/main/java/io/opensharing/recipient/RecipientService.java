@@ -8,6 +8,7 @@ import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import io.opensharing.http.Pagination;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -71,12 +72,12 @@ public class RecipientService {
     return toResponse(recipient, activationBaseUrl);
   }
 
-  /** Lists every recipient by name, unpaged. */
-  public ListResponse<RecipientResponse> list(String activationBaseUrl) {
-    // TODO: page with maxResults and pageToken.
+  /** Lists one page of recipients by name. */
+  public ListResponse<RecipientResponse> list(
+      Integer maxResults, String pageToken, String activationBaseUrl) {
     // TODO: introduce USE_RECIPIENT and list only the caller's recipients unless they hold it.
-    return ListResponse.of(
-        recipients.list().stream().map(r -> toResponse(r, activationBaseUrl)).toList());
+    return Pagination.page(
+        maxResults, pageToken, recipients::list, r -> toResponse(r, activationBaseUrl));
   }
 
   /** Gets a recipient by name in any case. */
