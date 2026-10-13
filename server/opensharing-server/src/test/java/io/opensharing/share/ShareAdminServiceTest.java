@@ -2,7 +2,9 @@ package io.opensharing.share;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
 import io.opensharing.http.ErrorCodes;
@@ -139,18 +141,63 @@ class ShareAdminServiceTest {
     assertEquals(200, fetched.status());
     assertEquals("sales", fetched.body().path("name").asText());
     assertEquals("orders", fetched.body().path("comment").asText());
+    assertTrue(fetched.body().path("objects").isMissingNode());
+
+    // include_shared_data returns objects; none are shared yet.
+    assertEquals(0, objects("sales").size());
 
     // Non-owner cannot update.
     Response stolen = server.patch(SHARES + "/sales", "bob-token", "{\"comment\":\"stolen\"}");
     assertEquals(403, stolen.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, stolen.errorCode());
 
-    // Owner updates the comment.
-    Response updated = server.patch(SHARES + "/sales", "alice-token", "{\"comment\":\"updated\"}");
+    // Owner updates the comment and adds a table.
+    Response updated =
+        patch(
+            "sales",
+            """
+            {
+              "comment": "updated",
+              "updates": [{
+                "action": "ADD",
+                "dataObject": {"name": "Main.Sales.Orders", "type": "TABLE"}
+              }]
+            }
+            """);
     assertEquals(200, updated.status());
     assertEquals("updated", updated.body().path("comment").asText());
 
-    // Owner deletes the share.
+    // Default GET omits objects even after they are shared.
+    assertTrue(server.get(SHARES + "/sales", "bob-token").body().path("objects").isMissingNode());
+
+    // include_shared_data returns the added table under its default alias.
+    JsonNode objects = objects("sales");
+    assertEquals(1, objects.size());
+    assertEquals("Main.Sales.Orders", objects.get(0).path("name").asText());
+    assertEquals("TABLE", objects.get(0).path("type").asText());
+    assertEquals("sales.orders", objects.get(0).path("sharedAs").asText());
+
+    // Owner removes the table by sharedAs, in any case.
+    assertOk(update("sales", "REMOVE", "{\"type\":\"TABLE\",\"sharedAs\":\"SALES.ORDERS\"}"));
+    assertEquals(0, objects("sales").size());
+
+    // A schema is shared under the last segment of its name.
+    assertOk(update("sales", "ADD", "{\"name\":\"Main.Sales\",\"type\":\"SCHEMA\"}"));
+    assertEquals("sales", objects("sales").get(0).path("sharedAs").asText());
+
+    // Owner removes the schema by sharedAs; the catalog segment is dropped.
+    assertOk(update("sales", "REMOVE", "{\"type\":\"SCHEMA\",\"sharedAs\":\"MAIN.SALES\"}"));
+    assertEquals(0, objects("sales").size());
+
+    // Owner adds a table under an explicit alias, which is lowercased.
+    assertOk(
+        update(
+            "sales",
+            "ADD",
+            "{\"name\":\"main.sales.orders\",\"type\":\"TABLE\",\"sharedAs\":\"Sales.Orders\"}"));
+    assertEquals("sales.orders", objects("sales").get(0).path("sharedAs").asText());
+
+    // Owner deletes the share and the objects in it.
     assertEquals(204, server.delete(SHARES + "/sales", "alice-token").status());
 
     // Deleted share is 404.
@@ -159,8 +206,123 @@ class ShareAdminServiceTest {
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, deleted.errorCode());
   }
 
+  @Test
+  void rejectsUnsupportedAssetTypes() {
+    // VOLUME is not a type a share can hold.
+    createShare("edge-volume");
+    Response volume =
+        update("edge-volume", "ADD", "{\"name\":\"main.sales.orders\",\"type\":\"VOLUME\"}");
+    assertInvalid(volume);
+    assertEquals(
+        "updates[0].dataObject.type must be one of [TABLE, SCHEMA]",
+        volume.body().path("message").asText());
+  }
+
+  @Test
+  void rejectsTableNamesWithoutASchema() {
+    // A TABLE name must include a schema segment.
+    createShare("edge-nodot");
+    assertInvalid(update("edge-nodot", "ADD", "{\"name\":\"Orders\",\"type\":\"TABLE\"}"));
+  }
+
+  @Test
+  void rejectsATableUnderASharedSchema() {
+    createShare("edge-schema-table");
+    assertOk(update("edge-schema-table", "ADD", "{\"name\":\"Main.Sales\",\"type\":\"SCHEMA\"}"));
+    assertConflict(
+        update("edge-schema-table", "ADD", "{\"name\":\"Main.Sales.Orders\",\"type\":\"TABLE\"}"),
+        ErrorCodes.RESOURCE_CONFLICT);
+  }
+
+  @Test
+  void rejectsASchemaOverSharedTables() {
+    createShare("edge-table-schema");
+    assertOk(
+        update("edge-table-schema", "ADD", "{\"name\":\"Main.Sales.Orders\",\"type\":\"TABLE\"}"));
+    assertConflict(
+        update("edge-table-schema", "ADD", "{\"name\":\"Main.Sales\",\"type\":\"SCHEMA\"}"),
+        ErrorCodes.RESOURCE_CONFLICT);
+  }
+
+  @Test
+  void rejectsDuplicateAliasAndSource() {
+    // First ADD of the catalog table succeeds.
+    createShare("edge-dup");
+    String orders = "{\"name\":\"Main.Sales.Orders\",\"type\":\"TABLE\"}";
+    assertOk(update("edge-dup", "ADD", orders));
+
+    // The same catalog table cannot be added twice.
+    assertConflict(update("edge-dup", "ADD", orders), ErrorCodes.RESOURCE_ALREADY_EXISTS);
+
+    // The same catalog table under a different alias is still a duplicate source.
+    assertConflict(
+        update(
+            "edge-dup",
+            "ADD",
+            "{\"name\":\"Main.Sales.Orders\",\"type\":\"TABLE\",\"sharedAs\":\"other.orders\"}"),
+        ErrorCodes.RESOURCE_ALREADY_EXISTS);
+  }
+
+  @Test
+  void removeRequiresTypeAndAnExistingObject() {
+    // ADD a table to remove later.
+    createShare("edge-remove");
+    String orders = "{\"name\":\"Main.Sales.Orders\",\"type\":\"TABLE\"}";
+    assertOk(update("edge-remove", "ADD", orders));
+
+    // REMOVE without a type is invalid.
+    assertInvalid(update("edge-remove", "REMOVE", "{\"sharedAs\":\"sales.orders\"}"));
+
+    // REMOVE of a missing alias is 404.
+    Response missing =
+        update("edge-remove", "REMOVE", "{\"type\":\"TABLE\",\"sharedAs\":\"missing.table\"}");
+    assertEquals(404, missing.status());
+    assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, missing.errorCode());
+
+    // REMOVE by catalog name succeeds.
+    assertOk(update("edge-remove", "REMOVE", orders));
+  }
+
+  @Test
+  void rejectsNullUpdates() {
+    createShare("edge-null");
+    Response response = patch("edge-null", "{\"updates\":[null]}");
+    assertInvalid(response);
+    assertEquals("updates must not contain null", response.body().path("message").asText());
+  }
+
   private static Response create(String token, String body) {
     return server.post(SHARES, token, body);
+  }
+
+  private static void createShare(String name) {
+    assertEquals(201, create("alice-token", "{\"name\":\"" + name + "\"}").status());
+  }
+
+  private static Response patch(String share, String body) {
+    return server.patch(SHARES + "/" + share, "alice-token", body);
+  }
+
+  // Applies a single object update as the owner.
+  private static Response update(String share, String action, String dataObject) {
+    return patch(
+        share,
+        "{\"updates\":[{\"action\":\"" + action + "\",\"dataObject\":" + dataObject + "}]}");
+  }
+
+  private static JsonNode objects(String share) {
+    Response response = server.get(SHARES + "/" + share + "?include_shared_data=true", "bob-token");
+    assertEquals(200, response.status());
+    return response.body().path("objects");
+  }
+
+  private static void assertOk(Response response) {
+    assertEquals(200, response.status(), () -> response.body().toString());
+  }
+
+  private static void assertConflict(Response response, String errorCode) {
+    assertEquals(409, response.status());
+    assertEquals(errorCode, response.errorCode());
   }
 
   private static void assertInvalid(Response response) {

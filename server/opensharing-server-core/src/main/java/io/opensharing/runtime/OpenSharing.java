@@ -1,6 +1,8 @@
 package io.opensharing.runtime;
 
 import io.opensharing.Transactions;
+import io.opensharing.asset.SharedDataObjectEntity;
+import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.share.ShareEntity;
 import io.opensharing.share.ShareService;
@@ -19,7 +21,8 @@ public final class OpenSharing {
 
   private OpenSharing(CatalogConnector catalog, Transactions tx) {
     this.catalog = catalog;
-    this.shares = new ShareService(catalog, new ShareStore(tx));
+    this.shares =
+        new ShareService(catalog, tx, new ShareStore(tx), new SharedDataObjectStore(tx));
   }
 
   public static Builder builder() {
@@ -28,7 +31,7 @@ public final class OpenSharing {
 
   /** The entity classes the host's {@link Transactions} must register. */
   public static List<Class<?>> entities() {
-    return List.of(ShareEntity.class);
+    return List.of(ShareEntity.class, SharedDataObjectEntity.class);
   }
 
   public CatalogConnector catalog() {
