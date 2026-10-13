@@ -4,10 +4,12 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.server.Server;
 import io.opensharing.catalog.CatalogConnector;
-import io.opensharing.config.CatalogConfiguration;
-import io.opensharing.config.OpenSharingConfiguration;
-import io.opensharing.config.ServerSettings;
+import io.opensharing.catalog.local.LocalCatalogConnector;
+import io.opensharing.catalog.local.LocalCatalogLoader;
+import io.opensharing.config.ServerProperties;
+import io.opensharing.config.ServerProperties.Property;
 import io.opensharing.runtime.OpenSharing;
+import java.util.Locale;
 
 /** Runnable standalone OpenSharing server. */
 public final class OpenSharingServer implements AutoCloseable {
@@ -21,18 +23,17 @@ public final class OpenSharingServer implements AutoCloseable {
   }
 
   public static void main(String[] args) throws InterruptedException {
-    OpenSharingServer server = start(ServerSettings.load(args, System.getenv()));
+    OpenSharingServer server = start(new ServerProperties(ServerProperties.DEFAULT_FILE));
     server.server.closeOnJvmShutdown();
     server.server.blockUntilShutdown();
   }
 
-  /** Builds the server from {@code settings} and returns once it is listening. */
-  public static OpenSharingServer start(ServerSettings settings) {
-    CatalogConnector catalog = CatalogConfiguration.catalogConnector(settings.getOpensharing());
-    OpenSharing openSharing = OpenSharingConfiguration.openSharing(catalog);
+  /** Builds the server from {@code properties} and returns once it is listening. */
+  public static OpenSharingServer start(ServerProperties properties) {
+    OpenSharing openSharing = OpenSharing.builder().catalog(catalog(properties)).build();
     Server server =
         Server.builder()
-            .http(settings.getServer().getPort())
+            .http(properties.getPort())
             // Armeria refuses to start without a service; routes nothing serves are not found.
             .serviceUnder("/", (ctx, req) -> HttpResponse.of(HttpStatus.NOT_FOUND))
             .build();
@@ -52,5 +53,18 @@ public final class OpenSharingServer implements AutoCloseable {
   @Override
   public void close() {
     server.stop().join();
+  }
+
+  static CatalogConnector catalog(ServerProperties properties) {
+    String type = properties.get(Property.CATALOG_TYPE);
+    return switch (type.trim().toLowerCase(Locale.ROOT)) {
+      case LocalCatalogConnector.NAME ->
+          new LocalCatalogConnector(
+              LocalCatalogLoader.load(properties.get(Property.LOCAL_CATALOG_FILE)));
+      default ->
+          throw new IllegalStateException(
+              "unknown catalog.type '" + type + "'; this build ships '"
+                  + LocalCatalogConnector.NAME + "'");
+    };
   }
 }

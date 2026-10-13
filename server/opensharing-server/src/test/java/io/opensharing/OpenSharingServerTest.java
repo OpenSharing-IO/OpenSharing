@@ -1,9 +1,8 @@
-package io.opensharing.config;
+package io.opensharing;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.opensharing.OpenSharingServer;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
@@ -11,15 +10,15 @@ import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.catalog.TableProperties;
-import java.util.Map;
+import io.opensharing.config.ServerProperties;
+import java.util.Properties;
 import org.junit.jupiter.api.Test;
 
-class CatalogConfigurationTest {
+class OpenSharingServerTest {
 
   @Test
   void loadsTheConfiguredLocalCatalog() {
-    CatalogConnector catalog =
-        CatalogConfiguration.catalogConnector(settings().getOpensharing());
+    CatalogConnector catalog = OpenSharingServer.catalog(properties());
     UserContext user = UserContext.fromUserIdAndName("alice@example.com", "alice@example.com");
 
     assertEquals("local", catalog.name());
@@ -33,26 +32,35 @@ class CatalogConfigurationTest {
 
   @Test
   void rejectsAMissingLocalCatalogFile() {
-    ServerSettings settings = settings("--opensharing.catalog.local.file=classpath:missing.yml");
+    ServerProperties properties = properties("catalog.local.file", "classpath:missing.yml");
 
     IllegalStateException missing =
-        assertThrows(
-            IllegalStateException.class,
-            () -> CatalogConfiguration.catalogConnector(settings.getOpensharing()));
+        assertThrows(IllegalStateException.class, () -> OpenSharingServer.catalog(properties));
     assertEquals("local catalog file 'classpath:missing.yml' does not exist", missing.getMessage());
   }
 
   @Test
+  void rejectsAnUnknownCatalogType() {
+    ServerProperties properties = properties("catalog.type", "glue");
+
+    IllegalStateException unknown =
+        assertThrows(IllegalStateException.class, () -> OpenSharingServer.catalog(properties));
+    assertEquals("unknown catalog.type 'glue'; this build ships 'local'", unknown.getMessage());
+  }
+
+  @Test
   void buildsOpenSharingWithTheConfiguredCatalog() {
-    try (OpenSharingServer server = OpenSharingServer.start(settings())) {
+    try (OpenSharingServer server = OpenSharingServer.start(properties())) {
       assertEquals("local", server.openSharing().catalog().name());
     }
   }
 
-  private static ServerSettings settings(String... overrides) {
-    String[] args = new String[overrides.length + 1];
-    args[0] = "--server.port=0";
-    System.arraycopy(overrides, 0, args, 1, overrides.length);
-    return ServerSettings.load(args, Map.of());
+  private static ServerProperties properties(String... overrides) {
+    Properties props = new Properties();
+    props.setProperty("server.port", "0");
+    for (int i = 0; i < overrides.length; i += 2) {
+      props.setProperty(overrides[i], overrides[i + 1]);
+    }
+    return new ServerProperties(props);
   }
 }
