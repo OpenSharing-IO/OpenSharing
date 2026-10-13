@@ -3,6 +3,8 @@ package io.opensharing.config;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Properties;
 
 /**
@@ -17,7 +19,9 @@ public class ServerProperties {
 
   public enum Property {
     PORT("server.port", "8080"),
+    PUBLIC_URL("server.public-url", null),
     PROVIDER_BASE_PATH("provider.base-path", "/api/1.0/opensharing/provider"),
+    ACTIVATION_BASE_PATH("activation.base-path", "/api/1.0/opensharing/activations"),
     CATALOG_TYPE("catalog.type", "local"),
     LOCAL_CATALOG_FILE("catalog.local.file", "classpath:local-catalog.yml");
 
@@ -64,10 +68,46 @@ public class ServerProperties {
     }
   }
 
+  /**
+   * The address recipients reach this server at, such as {@code https://sharing.example.com},
+   * without a trailing slash. Activation links and the endpoint in profile files are built on it,
+   * so it must be set: the address a request arrives on can be internal to a proxy.
+   */
+  public String getPublicUrl() {
+    String value = get(Property.PUBLIC_URL);
+    if (value == null) {
+      throw new IllegalArgumentException(
+          Property.PUBLIC_URL.key
+              + " is required; set it to the address recipients reach this server at");
+    }
+    String url = value.trim();
+    URI uri;
+    try {
+      uri = new URI(url);
+    } catch (URISyntaxException e) {
+      uri = null;
+    }
+    if (uri == null
+        || !("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+        || uri.getHost() == null
+        || uri.getRawQuery() != null
+        || uri.getRawFragment() != null) {
+      throw new IllegalArgumentException(
+          "invalid value '"
+              + value
+              + "' for "
+              + Property.PUBLIC_URL.key
+              + "; expected an http or https URL");
+    }
+    return url.replaceAll("/+$", "");
+  }
+
   private static Properties defaults() {
     Properties defaults = new Properties();
     for (Property property : Property.values()) {
-      defaults.setProperty(property.key, property.defaultValue);
+      if (property.defaultValue != null) {
+        defaults.setProperty(property.key, property.defaultValue);
+      }
     }
     return defaults;
   }

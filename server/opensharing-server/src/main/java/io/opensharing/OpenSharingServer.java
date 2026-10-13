@@ -16,6 +16,7 @@ import io.opensharing.config.ServerProperties.Property;
 import io.opensharing.http.ApiExceptionHandler;
 import io.opensharing.http.ApiJson;
 import io.opensharing.persistence.JpaTransactions;
+import io.opensharing.recipient.RecipientAdminService;
 import io.opensharing.runtime.OpenSharing;
 import io.opensharing.share.ShareAdminService;
 import java.util.List;
@@ -51,9 +52,11 @@ public final class OpenSharingServer implements AutoCloseable {
   /**
    * Starts a server configured by {@code properties} and returns once it is listening. Provider
    * services are served under {@code provider.base-path}, and any other path gets a 404 in the
-   * protocol's error format. If startup fails, the database connections are closed.
+   * protocol's error format. Links handed to recipients are built on {@code server.public-url},
+   * which must be set. If startup fails, the database connections are closed.
    */
   public static OpenSharingServer start(ServerProperties properties) {
+    String publicUrl = properties.getPublicUrl();
     CatalogConnector catalog = catalog(properties);
     JpaTransactions transactions = new JpaTransactions(OpenSharing.entities());
     try {
@@ -80,6 +83,14 @@ public final class OpenSharingServer implements AutoCloseable {
           providerToken,
           errors,
           new ShareAdminService(openSharing.shares()));
+      mountProvider(
+          builder,
+          providerPath,
+          providerToken,
+          errors,
+          new RecipientAdminService(
+              openSharing.recipients(),
+              publicUrl + properties.get(Property.ACTIVATION_BASE_PATH)));
       Server server = builder.build();
       server.start().join();
       return new OpenSharingServer(server, transactions, openSharing);

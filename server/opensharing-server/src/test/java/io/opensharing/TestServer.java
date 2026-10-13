@@ -15,6 +15,7 @@ import com.linecorp.armeria.common.ResponseHeaders;
 import io.opensharing.config.ServerProperties;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.ServerSocket;
 import java.util.Properties;
 
 /** A standalone server on a free port, and a client that calls it as a provider. */
@@ -30,10 +31,21 @@ public final class TestServer implements AutoCloseable {
     this.client = WebClient.of("http://127.0.0.1:" + server.port());
   }
 
+  /** Starts on a free port that is also the public URL, so links in responses point back to it. */
   public static TestServer start() {
+    int port = freePort();
     Properties props = new Properties();
-    props.setProperty("server.port", "0");
+    props.setProperty("server.port", Integer.toString(port));
+    props.setProperty("server.public-url", "http://127.0.0.1:" + port);
     return new TestServer(OpenSharingServer.start(new ServerProperties(props)));
+  }
+
+  private static int freePort() {
+    try (ServerSocket socket = new ServerSocket(0)) {
+      return socket.getLocalPort();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   public OpenSharingServer server() {

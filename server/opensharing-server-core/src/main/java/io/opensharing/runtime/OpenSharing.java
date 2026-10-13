@@ -4,6 +4,10 @@ import io.opensharing.Transactions;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.recipient.RecipientEntity;
+import io.opensharing.recipient.RecipientService;
+import io.opensharing.recipient.RecipientStore;
+import io.opensharing.recipient.RecipientTokenEntity;
 import io.opensharing.share.ShareEntity;
 import io.opensharing.share.ShareService;
 import io.opensharing.share.ShareStore;
@@ -18,11 +22,13 @@ public final class OpenSharing {
 
   private final CatalogConnector catalog;
   private final ShareService shares;
+  private final RecipientService recipients;
 
   private OpenSharing(CatalogConnector catalog, Transactions tx) {
     this.catalog = catalog;
     this.shares =
         new ShareService(catalog, tx, new ShareStore(tx), new SharedDataObjectStore(tx));
+    this.recipients = new RecipientService(catalog, new RecipientStore(tx));
   }
 
   public static Builder builder() {
@@ -31,7 +37,11 @@ public final class OpenSharing {
 
   /** The entity classes the host's {@link Transactions} must register. */
   public static List<Class<?>> entities() {
-    return List.of(ShareEntity.class, SharedDataObjectEntity.class);
+    return List.of(
+        ShareEntity.class,
+        SharedDataObjectEntity.class,
+        RecipientEntity.class,
+        RecipientTokenEntity.class);
   }
 
   public CatalogConnector catalog() {
@@ -40,6 +50,10 @@ public final class OpenSharing {
 
   public ShareService shares() {
     return shares;
+  }
+
+  public RecipientService recipients() {
+    return recipients;
   }
 
   public static final class Builder {
