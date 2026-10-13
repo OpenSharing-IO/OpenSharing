@@ -4,20 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.opensharing.config.ServerProperties.Property;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 class ServerPropertiesTest {
 
-  @TempDir Path dir;
-
   @Test
-  void keepsTheDefaultsWithoutAFile() {
-    ServerProperties properties = new ServerProperties(dir.resolve("missing.properties").toString());
+  void readsServerPropertiesFromTheClasspath() {
+    ServerProperties properties = new ServerProperties();
 
     assertEquals(8080, properties.getPort());
     assertEquals("local", properties.get(Property.CATALOG_TYPE));
@@ -25,11 +19,11 @@ class ServerPropertiesTest {
   }
 
   @Test
-  void readsTheFileAndKeepsTheDefaultOfBlankKeys() throws IOException {
-    Path file = dir.resolve("server.properties");
-    Files.writeString(file, "server.port=9090\ncatalog.local.file=\n");
+  void keepsTheDefaultOfBlankKeys() {
+    Properties props = props("server.port", "9090");
+    props.setProperty("catalog.local.file", " ");
 
-    ServerProperties properties = new ServerProperties(file.toString());
+    ServerProperties properties = new ServerProperties(props);
 
     assertEquals(9090, properties.getPort());
     assertEquals("classpath:local-catalog.yml", properties.get(Property.LOCAL_CATALOG_FILE));

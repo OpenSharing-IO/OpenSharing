@@ -23,7 +23,7 @@ public final class OpenSharingServer implements AutoCloseable {
   }
 
   public static void main(String[] args) throws InterruptedException {
-    OpenSharingServer server = start(new ServerProperties(ServerProperties.DEFAULT_FILE));
+    OpenSharingServer server = start(new ServerProperties());
     server.server.closeOnJvmShutdown();
     server.server.blockUntilShutdown();
   }

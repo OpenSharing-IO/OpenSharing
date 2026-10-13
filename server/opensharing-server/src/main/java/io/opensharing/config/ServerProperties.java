@@ -3,18 +3,15 @@ package io.opensharing.config;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Properties;
 
 /**
- * The standalone server's settings, read from {@code etc/conf/server.properties} as Unity Catalog
- * reads its own. A JVM system property or an environment variable with the same name as a key
- * overrides it.
+ * The standalone server's settings, read from {@code server.properties} on the classpath. A JVM
+ * system property or an environment variable with the same name as a key overrides it.
  */
 public class ServerProperties {
 
-  public static final String DEFAULT_FILE = "etc/conf/server.properties";
+  private static final String RESOURCE = "server.properties";
 
   private final Properties properties = new Properties(defaults());
 
@@ -36,15 +33,13 @@ public class ServerProperties {
     }
   }
 
-  /** Reads {@code file}, keeping the defaults when it does not exist. */
-  public ServerProperties(String file) {
-    Path path = Path.of(file);
-    if (Files.exists(path)) {
-      try (InputStream in = Files.newInputStream(path)) {
+  public ServerProperties() {
+    try (InputStream in = ServerProperties.class.getClassLoader().getResourceAsStream(RESOURCE)) {
+      if (in != null) {
         properties.load(in);
-      } catch (IOException e) {
-        throw new UncheckedIOException("failed to read " + file, e);
       }
+    } catch (IOException e) {
+      throw new UncheckedIOException("failed to read " + RESOURCE, e);
     }
     dropBlankValues();
   }
