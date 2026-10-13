@@ -1,8 +1,9 @@
 package io.opensharing.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.opensharing.OpenSharingServer;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
@@ -10,24 +11,15 @@ import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.catalog.TableProperties;
-import io.opensharing.runtime.OpenSharing;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest(
-    properties = {
-      "spring.datasource.url=jdbc:h2:mem:catalog-configuration;DB_CLOSE_DELAY=-1",
-      "opensharing.catalog.type=local",
-      "opensharing.catalog.local.file=classpath:local-catalog.yml"
-    })
 class CatalogConfigurationTest {
-
-  @Autowired private CatalogConnector catalog;
-  @Autowired private OpenSharing openSharing;
 
   @Test
   void loadsTheConfiguredLocalCatalog() {
+    CatalogConnector catalog =
+        CatalogConfiguration.catalogConnector(settings().getOpensharing());
     UserContext user = UserContext.fromUserIdAndName("alice@example.com", "alice@example.com");
 
     assertEquals("local", catalog.name());
@@ -40,7 +32,27 @@ class CatalogConfigurationTest {
   }
 
   @Test
+  void rejectsAMissingLocalCatalogFile() {
+    ServerSettings settings = settings("--opensharing.catalog.local.file=classpath:missing.yml");
+
+    IllegalStateException missing =
+        assertThrows(
+            IllegalStateException.class,
+            () -> CatalogConfiguration.catalogConnector(settings.getOpensharing()));
+    assertEquals("local catalog file 'classpath:missing.yml' does not exist", missing.getMessage());
+  }
+
+  @Test
   void buildsOpenSharingWithTheConfiguredCatalog() {
-    assertSame(catalog, openSharing.catalog());
+    try (OpenSharingServer server = OpenSharingServer.start(settings())) {
+      assertEquals("local", server.openSharing().catalog().name());
+    }
+  }
+
+  private static ServerSettings settings(String... overrides) {
+    String[] args = new String[overrides.length + 1];
+    args[0] = "--server.port=0";
+    System.arraycopy(overrides, 0, args, 1, overrides.length);
+    return ServerSettings.load(args, Map.of());
   }
 }

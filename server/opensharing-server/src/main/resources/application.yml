@@ -2,39 +2,10 @@
 #   java -jar opensharing-server.jar --opensharing.delta.url-ttl=15m
 # or as an environment variable:
 #   OPENSHARING_DELTA_URLTTL=15m java -jar opensharing-server.jar
-spring:
-  application:
-    name: opensharing-server
-  datasource:
-    # The driver is derived from the URL, so pointing this at Postgres or MySQL is the only change
-    # needed to move the metadata store there.
-    url: jdbc:h2:file:./data/opensharing;AUTO_SERVER=TRUE
-    username: sa
-    password: ""
-  jpa:
-    hibernate:
-      # Creates missing tables and columns to match the entities on startup. 
-      # Production should use 'validate' and manage the schema with a migration tool.
-      ddl-auto: update
-    # Closes the database session when each transaction ends, so nothing loads lazily outside the store.
-    open-in-view: false
-  jackson:
-    # Leaves null fields out of JSON responses, as the protocol expects for absent optional fields.
-    default-property-inclusion: non_null
-    mapper:
-      # Accepts enum values in requests in any case, such as "table" for TABLE.
-      accept-case-insensitive-enums: true
-    serialization:
-      # Writes dates and times as ISO-8601 strings, not epoch numbers.
-      write-dates-as-timestamps: false
-
+# Log levels are set in logback.xml.
 server:
-  # HTTP port the server listens on.
+  # HTTP port the server listens on; 0 picks a free one.
   port: 8080
-  error:
-    whitelabel:
-      # Errors use the protocol's JSON error body, not Spring's HTML error page.
-      enabled: false
 
 opensharing:
   # Prefix the protocol-serving endpoints are mounted under; this is what goes in a profile file.
@@ -59,11 +30,5 @@ opensharing:
     # Which CatalogConnector the standalone server uses; local reads assets from a YAML file.
     type: local
     local:
-      # The YAML file the local catalog reads, as a Spring resource path.
+      # The YAML file the local catalog reads: a classpath: resource or a file path.
       file: classpath:local-catalog.yml
-
-logging:
-  level:
-    io.opensharing: INFO
-    # Delta Kernel narrates every log segment it loads, which is a line per request.
-    io.delta: WARN

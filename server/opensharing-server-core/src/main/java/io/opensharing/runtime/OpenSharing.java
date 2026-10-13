@@ -4,7 +4,7 @@ import io.opensharing.catalog.CatalogConnector;
 
 /**
  * OpenSharing assembled from what its host supplies. The standalone server builds one from its
- * Spring beans. An embedding host, such as Unity Catalog, builds one directly, serves it through
+ * settings. An embedding host, such as Unity Catalog, builds one directly, serves it through
  * its own HTTP stack, and authenticates callers itself.
  */
 public final class OpenSharing {

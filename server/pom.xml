@@ -27,12 +27,17 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>21</maven.compiler.release>
-    <spring-boot.version>3.5.3</spring-boot.version>
+    <!-- Unity Catalog's version, so embedding OpenSharing keeps the Armeria UC runs on. -->
+    <armeria.version>1.28.4</armeria.version>
+    <jackson.version>2.19.1</jackson.version>
+    <jakarta-persistence.version>3.1.0</jakarta-persistence.version>
+    <slf4j.version>2.0.17</slf4j.version>
+    <logback.version>1.5.18</logback.version>
+    <junit.version>5.12.2</junit.version>
     <delta-kernel.version>4.0.0</delta-kernel.version>
     <hadoop.version>3.4.3</hadoop.version>
     <aws-sdk.version>2.35.4</aws-sdk.version>
     <gcs-connector.version>hadoop3-2.2.30</gcs-connector.version>
-    <springdoc.version>2.9.0</springdoc.version>
   </properties>
 
   <dependencyManagement>
@@ -43,11 +48,40 @@
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-dependencies</artifactId>
-        <version>${spring-boot.version}</version>
+        <groupId>com.linecorp.armeria</groupId>
+        <artifactId>armeria-bom</artifactId>
+        <version>${armeria.version}</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>${junit.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>jakarta.persistence</groupId>
+        <artifactId>jakarta.persistence-api</artifactId>
+        <version>${jakarta-persistence.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>${slf4j.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>${logback.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -71,9 +105,9 @@
           <version>3.2.5</version>
         </plugin>
         <plugin>
-          <groupId>org.springframework.boot</groupId>
-          <artifactId>spring-boot-maven-plugin</artifactId>
-          <version>${spring-boot.version}</version>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-shade-plugin</artifactId>
+          <version>3.6.0</version>
         </plugin>
       </plugins>
     </pluginManagement>

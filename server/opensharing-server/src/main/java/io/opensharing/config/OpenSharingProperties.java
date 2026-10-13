@@ -1,9 +1,6 @@
 package io.opensharing.config;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
-
-/** OpenSharing server configuration. */
-@ConfigurationProperties(prefix = "opensharing")
+/** OpenSharing server configuration, the {@code opensharing} key of {@link ServerSettings}. */
 public class OpenSharingProperties {
 
   private final Catalog catalog = new Catalog();
