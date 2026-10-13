@@ -32,11 +32,9 @@ class SharePermissionAdminServiceTest {
     assertEquals(201, server.post(SHARES, "alice-token", "{\"name\":\"sales\"}").status());
 
     // Create the recipient that will receive SELECT.
-    assertEquals(
-        201,
-        server
-            .post(RECIPIENTS, "alice-token", "{\"name\":\"Acme\",\"authenticationType\":\"TOKEN\"}")
-            .status());
+    String recipient =
+        "{\"name\":\"Acme\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":30}";
+    assertEquals(201, server.post(RECIPIENTS, "alice-token", recipient).status());
 
     // Non-owner cannot grant.
     Response denied =
