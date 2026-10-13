@@ -51,17 +51,23 @@ public class SharePermissionStore {
     em.remove(permission);
   }
 
-  /** The share's permissions, ordered by recipient name. */
-  public List<SharePermissionEntity> list(ShareEntity share) {
+  /**
+   * {@code SELECT p.* FROM os_share_permissions p JOIN os_recipients r ON r.id = p.recipient_id
+   * WHERE p.share_id = ? ORDER BY r.name, p.privilege LIMIT ? OFFSET ?}. A recipient holds each
+   * privilege at most once, so the order is total.
+   */
+  public List<SharePermissionEntity> list(ShareEntity share, int offset, int limit) {
     return tx.inTransaction(
         true,
         em ->
             em.createQuery(
                     "select p from SharePermissionEntity p join fetch p.share"
                         + " join fetch p.recipient r where p.share.id = :shareId"
-                        + " order by r.name",
+                        + " order by r.name, p.privilege",
                     SharePermissionEntity.class)
                 .setParameter("shareId", share.getId())
+                .setFirstResult(offset)
+                .setMaxResults(limit)
                 .getResultList());
   }
 

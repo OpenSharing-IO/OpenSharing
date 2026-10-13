@@ -2,6 +2,7 @@ package io.opensharing.share;
 
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.annotation.Nullable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Default;
@@ -36,10 +37,11 @@ public final class ShareAdminService {
     return shares.create(ProviderTokenDecorator.user(ctx), request);
   }
 
-  /** {@code GET /shares}: lists every share by name, unpaged. */
+  /** {@code GET /shares}: lists one page of shares by name. */
   @Get("/shares")
-  public ListResponse<ShareResponse> list() {
-    return shares.list();
+  public ListResponse<ShareResponse> list(
+      @Param @Nullable Integer maxResults, @Param @Nullable String pageToken) {
+    return shares.list(maxResults, pageToken);
   }
 
   /**
@@ -70,15 +72,21 @@ public final class ShareAdminService {
     return HttpResponse.of(HttpStatus.NO_CONTENT);
   }
 
-  /** {@code GET /shares/{share}/permissions}: lists who holds which privilege on the share. */
+  /**
+   * {@code GET /shares/{share}/permissions}: lists one page of who holds which privilege on the
+   * share.
+   */
   @Get("/shares/{share}/permissions")
-  public ListResponse<SharePermissionResponse> listPermissions(@Param String share) {
-    return shares.listPermissions(share);
+  public ListResponse<SharePermissionResponse> listPermissions(
+      @Param String share,
+      @Param @Nullable Integer maxResults,
+      @Param @Nullable String pageToken) {
+    return shares.listPermissions(share, maxResults, pageToken);
   }
 
   /**
    * {@code PATCH /shares/{share}/permissions}: grants and revokes privileges in order, all or
-   * nothing, then returns the share's permissions. Owner only.
+   * nothing, then returns the first page of the share's permissions. Owner only.
    */
   @Patch("/shares/{share}/permissions")
   public ListResponse<SharePermissionResponse> updatePermissions(
