@@ -9,6 +9,7 @@ import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.exception.CatalogAuthorizationException;
+import io.opensharing.recipient.RecipientStore;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -35,7 +36,12 @@ class ShareServiceTest {
             });
     ShareService shares =
         new ShareService(
-            catalog, unused, new ShareStore(unused), new SharedDataObjectStore(unused));
+            catalog,
+            unused,
+            new ShareStore(unused),
+            new SharedDataObjectStore(unused),
+            new SharePermissionStore(unused),
+            new RecipientStore(unused));
     UserContext alice = UserContext.fromUserIdAndName("alice-id", "alice");
 
     assertThrows(

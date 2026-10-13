@@ -9,6 +9,8 @@ import io.opensharing.recipient.RecipientService;
 import io.opensharing.recipient.RecipientStore;
 import io.opensharing.recipient.RecipientTokenEntity;
 import io.opensharing.share.ShareEntity;
+import io.opensharing.share.SharePermissionEntity;
+import io.opensharing.share.SharePermissionStore;
 import io.opensharing.share.ShareService;
 import io.opensharing.share.ShareStore;
 import java.util.List;
@@ -26,9 +28,16 @@ public final class OpenSharing {
 
   private OpenSharing(CatalogConnector catalog, Transactions tx) {
     this.catalog = catalog;
+    RecipientStore recipientStore = new RecipientStore(tx);
     this.shares =
-        new ShareService(catalog, tx, new ShareStore(tx), new SharedDataObjectStore(tx));
-    this.recipients = new RecipientService(catalog, new RecipientStore(tx));
+        new ShareService(
+            catalog,
+            tx,
+            new ShareStore(tx),
+            new SharedDataObjectStore(tx),
+            new SharePermissionStore(tx),
+            recipientStore);
+    this.recipients = new RecipientService(catalog, recipientStore);
   }
 
   public static Builder builder() {
@@ -41,7 +50,8 @@ public final class OpenSharing {
         ShareEntity.class,
         SharedDataObjectEntity.class,
         RecipientEntity.class,
-        RecipientTokenEntity.class);
+        RecipientTokenEntity.class,
+        SharePermissionEntity.class);
   }
 
   public CatalogConnector catalog() {

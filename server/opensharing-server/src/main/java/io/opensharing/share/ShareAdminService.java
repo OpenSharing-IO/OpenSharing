@@ -16,8 +16,8 @@ import io.opensharing.auth.ProviderTokenDecorator;
 import io.opensharing.http.ListResponse;
 
 /**
- * Provider HTTP API for share CRUD, behind {@link ProviderTokenDecorator}. Any caller may read
- * shares; only the owner may change them.
+ * Provider HTTP API for share CRUD and recipient grants, behind {@link ProviderTokenDecorator}. Any
+ * caller may read shares; only the owner may change them.
  */
 @Blocking
 @ProducesJson
@@ -68,5 +68,21 @@ public final class ShareAdminService {
   public HttpResponse delete(ServiceRequestContext ctx, @Param String share) {
     shares.delete(ProviderTokenDecorator.user(ctx), share);
     return HttpResponse.of(HttpStatus.NO_CONTENT);
+  }
+
+  /** {@code GET /shares/{share}/permissions}: lists who holds which privilege on the share. */
+  @Get("/shares/{share}/permissions")
+  public ListResponse<SharePermissionResponse> listPermissions(@Param String share) {
+    return shares.listPermissions(share);
+  }
+
+  /**
+   * {@code PATCH /shares/{share}/permissions}: grants and revokes privileges in order, all or
+   * nothing, then returns the share's permissions. Owner only.
+   */
+  @Patch("/shares/{share}/permissions")
+  public ListResponse<SharePermissionResponse> updatePermissions(
+      ServiceRequestContext ctx, @Param String share, UpdateSharePermissionsRequest request) {
+    return shares.updatePermissions(ProviderTokenDecorator.user(ctx), share, request);
   }
 }
