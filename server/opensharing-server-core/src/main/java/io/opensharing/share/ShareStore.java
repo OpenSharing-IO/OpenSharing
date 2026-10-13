@@ -12,9 +12,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Storage for shares. Names are stored lowercase and looked up case-insensitively. Each method runs
- * in its own transaction and returns shares with their properties loaded, so callers can read them
- * after it ends.
+ * Storage for shares. Names are stored lowercase and looked up case-insensitively. Each public
+ * method runs in its own transaction and returns shares with their properties loaded, so callers
+ * can read them after it ends.
  */
 public class ShareStore {
 
@@ -51,28 +51,21 @@ public class ShareStore {
         });
   }
 
-  /** Only non-null fields are applied. Only the owner may update the share. */
-  public ShareEntity update(
-      UserContext user,
-      String name,
-      String displayName,
-      String comment,
-      Map<String, String> properties) {
-    return tx.inTransaction(
-        false,
-        em -> {
-          ShareEntity share = getOwnedOrThrow(em, name, user);
-          if (displayName != null) {
-            share.setDisplayName(displayName);
-          }
-          if (comment != null) {
-            share.setComment(comment);
-          }
-          if (properties != null) {
-            share.setProperties(properties);
-          }
-          return share;
-        });
+  /**
+   * Applies the non-null fields to {@code share}, which must be loaded in the caller's transaction,
+   * such as by {@link #getOwnedOrThrow(EntityManager, String, UserContext)}.
+   */
+  void update(
+      ShareEntity share, String displayName, String comment, Map<String, String> properties) {
+    if (displayName != null) {
+      share.setDisplayName(displayName);
+    }
+    if (comment != null) {
+      share.setComment(comment);
+    }
+    if (properties != null) {
+      share.setProperties(properties);
+    }
   }
 
   /** Looks up a share by name in any case. */
@@ -99,12 +92,17 @@ public class ShareStore {
                 .getResultList());
   }
 
-  /** Deletes a share. Only the owner may delete it. */
+  /** Deletes a share and the objects in it. Only the owner may delete it. */
   public void delete(String name, UserContext user) {
     tx.inTransaction(
         false,
         em -> {
-          em.remove(getOwnedOrThrow(em, name, user));
+          ShareEntity share = getOwnedOrThrow(em, name, user);
+          // DELETE FROM os_shared_data_objects WHERE share_id = ?
+          em.createQuery("delete from SharedDataObjectEntity o where o.share.id = :shareId")
+              .setParameter("shareId", share.getId())
+              .executeUpdate();
+          em.remove(share);
           return null;
         });
   }
@@ -131,10 +129,11 @@ public class ShareStore {
   }
 
   /**
-   * Locks the row of a share the caller owns, so changes to one share run one at a time and each
-   * sees what the one before it wrote.
+   * Like {@link #getOwnedOrThrow(String, UserContext)}, in the caller's transaction. Locks the
+   * share's row, so changes to one share run one at a time and each sees what the one before it
+   * wrote.
    */
-  private static ShareEntity getOwnedOrThrow(EntityManager em, String name, UserContext user) {
+  ShareEntity getOwnedOrThrow(EntityManager em, String name, UserContext user) {
     return checkOwner(getOrThrow(em, name, LockModeType.PESSIMISTIC_WRITE), user);
   }
 
