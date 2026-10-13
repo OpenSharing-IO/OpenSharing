@@ -27,7 +27,6 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>21</maven.compiler.release>
-    <!-- Unity Catalog's version, so embedding OpenSharing keeps the Armeria UC runs on. -->
     <armeria.version>1.28.4</armeria.version>
     <jackson.version>2.19.1</jackson.version>
     <jakarta-persistence.version>3.1.0</jakarta-persistence.version>
