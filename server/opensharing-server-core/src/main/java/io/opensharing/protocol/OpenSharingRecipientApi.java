@@ -1,5 +1,6 @@
 package io.opensharing.protocol;
 
+import com.linecorp.armeria.server.AnnotatedServiceBindingBuilder;
 import com.linecorp.armeria.server.ServerBuilder;
 import com.linecorp.armeria.server.annotation.JacksonRequestConverterFunction;
 import com.linecorp.armeria.server.annotation.JacksonResponseConverterFunction;
@@ -30,25 +31,36 @@ public final class OpenSharingRecipientApi {
       String activationBasePath,
       OpenSharing openSharing) {
     ApiExceptionHandler errors = new ApiExceptionHandler();
-    // The token check must sit inside the error decorator, so that its 401s get the protocol body.
-    builder
-        .annotatedService()
-        .pathPrefix(protocolBasePath)
-        .requestConverters(new JacksonRequestConverterFunction(ApiJson.MAPPER))
-        .responseConverters(new JacksonResponseConverterFunction(ApiJson.MAPPER))
-        .exceptionHandlers(errors)
-        .decorator(new RecipientTokenDecorator(openSharing.recipients()))
-        .decorator(errors)
+    RecipientTokenDecorator tokens = new RecipientTokenDecorator(openSharing.recipients());
+    protocol(builder, protocolBasePath, errors, tokens)
         .build(
             new OpenSharingProtocolService(
                 openSharing.protocolShares(),
                 openSharing.protocolSchemas(),
                 openSharing.protocolTables()));
+    protocol(builder, protocolBasePath, errors, tokens)
+        .build(new DeltaSharingProtocolService(openSharing.protocolTables()));
     builder
         .annotatedService()
         .pathPrefix(activationBasePath)
         .exceptionHandlers(errors)
         .decorator(errors)
         .build(new ActivationService(openSharing.recipients(), publicUrl + protocolBasePath));
+  }
+
+  private static AnnotatedServiceBindingBuilder protocol(
+      ServerBuilder builder,
+      String basePath,
+      ApiExceptionHandler errors,
+      RecipientTokenDecorator tokens) {
+    // The token check must sit inside the error decorator, so that its 401s get the protocol body.
+    return builder
+        .annotatedService()
+        .pathPrefix(basePath)
+        .requestConverters(new JacksonRequestConverterFunction(ApiJson.MAPPER))
+        .responseConverters(new JacksonResponseConverterFunction(ApiJson.MAPPER))
+        .exceptionHandlers(errors)
+        .decorator(tokens)
+        .decorator(errors);
   }
 }

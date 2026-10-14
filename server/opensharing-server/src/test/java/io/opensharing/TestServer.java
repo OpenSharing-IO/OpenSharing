@@ -33,8 +33,14 @@ public final class TestServer implements AutoCloseable {
 
   /** Starts on a free port that is also the public URL, so links in responses point back to it. */
   public static TestServer start() {
+    return start(new Properties());
+  }
+
+  /** Starts with {@code overrides} on top of {@code server.properties}, like {@link #start()}. */
+  public static TestServer start(Properties overrides) {
     int port = freePort();
     Properties props = new Properties();
+    props.putAll(overrides);
     props.setProperty("server.port", Integer.toString(port));
     props.setProperty("server.public-url", "http://127.0.0.1:" + port);
     return new TestServer(OpenSharingServer.start(new ServerProperties(props)));
