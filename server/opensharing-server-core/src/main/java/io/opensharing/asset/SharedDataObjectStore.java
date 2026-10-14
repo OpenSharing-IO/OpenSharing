@@ -87,6 +87,24 @@ public class SharedDataObjectStore {
                 .getResultList());
   }
 
+  /**
+   * {@code SELECT DISTINCT shared_as_schema FROM os_shared_data_objects WHERE share_id = ? ORDER BY
+   * shared_as_schema LIMIT ? OFFSET ?}: the schemas recipients see in the share.
+   */
+  public List<String> listSchemas(ShareEntity share, int offset, int limit) {
+    return tx.inTransaction(
+        true,
+        em ->
+            em.createQuery(
+                    "select distinct o.sharedAsSchema from SharedDataObjectEntity o"
+                        + " where o.share.id = :shareId order by o.sharedAsSchema",
+                    String.class)
+                .setParameter("shareId", share.getId())
+                .setFirstResult(offset)
+                .setMaxResults(limit)
+                .getResultList());
+  }
+
   /** Removes the object shared under the alias. Fails unless it exists with the given type. */
   public void removeByAlias(
       EntityManager em,

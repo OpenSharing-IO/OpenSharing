@@ -33,10 +33,25 @@ public abstract class ProtocolApiSupport {
     server.close();
   }
 
+  protected static void createShare(String name) {
+    String body = "{\"name\":\"%s\"}".formatted(name);
+    assertEquals(201, server.post(PROVIDER + "/shares", ALICE, body).status());
+  }
+
   /** Creates a share owned by Alice through the provider API. */
   protected static void createShare(String name, String displayName) {
     String body = "{\"name\":\"%s\",\"displayName\":\"%s\"}".formatted(name, displayName);
     assertEquals(201, server.post(PROVIDER + "/shares", ALICE, body).status());
+  }
+
+  /** Adds the catalog asset {@code name} of {@code type} to the share as {@code sharedAs}. */
+  protected static void addObject(String share, String type, String name, String sharedAs) {
+    String body =
+        "{\"updates\":[{\"action\":\"ADD\",\"dataObject\":"
+            + "{\"name\":\"%s\",\"type\":\"%s\",\"sharedAs\":\"%s\"}}]}";
+    Response added =
+        server.patch(PROVIDER + "/shares/" + share, ALICE, body.formatted(name, type, sharedAs));
+    assertEquals(200, added.status());
   }
 
   /** Creates a TOKEN recipient, redeems its activation URL, and returns the bearer token. */
