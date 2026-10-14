@@ -57,7 +57,7 @@ public class DeltaKernel {
   }
 
   /** Opens the table's root with read credentials the catalog vends to {@code auth}. */
-  Session open(ResolvedAsset table, AuthContext auth) {
+  public Session open(ResolvedAsset table, AuthContext auth) {
     if (!(table.additionalProperties() instanceof TableProperties properties)
         || properties.dataSourceFormat() != DataSourceFormat.DELTA) {
       throw ApiException.invalidParameter("the table is not a Delta table");
@@ -90,11 +90,12 @@ public class DeltaKernel {
     SessionFileIO files =
         new SessionFileIO(HadoopStorageConfiguration.from(rootCredentials, location), path);
     Engine engine = DefaultEngine.create(files);
-    return new Session(engine, Table.forPath(engine, path), files);
+    return new Session(engine, Table.forPath(engine, path), location, files);
   }
 
   /** A Kernel engine and table reading through files the session owns until it is closed. */
-  record Session(Engine engine, Table table, SessionFileIO files) implements AutoCloseable {
+  public record Session(Engine engine, Table table, String location, SessionFileIO files)
+      implements AutoCloseable {
 
     @Override
     public void close() {
