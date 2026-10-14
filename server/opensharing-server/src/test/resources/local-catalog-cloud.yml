@@ -1,4 +1,4 @@
-# Local catalog used by cloud-backed table-version integration tests.
+# Local catalog used by cloud-backed protocol integration tests.
 # ENV mode chooses AWS, Azure, or GCP credentials from each asset's URI scheme.
 credentials:
   mode: ENV
@@ -26,6 +26,13 @@ assets:
     attributes:
       subtype: MANAGED
     storageLocation: s3://delta-exchange-test/delta-exchange-test/table_startingtimestamp_test/
+    format: delta
+
+  - identifier: main.sales.deletionvectors
+    type: TABLE
+    attributes:
+      subtype: MANAGED
+    storageLocation: s3://delta-exchange-test/delta-exchange-test/deletion_vectors_with_dvs_dv_property_on
     format: delta
 
   - identifier: main.sales.azure

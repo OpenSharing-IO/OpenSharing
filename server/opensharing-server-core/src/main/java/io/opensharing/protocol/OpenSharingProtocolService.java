@@ -1,20 +1,26 @@
 package io.opensharing.protocol;
 
+import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.ResponseHeaders;
 import com.linecorp.armeria.common.annotation.Nullable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Get;
+import com.linecorp.armeria.server.annotation.Header;
 import com.linecorp.armeria.server.annotation.Param;
+import com.linecorp.armeria.server.annotation.Produces;
 import com.linecorp.armeria.server.annotation.ProducesJson;
 import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.schema.SchemaResponse;
 import io.opensharing.asset.share.GetShareResponse;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.asset.table.TableResponse;
+import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.http.ListResponse;
 import io.opensharing.share.ShareResponse;
 
@@ -27,6 +33,7 @@ import io.opensharing.share.ShareResponse;
 public final class OpenSharingProtocolService {
 
   private static final String DELTA_TABLE_VERSION = "Delta-Table-Version";
+  private static final MediaType NDJSON = MediaType.parse("application/x-ndjson; charset=utf-8");
 
   private final ProtocolShares shares;
   private final ProtocolSchemas schemas;
@@ -102,5 +109,37 @@ public final class OpenSharingProtocolService {
             RecipientTokenDecorator.recipient(ctx), share, schema, table, startingTimestamp);
     return HttpResponse.of(
         ResponseHeaders.of(HttpStatus.OK, DELTA_TABLE_VERSION, Long.toString(version)));
+  }
+
+  /**
+   * {@code GET /shares/{share}/schemas/{schema}/tables/{table}/metadata}: the table's protocol and
+   * metadata as NDJSON, with its version in the {@code Delta-Table-Version} header.
+   */
+  @Get("/shares/{share}/schemas/{schema}/tables/{table}/metadata")
+  @Produces("application/x-ndjson")
+  public HttpResponse getTableMetadata(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String schema,
+      @Param String table,
+      @Param @Nullable Long version,
+      @Param @Nullable String timestamp,
+      @Header(DeltaSharingCapabilities.HEADER) @Nullable String capabilities) {
+    DeltaTableMetadataReader.Result result =
+        tables.metadata(
+            RecipientTokenDecorator.recipient(ctx),
+            share,
+            schema,
+            table,
+            version,
+            timestamp,
+            capabilities);
+    ResponseHeaders headers =
+        ResponseHeaders.builder(HttpStatus.OK)
+            .contentType(NDJSON)
+            .add(DELTA_TABLE_VERSION, Long.toString(result.version()))
+            .add(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(capabilities))
+            .build();
+    return HttpResponse.of(headers, HttpData.ofUtf8(result.ndjson()));
   }
 }

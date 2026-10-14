@@ -5,6 +5,7 @@ import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.asset.table.delta.DeltaKernel;
+import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
@@ -39,16 +40,19 @@ public class ProtocolTables {
 
   private final CatalogConnector catalog;
   private final DeltaKernel kernel;
+  private final DeltaTableMetadataReader metadataReader;
   private final ProtocolShares shares;
   private final SharedDataObjectStore objects;
 
   public ProtocolTables(
       CatalogConnector catalog,
       DeltaKernel kernel,
+      DeltaTableMetadataReader metadataReader,
       ProtocolShares shares,
       SharedDataObjectStore objects) {
     this.catalog = catalog;
     this.kernel = kernel;
+    this.metadataReader = metadataReader;
     this.shares = shares;
     this.objects = objects;
   }
@@ -82,8 +86,27 @@ public class ProtocolTables {
       String table,
       String startingTimestamp) {
     ShareEntity granted = shares.requireGranted(recipient, share);
-    Instant timestamp = parseTimestamp(startingTimestamp);
+    Instant timestamp = parseTimestamp("startingTimestamp", startingTimestamp);
     return kernel.getVersion(resolve(granted, schema, table), timestamp, owner(granted));
+  }
+
+  /**
+   * The protocol and metadata of one table in the share, as of the latest version, {@code
+   * version}, or an ISO-8601 {@code timestamp}, in the response format {@code capabilities} asks
+   * for.
+   */
+  public DeltaTableMetadataReader.Result metadata(
+      RecipientPrincipal recipient,
+      String share,
+      String schema,
+      String table,
+      Long version,
+      String timestamp,
+      String capabilities) {
+    ShareEntity granted = shares.requireGranted(recipient, share);
+    Instant asOf = parseTimestamp("timestamp", timestamp);
+    return metadataReader.read(
+        resolve(granted, schema, table), version, asOf, owner(granted), capabilities);
   }
 
   private List<SharedDataObjectEntity> inSchema(ShareEntity share, String schema) {
@@ -114,14 +137,14 @@ public class ProtocolTables {
                         + "'"));
   }
 
-  private static Instant parseTimestamp(String value) {
+  private static Instant parseTimestamp(String name, String value) {
     if (value == null || value.isBlank()) {
       return null;
     }
     try {
       return Instant.parse(value);
     } catch (DateTimeParseException invalid) {
-      throw ApiException.invalidParameter("startingTimestamp must be an ISO-8601 UTC timestamp");
+      throw ApiException.invalidParameter(name + " must be an ISO-8601 UTC timestamp");
     }
   }
 
