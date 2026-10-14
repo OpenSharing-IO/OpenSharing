@@ -25,6 +25,7 @@ import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.FileIdHash;
 import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.asset.table.QueryTableRequest;
+import io.opensharing.asset.table.TableChangesRequest;
 import io.opensharing.asset.table.TableResponse;
 import io.opensharing.asset.table.TemporaryTableCredentialsRequest;
 import io.opensharing.asset.table.TemporaryTableCredentialsResponse;
@@ -193,20 +194,65 @@ public final class OpenSharingProtocolService {
     String body = request.contentUtf8();
     QueryTableRequest query =
         body.isBlank() ? null : ApiJson.MAPPER.readValue(body, QueryTableRequest.class);
-    DeltaTableQueryReader.ResponseOptions options =
-        new DeltaTableQueryReader.ResponseOptions(
-            capabilities,
-            FileIdHash.parse(fileIdHash),
-            DeltaSharingCapabilities.includeEndStreamAction(capabilities));
-    DeltaTableQueryReader.Result result =
-        tables.query(RecipientTokenDecorator.recipient(ctx), share, schema, table, query, options);
+    DeltaTableQueryReader.ResponseOptions options = responseOptions(capabilities, fileIdHash);
+    return files(
+        tables.query(RecipientTokenDecorator.recipient(ctx), share, schema, table, query, options),
+        options);
+  }
+
+  /**
+   * {@code GET /shares/{share}/schemas/{schema}/tables/{table}/changes}: the table's Change Data
+   * Feed over a version or timestamp range as NDJSON with presigned file URLs, and the starting
+   * version in the {@code Delta-Table-Version} header.
+   */
+  @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
+  @Produces("application/x-ndjson")
+  public HttpResponse queryTableChanges(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String schema,
+      @Param String table,
+      @Param @Nullable Long startingVersion,
+      @Param @Nullable String startingTimestamp,
+      @Param @Nullable Long endingVersion,
+      @Param @Nullable String endingTimestamp,
+      @Param @Nullable Boolean includeHistoricalMetadata,
+      @Param @Nullable Boolean includeHistoricalProtocol,
+      @Header(DeltaSharingCapabilities.HEADER) @Nullable String capabilities,
+      @Header(FileIdHash.HEADER) @Nullable String fileIdHash) {
+    TableChangesRequest request =
+        new TableChangesRequest(
+            startingVersion,
+            startingTimestamp,
+            endingVersion,
+            endingTimestamp,
+            includeHistoricalMetadata,
+            includeHistoricalProtocol);
+    DeltaTableQueryReader.ResponseOptions options = responseOptions(capabilities, fileIdHash);
+    return files(
+        tables.changes(
+            RecipientTokenDecorator.recipient(ctx), share, schema, table, request, options),
+        options);
+  }
+
+  private static DeltaTableQueryReader.ResponseOptions responseOptions(
+      String capabilities, String fileIdHash) {
+    return new DeltaTableQueryReader.ResponseOptions(
+        capabilities,
+        FileIdHash.parse(fileIdHash),
+        DeltaSharingCapabilities.includeEndStreamAction(capabilities));
+  }
+
+  private static HttpResponse files(
+      DeltaTableQueryReader.Result result, DeltaTableQueryReader.ResponseOptions options) {
     ResponseHeadersBuilder headers =
         ResponseHeaders.builder(HttpStatus.OK)
             .contentType(NDJSON)
             .add(DELTA_TABLE_VERSION, Long.toString(result.version()))
             .add(
                 DeltaSharingCapabilities.HEADER,
-                DeltaSharingCapabilities.responded(capabilities, options.includeEndStreamAction()));
+                DeltaSharingCapabilities.responded(
+                    options.capabilities(), options.includeEndStreamAction()));
     if (options.fileIdHash() != null) {
       headers.add(FileIdHash.HEADER, options.fileIdHash());
     }
