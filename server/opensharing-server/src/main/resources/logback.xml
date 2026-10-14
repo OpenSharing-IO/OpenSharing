@@ -1,0 +1,15 @@
+<configuration>
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{36} : %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <logger name="io.opensharing" level="INFO"/>
+  <!-- Delta Kernel narrates every log segment it loads, which is a line per request. -->
+  <logger name="io.delta" level="WARN"/>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>
