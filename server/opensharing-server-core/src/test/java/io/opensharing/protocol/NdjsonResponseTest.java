@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 
 class NdjsonResponseTest {
 
-  private static final ResponseOptions OPTIONS = new ResponseOptions(null, null);
+  private static final ResponseOptions OPTIONS = new ResponseOptions(null, null, false);
 
   @Test
   void sendsTheHeadersThenEveryLine() {
@@ -40,7 +40,7 @@ class NdjsonResponseTest {
     assertEquals(200, response.status().code());
     assertEquals("3", response.headers().get(DeltaSharingProtocolService.DELTA_TABLE_VERSION));
     assertEquals(
-        DeltaSharingCapabilities.responded(ResponseFormat.PARQUET),
+        DeltaSharingCapabilities.responded(ResponseFormat.PARQUET, false),
         response.headers().get(DeltaSharingCapabilities.HEADER));
     assertEquals("{\"a\":1}\n{\"b\":2}\n", response.contentUtf8());
   }

@@ -38,7 +38,16 @@ public final class DeltaSharingCapabilities {
 
   /** Value for the response {@code delta-sharing-capabilities} header. */
   public static String responded(ResponseFormat format) {
-    return "responseformat=" + format.name().toLowerCase(Locale.ROOT);
+    return responded(format, false);
+  }
+
+  public static String responded(ResponseFormat format, boolean includeEndStreamAction) {
+    String responded = "responseformat=" + format.name().toLowerCase(Locale.ROOT);
+    return includeEndStreamAction ? responded + ";includeendstreamaction=true" : responded;
+  }
+
+  public static boolean includeEndStreamAction(String header) {
+    return "true".equals(parse(header).get("includeendstreamaction"));
   }
 
   /**

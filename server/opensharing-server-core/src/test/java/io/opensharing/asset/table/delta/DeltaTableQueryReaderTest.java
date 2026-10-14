@@ -108,7 +108,7 @@ class DeltaTableQueryReaderTest {
             table(root),
             null,
             new DeltaTableQueryReader.ResponseOptions(
-                "responseformat=delta;readerfeatures=deletionvectors", null),
+                "responseformat=delta;readerfeatures=deletionvectors", null, false),
             new DeltaTableQueryReader.ResponseSink() {
               @Override
               public void begin(long version, ResponseFormat format) {}
@@ -122,7 +122,9 @@ class DeltaTableQueryReaderTest {
               }
             },
             null,
-            null);
+            null,
+            null,
+            false);
     return urls;
   }
 

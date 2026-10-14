@@ -2,7 +2,9 @@ package io.opensharing.asset.table;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.delta.kernel.internal.actions.Protocol;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
@@ -19,6 +21,12 @@ class DeltaSharingCapabilitiesTest {
     assertEquals(
         "responseformat=parquet", DeltaSharingCapabilities.responded(ResponseFormat.PARQUET));
     assertEquals("responseformat=delta", DeltaSharingCapabilities.responded(ResponseFormat.DELTA));
+    assertEquals(
+        "responseformat=parquet;includeendstreamaction=true",
+        DeltaSharingCapabilities.responded(ResponseFormat.PARQUET, true));
+    assertFalse(DeltaSharingCapabilities.includeEndStreamAction(null));
+    assertTrue(
+        DeltaSharingCapabilities.includeEndStreamAction("includeendstreamaction=true"));
   }
 
   @Test
