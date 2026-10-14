@@ -145,7 +145,10 @@ public final class DeltaSharingProtocolService {
     QueryTableRequest query =
         body.isBlank() ? null : ApiJson.MAPPER.readValue(body, QueryTableRequest.class);
     DeltaTableQueryReader.ResponseOptions options =
-        new DeltaTableQueryReader.ResponseOptions(capabilities, FileIdHash.parse(fileIdHash));
+        new DeltaTableQueryReader.ResponseOptions(
+            capabilities,
+            FileIdHash.parse(fileIdHash),
+            DeltaSharingCapabilities.includeEndStreamAction(capabilities));
     return NdjsonResponse.stream(
         ctx,
         options,
