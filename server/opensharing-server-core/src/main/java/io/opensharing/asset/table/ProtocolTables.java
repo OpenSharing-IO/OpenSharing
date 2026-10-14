@@ -6,6 +6,7 @@ import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.asset.table.delta.DeltaKernel;
+import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
@@ -51,16 +52,19 @@ public class ProtocolTables {
 
   private final CatalogConnector catalog;
   private final DeltaKernel kernel;
+  private final DeltaTableMetadataReader metadataReader;
   private final ProtocolShares protocolShares;
   private final SharedDataObjectStore sharedObjects;
 
   public ProtocolTables(
       CatalogConnector catalog,
       DeltaKernel kernel,
+      DeltaTableMetadataReader metadataReader,
       ProtocolShares protocolShares,
       SharedDataObjectStore sharedObjects) {
     this.catalog = catalog;
     this.kernel = kernel;
+    this.metadataReader = metadataReader;
     this.protocolShares = protocolShares;
     this.sharedObjects = sharedObjects;
   }
@@ -114,9 +118,28 @@ public class ProtocolTables {
       String tableAlias,
       String startingTimestamp) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    Instant timestamp = parseTimestamp(startingTimestamp);
+    Instant timestamp = parseTimestamp("startingTimestamp", startingTimestamp);
     return kernel.getVersion(
         resolveTable(share, schemaAlias, tableAlias), timestamp, owner(share));
+  }
+
+  /**
+   * The protocol and metadata of one table in the share, as of the latest version, {@code
+   * version}, or an ISO-8601 {@code timestamp}, in the response format {@code capabilities} asks
+   * for.
+   */
+  public DeltaTableMetadataReader.Result metadata(
+      RecipientPrincipal recipient,
+      String shareName,
+      String schemaAlias,
+      String tableAlias,
+      Long version,
+      String timestamp,
+      String capabilities) {
+    ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    Instant asOf = parseTimestamp("timestamp", timestamp);
+    return metadataReader.read(
+        resolveTable(share, schemaAlias, tableAlias), version, asOf, owner(share), capabilities);
   }
 
   /**
@@ -165,15 +188,15 @@ public class ProtocolTables {
     return findTable(share, schemaAlias, tableAlias).catalogTable();
   }
 
-  /** An ISO-8601 UTC timestamp query value, or null when absent. */
-  private static Instant parseTimestamp(String value) {
+  /** The ISO-8601 UTC timestamp in the parameter {@code name}, or null when absent. */
+  private static Instant parseTimestamp(String name, String value) {
     if (value == null || value.isBlank()) {
       return null;
     }
     try {
       return Instant.parse(value);
     } catch (DateTimeParseException invalid) {
-      throw ApiException.invalidParameter("startingTimestamp must be an ISO-8601 UTC timestamp");
+      throw ApiException.invalidParameter(name + " must be an ISO-8601 UTC timestamp");
     }
   }
 

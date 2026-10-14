@@ -56,7 +56,8 @@ public class DeltaKernel {
     }
   }
 
-  private Session open(ResolvedAsset table, AuthContext auth) {
+  /** Opens the table's root with read credentials the catalog vends to {@code auth}. */
+  Session open(ResolvedAsset table, AuthContext auth) {
     if (!(table.additionalProperties() instanceof TableProperties properties)
         || properties.dataSourceFormat() != DataSourceFormat.DELTA) {
       throw ApiException.invalidParameter("the table is not a Delta table");
@@ -101,8 +102,7 @@ public class DeltaKernel {
   }
 
   /** A Kernel engine and table reading through files the session owns until it is closed. */
-  private record Session(Engine engine, Table table, SessionFileIO files)
-      implements AutoCloseable {
+  record Session(Engine engine, Table table, SessionFileIO files) implements AutoCloseable {
 
     @Override
     public void close() {
