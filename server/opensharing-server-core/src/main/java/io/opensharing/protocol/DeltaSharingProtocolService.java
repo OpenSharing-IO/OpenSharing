@@ -1,5 +1,7 @@
 package io.opensharing.protocol;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
@@ -11,12 +13,16 @@ import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Header;
 import com.linecorp.armeria.server.annotation.Param;
+import com.linecorp.armeria.server.annotation.Post;
 import com.linecorp.armeria.server.annotation.Produces;
 import com.linecorp.armeria.server.annotation.ProducesJson;
 import io.opensharing.ObjectNames;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.ProtocolTables;
+import io.opensharing.asset.table.TemporaryTableCredentialsRequest;
+import io.opensharing.asset.table.TemporaryTableCredentialsResponse;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
+import io.opensharing.http.ApiJson;
 
 /**
  * The Delta Sharing protocol endpoints for one shared table, which recipients call with their
@@ -89,5 +95,30 @@ public final class DeltaSharingProtocolService {
                 DeltaSharingCapabilities.responded(result.format()))
             .build();
     return HttpResponse.of(headers, HttpData.ofUtf8(result.ndjson()));
+  }
+
+  /**
+   * {@code POST /shares/{share}/schemas/{schema}/tables/{table}/temporary-table-credentials}: read
+   * credentials for a table that supports directory access. The request body is optional.
+   */
+  @Post("/shares/{share}/schemas/{schema}/tables/{table}/temporary-table-credentials")
+  public TemporaryTableCredentialsResponse generateTemporaryTableCredentials(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String schema,
+      @Param String table,
+      AggregatedHttpRequest request)
+      throws JsonProcessingException {
+    String body = request.contentUtf8();
+    TemporaryTableCredentialsRequest options =
+        body.isBlank()
+            ? null
+            : ApiJson.MAPPER.readValue(body, TemporaryTableCredentialsRequest.class);
+    return tables.temporaryCredentials(
+        RecipientTokenDecorator.recipient(ctx),
+        ObjectNames.normalize(share),
+        ObjectNames.normalize(schema),
+        ObjectNames.normalize(table),
+        options);
   }
 }
