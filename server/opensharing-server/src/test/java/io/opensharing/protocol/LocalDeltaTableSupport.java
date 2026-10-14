@@ -14,9 +14,10 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Protocol tests that read Delta tables through Kernel. The server's local catalog points at Delta
  * logs written to a temporary directory: {@code main.sales.orders} with 3 commits, {@code
- * main.sales.customers} with 1, and {@code main.hr.salaries} with 4. Commit {@code n} of each table
- * is timestamped 2024-01-01T00:00:00Z plus {@code n} hours, and table {@code t} has metadata id
- * {@code t} and one {@code long} column, {@code id}.
+ * main.sales.customers} with 1, and {@code main.hr.salaries} with 4, each adding one data file, and
+ * {@code main.ops.events} with 2 commits and no data files. Commit {@code n} of each table is
+ * timestamped 2024-01-01T00:00:00Z plus {@code n} hours. Table {@code t} has metadata id {@code t}
+ * and one {@code long} column, {@code id}.
  */
 abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
 
@@ -32,6 +33,7 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
   private static final String ADD_ACTION =
       "{\"add\":{\"path\":\"part-%d.parquet\",\"partitionValues\":{},\"size\":1,"
           + "\"modificationTime\":0,\"dataChange\":true}}\n";
+  private static final String COMMIT_INFO_ACTION = "{\"commitInfo\":{}}\n";
 
   @TempDir static Path tables;
 
@@ -40,6 +42,7 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
     String orders = deltaTable("orders", 3);
     String customers = deltaTable("customers", 1);
     String salaries = deltaTable("salaries", 4);
+    String events = deltaTable("events", 2, false);
     String catalog =
         """
         principals:
@@ -67,8 +70,15 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
               subtype: MANAGED
             storageLocation: %s
             format: delta
+          - identifier: main.ops
+            type: SCHEMA
+          - identifier: main.ops.events
+            attributes:
+              subtype: MANAGED
+            storageLocation: %s
+            format: delta
         """
-            .formatted(orders, customers, salaries);
+            .formatted(orders, customers, salaries, events);
     Properties properties = new Properties();
     properties.setProperty("catalog.local.file", write("local-catalog.yml", catalog).toString());
     restartServer(properties);
@@ -79,14 +89,19 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
     return tables.resolve(name).toUri().toString();
   }
 
-  /** Writes a Delta log of {@code commits} commits and returns the table's location. */
   private static String deltaTable(String name, int commits) {
+    return deltaTable(name, commits, true);
+  }
+
+  /**
+   * Writes a Delta log of {@code commits} commits, each adding a data file if {@code files}, and
+   * returns the table's location.
+   */
+  private static String deltaTable(String name, int commits, boolean files) {
     for (int version = 0; version < commits; version++) {
       String actions = version == 0 ? PROTOCOL_ACTION + METADATA_ACTION.formatted(name) : "";
-      Path commit =
-          write(
-              name + "/_delta_log/%020d.json".formatted(version),
-              actions + ADD_ACTION.formatted(version));
+      String change = files ? ADD_ACTION.formatted(version) : COMMIT_INFO_ACTION;
+      Path commit = write(name + "/_delta_log/%020d.json".formatted(version), actions + change);
       try {
         Files.setLastModifiedTime(
             commit, FileTime.from(COMMIT_TIME.plus(Duration.ofHours(version))));

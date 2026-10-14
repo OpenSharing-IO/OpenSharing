@@ -7,6 +7,7 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.ResponseHeaders;
+import com.linecorp.armeria.common.ResponseHeadersBuilder;
 import com.linecorp.armeria.common.annotation.Nullable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
@@ -18,10 +19,13 @@ import com.linecorp.armeria.server.annotation.Produces;
 import com.linecorp.armeria.server.annotation.ProducesJson;
 import io.opensharing.ObjectNames;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
+import io.opensharing.asset.table.FileIdHash;
 import io.opensharing.asset.table.ProtocolTables;
+import io.opensharing.asset.table.QueryTableRequest;
 import io.opensharing.asset.table.TemporaryTableCredentialsRequest;
 import io.opensharing.asset.table.TemporaryTableCredentialsResponse;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
+import io.opensharing.asset.table.delta.DeltaTableQueryReader;
 import io.opensharing.http.ApiJson;
 
 /**
@@ -118,5 +122,45 @@ public final class DeltaSharingProtocolService {
         ObjectNames.normalize(schema),
         ObjectNames.normalize(table),
         options);
+  }
+
+  /**
+   * {@code POST /shares/{share}/schemas/{schema}/tables/{table}/query}: one snapshot of the table
+   * as NDJSON with presigned file URLs, and its version in the {@code Delta-Table-Version} header.
+   * The request body is optional.
+   */
+  @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
+  @Produces("application/x-ndjson")
+  public HttpResponse queryTable(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String schema,
+      @Param String table,
+      @Header(DeltaSharingCapabilities.HEADER) @Nullable String capabilities,
+      @Header(FileIdHash.HEADER) @Nullable String fileIdHash,
+      AggregatedHttpRequest request)
+      throws JsonProcessingException {
+    String body = request.contentUtf8();
+    QueryTableRequest query =
+        body.isBlank() ? null : ApiJson.MAPPER.readValue(body, QueryTableRequest.class);
+    DeltaTableQueryReader.ResponseOptions options =
+        new DeltaTableQueryReader.ResponseOptions(capabilities, FileIdHash.parse(fileIdHash));
+    DeltaTableQueryReader.Result result =
+        tables.query(
+            RecipientTokenDecorator.recipient(ctx),
+            ObjectNames.normalize(share),
+            ObjectNames.normalize(schema),
+            ObjectNames.normalize(table),
+            query,
+            options);
+    ResponseHeadersBuilder headers =
+        ResponseHeaders.builder(HttpStatus.OK)
+            .contentType(NDJSON)
+            .add(DELTA_TABLE_VERSION, Long.toString(result.version()))
+            .add(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(capabilities));
+    if (options.fileIdHash() != null) {
+      headers.add(FileIdHash.HEADER, options.fileIdHash());
+    }
+    return HttpResponse.of(headers.build(), HttpData.ofUtf8(result.ndjson()));
   }
 }

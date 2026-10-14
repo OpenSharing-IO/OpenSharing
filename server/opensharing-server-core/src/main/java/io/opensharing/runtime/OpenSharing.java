@@ -8,6 +8,8 @@ import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
+import io.opensharing.asset.table.delta.DeltaTableQueryReader;
+import io.opensharing.asset.table.signer.UrlSigners;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientService;
@@ -48,7 +50,12 @@ public final class OpenSharing {
     DeltaKernel kernel = new DeltaKernel(catalog);
     this.protocolTables =
         new ProtocolTables(
-            catalog, kernel, new DeltaTableMetadataReader(kernel), protocolShares, objectStore);
+            catalog,
+            kernel,
+            new DeltaTableMetadataReader(kernel),
+            new DeltaTableQueryReader(kernel, new UrlSigners()),
+            protocolShares,
+            objectStore);
   }
 
   public static Builder builder() {
