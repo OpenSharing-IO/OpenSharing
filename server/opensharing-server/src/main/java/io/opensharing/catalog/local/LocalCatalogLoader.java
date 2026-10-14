@@ -10,7 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 
-/** Reads a {@link LocalCatalogFile} from YAML or JSON. */
+/** Reads a {@link LocalCatalogFile} from YAML or JSON, matching keys and enums ignoring case. */
 public final class LocalCatalogLoader {
 
   private static final String CLASSPATH = "classpath:";
@@ -24,7 +24,10 @@ public final class LocalCatalogLoader {
 
   private LocalCatalogLoader() {}
 
-  /** Reads {@code location}: a {@code classpath:} resource, or a file path with or without file:. */
+  /**
+   * Reads {@code location}: a {@code classpath:} resource, or a file path with or without {@code
+   * file:}.
+   */
   public static LocalCatalogFile load(String location) {
     try (InputStream in = open(location)) {
       return load(in, location);
@@ -33,9 +36,13 @@ public final class LocalCatalogLoader {
     }
   }
 
+  /**
+   * Parses {@code in} without closing it. {@code origin} only names the source in error messages.
+   */
   public static LocalCatalogFile load(InputStream in, String origin) {
     try {
       LocalCatalogFile file = MAPPER.readValue(in, LocalCatalogFile.class);
+      // A null YAML document, such as "~" or a lone "---", is an empty catalog.
       return file == null ? new LocalCatalogFile(null, null) : file;
     } catch (IOException e) {
       throw new CatalogException("failed to parse local catalog file " + origin, e);
@@ -47,9 +54,11 @@ public final class LocalCatalogLoader {
   private static InputStream open(String location) throws IOException {
     InputStream in;
     if (location.startsWith(CLASSPATH)) {
+      // ClassLoader resources never start with "/", so "classpath:/x.yml" means "classpath:x.yml".
       String resource = location.substring(CLASSPATH.length()).replaceFirst("^/", "");
       in = LocalCatalogLoader.class.getClassLoader().getResourceAsStream(resource);
     } else {
+      // "file:" is stripped, not parsed as a URI, so relative paths and %-escapes stay as written.
       Path path = Path.of(location.startsWith(FILE) ? location.substring(FILE.length()) : location);
       try {
         in = Files.newInputStream(path);

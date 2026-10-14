@@ -27,10 +27,6 @@ public class ServerProperties {
       this.key = key;
       this.defaultValue = defaultValue;
     }
-
-    public String key() {
-      return key;
-    }
   }
 
   public ServerProperties() {
