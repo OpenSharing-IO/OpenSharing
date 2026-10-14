@@ -4,6 +4,7 @@ import io.opensharing.ObjectNames;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
@@ -17,13 +18,15 @@ import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.share.ShareEntity;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * The tables a recipient sees through the sharing protocol in a share it holds SELECT on: the
+ * The tables a recipient reads through the sharing protocol in a share it holds SELECT on: the
  * tables the share includes one by one, plus the tables the catalog currently lists under each
  * schema the share includes as a whole.
  *
@@ -35,12 +38,17 @@ public class ProtocolTables {
   private static final int CATALOG_PAGE_SIZE = 1000;
 
   private final CatalogConnector catalog;
+  private final DeltaKernel kernel;
   private final ProtocolShares shares;
   private final SharedDataObjectStore objects;
 
   public ProtocolTables(
-      CatalogConnector catalog, ProtocolShares shares, SharedDataObjectStore objects) {
+      CatalogConnector catalog,
+      DeltaKernel kernel,
+      ProtocolShares shares,
+      SharedDataObjectStore objects) {
     this.catalog = catalog;
+    this.kernel = kernel;
     this.shares = shares;
     this.objects = objects;
   }
@@ -53,13 +61,7 @@ public class ProtocolTables {
       Integer maxResults,
       String pageToken) {
     ShareEntity granted = shares.requireGranted(recipient, share);
-    List<SharedDataObjectEntity> included =
-        objects.listInSchema(granted, ObjectNames.normalize(schema));
-    if (included.isEmpty()) {
-      throw ApiException.notFound(
-          "schema '" + schema + "' does not exist in share '" + granted.getName() + "'");
-    }
-    return page(granted, listed(granted, included), maxResults, pageToken);
+    return page(granted, listed(granted, inSchema(granted, schema)), maxResults, pageToken);
   }
 
   /** Lists one page of all the tables in the share, by schema and then name. */
@@ -67,6 +69,60 @@ public class ProtocolTables {
       RecipientPrincipal recipient, String share, Integer maxResults, String pageToken) {
     ShareEntity granted = shares.requireGranted(recipient, share);
     return page(granted, listed(granted, objects.list(granted)), maxResults, pageToken);
+  }
+
+  /**
+   * The Delta version of one table in the share: the latest, or with an ISO-8601 {@code
+   * startingTimestamp} the earliest version committed at or after it.
+   */
+  public long version(
+      RecipientPrincipal recipient,
+      String share,
+      String schema,
+      String table,
+      String startingTimestamp) {
+    ShareEntity granted = shares.requireGranted(recipient, share);
+    Instant timestamp = parseTimestamp(startingTimestamp);
+    return kernel.getVersion(resolve(granted, schema, table), timestamp, owner(granted));
+  }
+
+  private List<SharedDataObjectEntity> inSchema(ShareEntity share, String schema) {
+    List<SharedDataObjectEntity> included =
+        objects.listInSchema(share, ObjectNames.normalize(schema));
+    if (included.isEmpty()) {
+      throw ApiException.notFound(
+          "schema '" + schema + "' does not exist in share '" + share.getName() + "'");
+    }
+    return included;
+  }
+
+  private ResolvedAsset resolve(ShareEntity share, String schema, String table) {
+    String name = ObjectNames.normalize(table);
+    return listed(share, inSchema(share, schema)).stream()
+        .filter(listed -> name.equals(ObjectNames.normalize(listed.name())))
+        .findFirst()
+        .map(listed -> listed.resolved().get())
+        .orElseThrow(
+            () ->
+                ApiException.notFound(
+                    "table '"
+                        + schema
+                        + "."
+                        + table
+                        + "' does not exist in share '"
+                        + share.getName()
+                        + "'"));
+  }
+
+  private static Instant parseTimestamp(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return Instant.parse(value);
+    } catch (DateTimeParseException invalid) {
+      throw ApiException.invalidParameter("startingTimestamp must be an ISO-8601 UTC timestamp");
+    }
   }
 
   /**
