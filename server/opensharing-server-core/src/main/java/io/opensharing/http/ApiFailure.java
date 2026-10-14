@@ -32,13 +32,8 @@ public record ApiFailure(int status, String errorCode, String message) {
           new ApiFailure(403, ErrorCodes.PERMISSION_DENIED, denied.getMessage());
       case UnsupportedAssetTypeException unsupported ->
           new ApiFailure(400, ErrorCodes.INVALID_PARAMETER_VALUE, unsupported.getMessage());
-      case CatalogAuthenticationException rejected -> {
-        log.error("The sharing server could not authenticate to the catalog", rejected);
-        yield new ApiFailure(
-            502,
-            ErrorCodes.CATALOG_ERROR,
-            "the sharing server could not authenticate to the catalog");
-      }
+      case CatalogAuthenticationException rejected ->
+          new ApiFailure(401, ErrorCodes.UNAUTHENTICATED, rejected.getMessage());
       case CatalogAuthorizationException refused ->
           new ApiFailure(403, ErrorCodes.PERMISSION_DENIED, refused.getMessage());
       case CatalogException failed -> {

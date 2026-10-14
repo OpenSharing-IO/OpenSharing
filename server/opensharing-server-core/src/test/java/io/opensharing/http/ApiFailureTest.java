@@ -63,12 +63,12 @@ class ApiFailureTest {
   }
 
   @Test
-  void hidesCatalogAuthenticationFailuresBehindBadGateway() {
+  void mapsCatalogAuthenticationFailuresAsUnauthenticated() {
     assertFailure(
-        502,
-        ErrorCodes.CATALOG_ERROR,
-        "the sharing server could not authenticate to the catalog",
-        new CatalogAuthenticationException("token for svc-sharing expired"));
+        401,
+        ErrorCodes.UNAUTHENTICATED,
+        "invalid bearer token",
+        new CatalogAuthenticationException("invalid bearer token"));
   }
 
   @Test

@@ -13,7 +13,7 @@ import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetPage;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
-import io.opensharing.exception.CatalogAuthorizationException;
+import io.opensharing.exception.CatalogAuthenticationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
@@ -423,7 +423,7 @@ class LocalCatalogConnectorTest {
     assertEquals("catalog-alice-id", alice.userId());
     assertEquals("alice", alice.userName());
     assertThrows(
-        CatalogAuthorizationException.class,
+        CatalogAuthenticationException.class,
         () ->
             connector.authorize(
                 new AuthContext(null, new UserContext(null, "mallory-token", null)), null));
