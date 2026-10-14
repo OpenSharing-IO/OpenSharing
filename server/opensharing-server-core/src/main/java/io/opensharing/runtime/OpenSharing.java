@@ -3,6 +3,7 @@ package io.opensharing.runtime;
 import io.opensharing.Transactions;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
+import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientService;
@@ -25,19 +26,23 @@ public final class OpenSharing {
   private final CatalogConnector catalog;
   private final ShareService shares;
   private final RecipientService recipients;
+  private final ProtocolShares protocolShares;
 
   private OpenSharing(CatalogConnector catalog, Transactions tx) {
     this.catalog = catalog;
+    ShareStore shareStore = new ShareStore(tx);
+    SharePermissionStore permissionStore = new SharePermissionStore(tx);
     RecipientStore recipientStore = new RecipientStore(tx);
     this.shares =
         new ShareService(
             catalog,
             tx,
-            new ShareStore(tx),
+            shareStore,
             new SharedDataObjectStore(tx),
-            new SharePermissionStore(tx),
+            permissionStore,
             recipientStore);
     this.recipients = new RecipientService(catalog, recipientStore);
+    this.protocolShares = new ProtocolShares(shareStore, permissionStore);
   }
 
   public static Builder builder() {
@@ -64,6 +69,11 @@ public final class OpenSharing {
 
   public RecipientService recipients() {
     return recipients;
+  }
+
+  /** The shares recipients see through the sharing protocol. */
+  public ProtocolShares protocolShares() {
+    return protocolShares;
   }
 
   public static final class Builder {

@@ -11,8 +11,8 @@ import io.opensharing.http.ApiJson;
 import io.opensharing.recipient.RecipientService;
 
 /**
- * Public one-time redemption of a recipient activation URL. Hosts mount it without their own
- * authentication: the activation code itself is the credential.
+ * Public one-time redemption of a recipient activation URL. {@link OpenSharingRecipientApi} mounts
+ * it without authentication: the activation code itself is the credential.
  */
 @Blocking
 public final class ActivationService {
