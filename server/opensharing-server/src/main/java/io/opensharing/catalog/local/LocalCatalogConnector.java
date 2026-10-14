@@ -10,7 +10,7 @@ import io.opensharing.catalog.AssetPage;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
-import io.opensharing.exception.CatalogAuthorizationException;
+import io.opensharing.exception.CatalogAuthenticationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
@@ -203,7 +203,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
     }
     String token = auth == null || auth.user() == null ? null : auth.user().userAuthToken();
     if (token == null || token.isBlank()) {
-      throw new CatalogAuthorizationException("missing bearer token");
+      throw new CatalogAuthenticationException("missing bearer token");
     }
     return principals.stream()
         .filter(principal -> token.equals(principal.bearerToken()))
@@ -211,7 +211,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
         .map(
             principal ->
                 new UserContext(principal.userId(), principal.bearerToken(), principal.userName()))
-        .orElseThrow(() -> new CatalogAuthorizationException("invalid bearer token"));
+        .orElseThrow(() -> new CatalogAuthenticationException("invalid bearer token"));
   }
 
   private static boolean covers(LocalCatalogFile.Asset asset, String location) {
