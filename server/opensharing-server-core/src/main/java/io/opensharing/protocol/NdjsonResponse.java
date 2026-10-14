@@ -54,7 +54,9 @@ final class NdjsonResponse implements ResponseSink {
         ResponseHeaders.builder(HttpStatus.OK)
             .contentType(DeltaSharingProtocolService.NDJSON)
             .add(DeltaSharingProtocolService.DELTA_TABLE_VERSION, Long.toString(version))
-            .add(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(format));
+            .add(
+                DeltaSharingCapabilities.HEADER,
+                DeltaSharingCapabilities.responded(format, options.includeEndStreamAction()));
     if (options.fileIdHash() != null) {
       headers.add(FileIdHash.HEADER, options.fileIdHash());
     }
