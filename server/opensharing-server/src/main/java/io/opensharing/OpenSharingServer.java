@@ -58,6 +58,11 @@ public final class OpenSharingServer implements AutoCloseable {
     return new OpenSharingServer(server, openSharing);
   }
 
+  /** The port the server listens on, which it picks itself when configured with 0. */
+  public int port() {
+    return server.activeLocalPort();
+  }
+
   /** The OpenSharing instance this server serves. */
   public OpenSharing openSharing() {
     return openSharing;
