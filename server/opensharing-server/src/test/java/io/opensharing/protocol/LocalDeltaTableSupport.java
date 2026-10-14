@@ -104,6 +104,11 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
     restartServer(properties);
   }
 
+  /** The storage location of table {@code name}. */
+  protected static String location(String name) {
+    return tables.resolve(name).toUri().toString();
+  }
+
   /** Writes a Delta log of {@code commits} commits and returns the table's location. */
   private static String deltaTable(String name, int commits) {
     for (int version = 0; version < commits; version++) {
@@ -120,10 +125,6 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
       }
     }
     return location(name);
-  }
-
-  private static String location(String name) {
-    return tables.resolve(name).toUri().toString();
   }
 
   private static Path write(String relativePath, String content) {
