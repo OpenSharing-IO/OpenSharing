@@ -30,6 +30,11 @@
     <armeria.version>1.28.4</armeria.version>
     <jackson.version>2.19.1</jackson.version>
     <jakarta-persistence.version>3.1.0</jakarta-persistence.version>
+    <hibernate.version>6.6.18.Final</hibernate.version>
+    <hikaricp.version>6.3.0</hikaricp.version>
+    <h2.version>2.3.232</h2.version>
+    <postgresql.version>42.7.7</postgresql.version>
+    <mysql.version>9.2.0</mysql.version>
     <slf4j.version>2.0.17</slf4j.version>
     <logback.version>1.5.18</logback.version>
     <junit.version>5.12.2</junit.version>
@@ -71,6 +76,36 @@
         <groupId>jakarta.persistence</groupId>
         <artifactId>jakarta.persistence-api</artifactId>
         <version>${jakarta-persistence.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.hibernate.orm</groupId>
+        <artifactId>hibernate-core</artifactId>
+        <version>${hibernate.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.hibernate.orm</groupId>
+        <artifactId>hibernate-hikaricp</artifactId>
+        <version>${hibernate.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.zaxxer</groupId>
+        <artifactId>HikariCP</artifactId>
+        <version>${hikaricp.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.h2database</groupId>
+        <artifactId>h2</artifactId>
+        <version>${h2.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.postgresql</groupId>
+        <artifactId>postgresql</artifactId>
+        <version>${postgresql.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.mysql</groupId>
+        <artifactId>mysql-connector-j</artifactId>
+        <version>${mysql.version}</version>
       </dependency>
       <dependency>
         <groupId>org.slf4j</groupId>

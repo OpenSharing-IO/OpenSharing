@@ -32,3 +32,10 @@ assets:
     format: delta
     shareableBy:
       - catalog-alice-id
+
+  - identifier: main.sales.orders
+    type: TABLE
+    attributes:
+      subtype: MANAGED
+    storageLocation: s3://test/main.sales.orders/
+    format: delta

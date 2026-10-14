@@ -1,5 +1,7 @@
 package io.opensharing.auth;
 
+import io.opensharing.http.ApiException;
+
 /**
  * End-user identity for a catalog call.
  *
@@ -29,5 +31,11 @@ public record UserContext(String userId, String userAuthToken, String userName) 
         + ", userName="
         + userName
         + "]";
+  }
+
+  public void requireOwner(String ownerId, String what) {
+    if (userId == null || !ownerId.equals(userId)) {
+      throw ApiException.permissionDenied("user '" + userName + "' does not own " + what);
+    }
   }
 }
