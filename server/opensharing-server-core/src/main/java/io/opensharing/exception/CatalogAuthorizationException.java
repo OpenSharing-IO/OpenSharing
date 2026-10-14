@@ -1,8 +1,8 @@
 package io.opensharing.exception;
 
 /**
- * The catalog refused the end user on {@code CatalogConnector#authorize}: their token is missing or
- * invalid, or they lack the requested privilege.
+ * The catalog authenticated the caller on {@code CatalogConnector#authorize}, but they lack the
+ * requested privilege.
  */
 public class CatalogAuthorizationException extends CatalogException {
 
