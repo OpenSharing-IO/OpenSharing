@@ -43,6 +43,15 @@ public record StorageCredentials(
     credentials = credentials == null ? Map.of() : Map.copyOf(credentials);
   }
 
+  /** Whether these credentials' prefix is {@code location} or a directory above it. */
+  public boolean covers(String location) {
+    if (prefix == null || prefix.isBlank()) {
+      return false;
+    }
+    String directory = prefix.endsWith("/") ? prefix : prefix + "/";
+    return location.equals(prefix) || location.startsWith(directory);
+  }
+
   public String require(String key) {
     String value = credentials.get(key);
     if (value == null || value.isBlank()) {
