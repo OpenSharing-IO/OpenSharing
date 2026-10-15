@@ -2,10 +2,12 @@ package io.opensharing.recipient;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.auth.AuthContext;
+import io.opensharing.auth.Ownership;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.TokenHashes;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
@@ -19,9 +21,10 @@ import java.util.UUID;
 
 /**
  * Provider recipient CRUD and token issuance for a caller the host has authenticated. Creating a
- * recipient needs CREATE_RECIPIENT from the catalog, and only the owner may change it. Only the
- * owner and callers with USE_RECIPIENT, who may read anyone's recipients, are meant to list and get
- * recipients. {@link #activate} is public: the activation code itself is the credential.
+ * recipient needs CREATE_RECIPIENT from the catalog, and only the owner may change it. The owner
+ * and callers with USE_RECIPIENT from the catalog may read a recipient; listing without
+ * USE_RECIPIENT returns only the caller's own recipients. {@link #activate} is public: the
+ * activation code itself is the credential.
  *
  * <p>{@code activationBaseUrl} is the absolute URL recipient activation links are built under, such
  * as {@code https://host/api/1.0/opensharing/activations}; the host knows its own address.
@@ -72,18 +75,26 @@ public class RecipientService {
     return toResponse(recipient, activationBaseUrl);
   }
 
-  /** Lists one page of recipients by name. */
+  /**
+   * Lists one page of recipients by name: every recipient with USE_RECIPIENT, otherwise the
+   * caller's own.
+   */
   public ListResponse<RecipientResponse> list(
-      Integer maxResults, String pageToken, String activationBaseUrl) {
-    // TODO: introduce USE_RECIPIENT and list only the caller's recipients unless they hold it.
-    return Pagination.page(
-        maxResults, pageToken, recipients::list, r -> toResponse(r, activationBaseUrl));
+      UserContext user, Integer maxResults, String pageToken, String activationBaseUrl) {
+    Pagination.Slice<RecipientEntity> slice =
+        holds(user, Privilege.USE_RECIPIENT)
+            ? recipients::list
+            : (offset, limit) -> recipients.listOwnedBy(user.userId(), offset, limit);
+    return Pagination.page(maxResults, pageToken, slice, r -> toResponse(r, activationBaseUrl));
   }
 
-  /** Gets a recipient by name in any case. */
-  public RecipientResponse get(String recipient, String activationBaseUrl) {
-    // TODO: introduce USE_RECIPIENT and get only the caller's recipient unless they hold it.
-    return toResponse(recipients.getOrThrow(recipient), activationBaseUrl);
+  /** Gets a recipient by name in any case. Owner or USE_RECIPIENT. */
+  public RecipientResponse get(UserContext user, String recipient, String activationBaseUrl) {
+    RecipientEntity entity = recipients.getOrThrow(recipient);
+    if (!Ownership.owns(user, entity.getOwnerId())) {
+      catalog.authorize(AuthContext.of(user), Privilege.USE_RECIPIENT);
+    }
+    return toResponse(entity, activationBaseUrl);
   }
 
   /** Updates the fields set in {@code request}. Owner only. */
@@ -139,6 +150,15 @@ public class RecipientService {
       throw ApiException.invalidParameter("tokenExpirationDays must be positive");
     }
     return now.plus(Duration.ofDays(days));
+  }
+
+  private boolean holds(UserContext user, Privilege privilege) {
+    try {
+      catalog.authorize(AuthContext.of(user), privilege);
+      return true;
+    } catch (CatalogAuthorizationException e) {
+      return false;
+    }
   }
 
   private RecipientResponse toResponse(RecipientEntity recipient, String activationBaseUrl) {

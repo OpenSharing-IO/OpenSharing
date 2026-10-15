@@ -10,11 +10,11 @@ principals:
   - bearerToken: alice-token
     userId: catalog-alice-id
     userName: alice
-    privileges: [CREATE_SHARE, CREATE_RECIPIENT, USE_SHARE]
+    privileges: [CREATE_SHARE, CREATE_RECIPIENT, USE_SHARE, USE_RECIPIENT]
   - bearerToken: bob-token
     userId: catalog-bob-id
     userName: bob
-    privileges: [CREATE_SHARE, CREATE_RECIPIENT, USE_SHARE]
+    privileges: [CREATE_SHARE, CREATE_RECIPIENT, USE_SHARE, USE_RECIPIENT]
   - bearerToken: carol-token
     userId: catalog-carol-id
     userName: carol
