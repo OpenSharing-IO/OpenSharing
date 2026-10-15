@@ -106,6 +106,20 @@ public class RecipientStore {
                 .getResultList());
   }
 
+  /** {@code SELECT * FROM os_recipients WHERE owner_id = ? ORDER BY name ASC LIMIT ? OFFSET ?}. */
+  public List<RecipientEntity> listOwnedBy(String ownerId, int offset, int limit) {
+    return tx.inTransaction(
+        true,
+        em ->
+            em.createQuery(
+                    "select r from RecipientEntity r where r.ownerId = :ownerId order by r.name",
+                    RecipientEntity.class)
+                .setParameter("ownerId", ownerId)
+                .setFirstResult(offset)
+                .setMaxResults(limit)
+                .getResultList());
+  }
+
   /** Deletes a recipient, its tokens and its permissions. Only the owner may delete it. */
   public void delete(String name, UserContext user) {
     tx.inTransaction(

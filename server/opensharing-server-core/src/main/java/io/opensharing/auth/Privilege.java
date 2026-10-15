@@ -5,5 +5,7 @@ public enum Privilege {
   CREATE_SHARE,
   CREATE_RECIPIENT,
   /** Lists and reads every share, not only the caller's own. */
-  USE_SHARE
+  USE_SHARE,
+  /** Lists and reads every recipient, not only the caller's own. */
+  USE_RECIPIENT
 }
