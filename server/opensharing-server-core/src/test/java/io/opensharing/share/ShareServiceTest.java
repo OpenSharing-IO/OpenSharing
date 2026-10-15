@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.opensharing.Transactions;
+import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.CatalogConnector;
@@ -32,7 +33,9 @@ class ShareServiceTest {
             (proxy, method, args) -> {
               throw new UnsupportedOperationException();
             });
-    ShareService shares = new ShareService(catalog, new ShareStore(unused));
+    ShareService shares =
+        new ShareService(
+            catalog, unused, new ShareStore(unused), new SharedDataObjectStore(unused));
     UserContext alice = UserContext.fromUserIdAndName("alice-id", "alice");
 
     assertThrows(
