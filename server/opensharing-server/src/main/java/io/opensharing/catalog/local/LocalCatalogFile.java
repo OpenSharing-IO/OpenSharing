@@ -1,5 +1,6 @@
 package io.opensharing.catalog.local;
 
+import io.opensharing.auth.Privilege;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.DataSourceFormat;
@@ -25,13 +26,15 @@ public record LocalCatalogFile(
     STATIC
   }
 
-  /** Provider identity the local catalog accepts for admin APIs. */
-  public record Principal(String bearerToken, String userId, String userName) {
+  /** Provider identity the local catalog accepts for admin APIs, holding only its privileges. */
+  public record Principal(
+      String bearerToken, String userId, String userName, List<Privilege> privileges) {
 
     public Principal {
       if (userId == null || userId.isBlank()) {
         throw new IllegalArgumentException("local catalog principal is missing 'userId'");
       }
+      privileges = privileges == null ? List.of() : List.copyOf(privileges);
     }
   }
 

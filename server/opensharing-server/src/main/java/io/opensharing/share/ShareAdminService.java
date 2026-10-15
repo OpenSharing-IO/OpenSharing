@@ -17,8 +17,9 @@ import io.opensharing.auth.ProviderTokenDecorator;
 import io.opensharing.http.ListResponse;
 
 /**
- * Provider HTTP API for share CRUD and recipient grants, behind {@link ProviderTokenDecorator}. Any
- * caller may read shares; only the owner may change them.
+ * Provider HTTP API for share CRUD and recipient grants, behind {@link ProviderTokenDecorator}.
+ * Only the owner may change a share. The owner and callers with USE_SHARE may read it; listing
+ * without USE_SHARE returns only the caller's own shares.
  */
 @Blocking
 @ProducesJson
@@ -37,22 +38,28 @@ public final class ShareAdminService {
     return shares.create(ProviderTokenDecorator.user(ctx), request);
   }
 
-  /** {@code GET /shares}: lists one page of shares by name. */
+  /**
+   * {@code GET /shares}: lists one page of shares by name: every share with USE_SHARE, otherwise
+   * the caller's own.
+   */
   @Get("/shares")
   public ListResponse<ShareResponse> list(
-      @Param @Nullable Integer maxResults, @Param @Nullable String pageToken) {
-    return shares.list(maxResults, pageToken);
+      ServiceRequestContext ctx,
+      @Param @Nullable Integer maxResults,
+      @Param @Nullable String pageToken) {
+    return shares.list(ProviderTokenDecorator.user(ctx), maxResults, pageToken);
   }
 
   /**
    * {@code GET /shares/{share}}: gets a share by name in any case, with the objects in it when
-   * {@code include_shared_data} is true.
+   * {@code include_shared_data} is true. Owner or USE_SHARE.
    */
   @Get("/shares/{share}")
   public ShareResponse get(
+      ServiceRequestContext ctx,
       @Param String share,
       @Param("include_shared_data") @Default("false") boolean includeSharedData) {
-    return shares.get(share, includeSharedData);
+    return shares.get(ProviderTokenDecorator.user(ctx), share, includeSharedData);
   }
 
   /**
@@ -74,14 +81,15 @@ public final class ShareAdminService {
 
   /**
    * {@code GET /shares/{share}/permissions}: lists one page of who holds which privilege on the
-   * share.
+   * share. Owner or USE_SHARE.
    */
   @Get("/shares/{share}/permissions")
   public ListResponse<SharePermissionResponse> listPermissions(
+      ServiceRequestContext ctx,
       @Param String share,
       @Param @Nullable Integer maxResults,
       @Param @Nullable String pageToken) {
-    return shares.listPermissions(share, maxResults, pageToken);
+    return shares.listPermissions(ProviderTokenDecorator.user(ctx), share, maxResults, pageToken);
   }
 
   /**

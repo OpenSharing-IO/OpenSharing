@@ -10,6 +10,7 @@ import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
@@ -25,8 +26,9 @@ import java.util.stream.Stream;
 
 /**
  * Provider share CRUD and recipient grants for a caller the host has authenticated. Creating a
- * share needs CREATE_SHARE from the catalog; any caller may read shares, only the owner may change
- * them.
+ * share needs CREATE_SHARE from the catalog, and only the owner may change it. The owner and
+ * callers with USE_SHARE from the catalog may read a share; listing without USE_SHARE returns only
+ * the caller's own shares.
  */
 public class ShareService {
 
@@ -66,15 +68,21 @@ public class ShareService {
             validateProperties(request.properties())));
   }
 
-  /** Lists one page of shares by name. */
-  public ListResponse<ShareResponse> list(Integer maxResults, String pageToken) {
-    // TODO: check USE_SHARE through catalog.authorize.
-    return Pagination.page(maxResults, pageToken, shares::list, ShareResponse::from);
+  /** Lists one page of shares by name: every share with USE_SHARE, otherwise the caller's own. */
+  public ListResponse<ShareResponse> list(UserContext user, Integer maxResults, String pageToken) {
+    Pagination.Slice<ShareEntity> slice =
+        holds(user, Privilege.USE_SHARE)
+            ? shares::list
+            : (offset, limit) -> shares.listOwnedBy(user.userId(), offset, limit);
+    return Pagination.page(maxResults, pageToken, slice, ShareResponse::from);
   }
 
-  /** Gets a share by name in any case, with the objects in it when {@code includeSharedData}. */
-  public ShareResponse get(String share, boolean includeSharedData) {
-    ShareEntity entity = shares.require(share);
+  /**
+   * Gets a share by name in any case, with the objects in it when {@code includeSharedData}. Owner
+   * or USE_SHARE.
+   */
+  public ShareResponse get(UserContext user, String share, boolean includeSharedData) {
+    ShareEntity entity = requireReadable(user, share);
     return includeSharedData
         ? ShareResponse.from(entity, objects.list(entity))
         : ShareResponse.from(entity);
@@ -135,10 +143,17 @@ public class ShareService {
     shares.delete(share, user);
   }
 
-  /** Lists one page of who holds which privilege on the share, by recipient name. */
+  /**
+   * Lists one page of who holds which privilege on the share, by recipient name. Owner or
+   * USE_SHARE.
+   */
   public ListResponse<SharePermissionResponse> listPermissions(
-      String share, Integer maxResults, String pageToken) {
-    ShareEntity entity = shares.require(share);
+      UserContext user, String share, Integer maxResults, String pageToken) {
+    return permissionPage(requireReadable(user, share), maxResults, pageToken);
+  }
+
+  private ListResponse<SharePermissionResponse> permissionPage(
+      ShareEntity entity, Integer maxResults, String pageToken) {
     return Pagination.page(
         maxResults,
         pageToken,
@@ -180,7 +195,24 @@ public class ShareService {
           }
           return null;
         });
-    return listPermissions(share, null, null);
+    return permissionPage(shares.require(share), null, null);
+  }
+
+  private ShareEntity requireReadable(UserContext user, String share) {
+    ShareEntity entity = shares.require(share);
+    if (!user.owns(entity.getOwnerId())) {
+      catalog.authorize(AuthContext.of(user), Privilege.USE_SHARE);
+    }
+    return entity;
+  }
+
+  private boolean holds(UserContext user, Privilege privilege) {
+    try {
+      catalog.authorize(AuthContext.of(user), privilege);
+      return true;
+    } catch (CatalogAuthorizationException e) {
+      return false;
+    }
   }
 
   // Resolves the object in the catalog on behalf of the caller and checks the declared type.
