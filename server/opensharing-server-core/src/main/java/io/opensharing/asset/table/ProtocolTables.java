@@ -6,6 +6,7 @@ import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
+import io.opensharing.asset.table.delta.DeltaTableQueryReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
@@ -45,6 +46,7 @@ public class ProtocolTables {
   private final CatalogConnector catalog;
   private final DeltaKernel kernel;
   private final DeltaTableMetadataReader metadataReader;
+  private final DeltaTableQueryReader queryReader;
   private final ProtocolShares shares;
   private final SharedDataObjectStore objects;
 
@@ -52,11 +54,13 @@ public class ProtocolTables {
       CatalogConnector catalog,
       DeltaKernel kernel,
       DeltaTableMetadataReader metadataReader,
+      DeltaTableQueryReader queryReader,
       ProtocolShares shares,
       SharedDataObjectStore objects) {
     this.catalog = catalog;
     this.kernel = kernel;
     this.metadataReader = metadataReader;
+    this.queryReader = queryReader;
     this.shares = shares;
     this.objects = objects;
   }
@@ -148,6 +152,46 @@ public class ProtocolTables {
                     new CatalogException(
                         "catalog returned no credentials for location '" + location + "'"));
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(minted));
+  }
+
+  /**
+   * One snapshot of a table in the share that supports url access, as of the latest version,
+   * {@code version}, or an ISO-8601 {@code timestamp} in {@code request}, with presigned file
+   * URLs. Pushdown hints and startingVersion queries are not implemented.
+   */
+  public DeltaTableQueryReader.Result query(
+      RecipientPrincipal recipient,
+      String share,
+      String schema,
+      String table,
+      QueryTableRequest request,
+      DeltaTableQueryReader.ResponseOptions options) {
+    ShareEntity granted = shares.requireGranted(recipient, share);
+    ResolvedAsset resolved = resolve(granted, schema, table);
+    List<String> accessModes = TableAccessModes.forTable(resolved);
+    if (accessModes == null || !accessModes.contains("url")) {
+      throw ApiException.invalidParameter(
+          "table '" + schema + "." + table + "' does not support url access");
+    }
+    QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
+    if (body.startingVersion() != null || body.endingVersion() != null) {
+      throw ApiException.notImplemented("startingVersion queries are not supported");
+    }
+    if (hasPushdownHint(body)) {
+      throw ApiException.notImplemented("predicate and limit pushdown is not supported");
+    }
+    return queryReader.read(
+        resolved,
+        owner(granted),
+        options,
+        body.version(),
+        parseTimestamp("timestamp", body.timestamp()));
+  }
+
+  private static boolean hasPushdownHint(QueryTableRequest body) {
+    return (body.predicateHints() != null && !body.predicateHints().isEmpty())
+        || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank())
+        || body.limitHint() != null;
   }
 
   private List<SharedDataObjectEntity> inSchema(ShareEntity share, String schema) {

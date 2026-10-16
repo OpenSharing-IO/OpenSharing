@@ -54,6 +54,11 @@ public class DeltaKernel {
 
   /** Opens the table's root with read credentials the catalog vends to {@code auth}. */
   public Session open(ResolvedAsset table, AuthContext auth) {
+    return open(table, auth, CREDENTIAL_TTL);
+  }
+
+  /** Like {@link #open(ResolvedAsset, AuthContext)}, with credentials that last {@code ttl}. */
+  public Session open(ResolvedAsset table, AuthContext auth, Duration ttl) {
     if (!(table.additionalProperties() instanceof TableProperties properties)
         || properties.dataSourceFormat() != DataSourceFormat.DELTA) {
       throw ApiException.invalidParameter("table '" + table.fullName() + "' is not a Delta table");
@@ -70,7 +75,7 @@ public class DeltaKernel {
                 table.catalogAssetId(),
                 location,
                 StorageOperation.READ,
-                CREDENTIAL_TTL),
+                ttl),
             auth);
     StorageCredentials rootCredentials =
         credentials.stream()
@@ -83,8 +88,9 @@ public class DeltaKernel {
     Engine engine =
         DefaultEngine.create(HadoopStorageConfiguration.from(rootCredentials, location));
     String path = HadoopStorageConfiguration.kernelPath(location);
-    return new Session(engine, Table.forPath(engine, path), location);
+    return new Session(engine, Table.forPath(engine, path), location, rootCredentials);
   }
 
-  public record Session(Engine engine, Table table, String location) {}
+  public record Session(
+      Engine engine, Table table, String location, StorageCredentials credentials) {}
 }
