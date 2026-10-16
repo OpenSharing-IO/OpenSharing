@@ -5,6 +5,7 @@ import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientService;
@@ -29,6 +30,7 @@ public final class OpenSharing {
   private final RecipientService recipients;
   private final ProtocolShares protocolShares;
   private final ProtocolSchemas protocolSchemas;
+  private final ProtocolTables protocolTables;
 
   private OpenSharing(CatalogConnector catalog, Transactions tx) {
     this.catalog = catalog;
@@ -41,6 +43,7 @@ public final class OpenSharing {
     this.recipients = new RecipientService(catalog, recipientStore);
     this.protocolShares = new ProtocolShares(shareStore, permissionStore);
     this.protocolSchemas = new ProtocolSchemas(protocolShares, objectStore);
+    this.protocolTables = new ProtocolTables(catalog, protocolShares, objectStore);
   }
 
   public static Builder builder() {
@@ -77,6 +80,11 @@ public final class OpenSharing {
   /** The schemas recipients see in their shares through the sharing protocol. */
   public ProtocolSchemas protocolSchemas() {
     return protocolSchemas;
+  }
+
+  /** The tables recipients see in their shares through the sharing protocol. */
+  public ProtocolTables protocolTables() {
+    return protocolTables;
   }
 
   public static final class Builder {
