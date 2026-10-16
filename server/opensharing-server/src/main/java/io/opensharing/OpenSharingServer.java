@@ -16,7 +16,7 @@ import io.opensharing.config.ServerProperties.Property;
 import io.opensharing.http.ApiExceptionHandler;
 import io.opensharing.http.ApiJson;
 import io.opensharing.persistence.JpaTransactions;
-import io.opensharing.protocol.ActivationService;
+import io.opensharing.protocol.OpenSharingRecipientApi;
 import io.opensharing.recipient.RecipientAdminService;
 import io.opensharing.runtime.OpenSharing;
 import io.opensharing.share.ShareAdminService;
@@ -52,10 +52,11 @@ public final class OpenSharingServer implements AutoCloseable {
 
   /**
    * Starts a server configured by {@code properties} and returns once it is listening. Provider
-   * services are served under {@code provider.base-path}, recipient activation under {@code
-   * activation.base-path} without a provider token, and any other path gets a 404 in the
-   * protocol's error format. Links handed to recipients are built on {@code server.public-url},
-   * which must be set. If startup fails, the database connections are closed.
+   * services are served under {@code provider.base-path}, the sharing protocol under {@code
+   * protocol.base-path} behind recipient tokens, recipient activation under {@code
+   * activation.base-path} behind none, and any other path gets a 404 in the protocol's error
+   * format. Links handed to recipients are built on {@code server.public-url}, which must be set.
+   * If startup fails, the database connections are closed.
    */
   public static OpenSharingServer start(ServerProperties properties) {
     String publicUrl = properties.getPublicUrl();
@@ -96,14 +97,12 @@ public final class OpenSharingServer implements AutoCloseable {
           new RecipientAdminService(
               openSharing.recipients(),
               publicUrl + properties.get(Property.ACTIVATION_BASE_PATH)));
-      builder
-          .annotatedService()
-          .pathPrefix(properties.get(Property.ACTIVATION_BASE_PATH))
-          .decorator(errors)
-          .build(
-              new ActivationService(
-                  openSharing.recipients(),
-                  publicUrl + properties.get(Property.PROTOCOL_BASE_PATH)));
+      OpenSharingRecipientApi.mount(
+          builder,
+          publicUrl,
+          properties.get(Property.PROTOCOL_BASE_PATH),
+          properties.get(Property.ACTIVATION_BASE_PATH),
+          openSharing);
       Server server = builder.build();
       server.start().join();
       return new OpenSharingServer(server, transactions, openSharing);
