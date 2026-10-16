@@ -11,6 +11,7 @@ import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.exception.CatalogAuthenticationException;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
@@ -205,13 +206,16 @@ public final class LocalCatalogConnector implements CatalogConnector {
     if (token == null || token.isBlank()) {
       throw new CatalogAuthenticationException("missing bearer token");
     }
-    return principals.stream()
-        .filter(principal -> token.equals(principal.bearerToken()))
-        .findFirst()
-        .map(
-            principal ->
-                new UserContext(principal.userId(), principal.bearerToken(), principal.userName()))
-        .orElseThrow(() -> new CatalogAuthenticationException("invalid bearer token"));
+    LocalCatalogFile.Principal principal =
+        principals.stream()
+            .filter(candidate -> token.equals(candidate.bearerToken()))
+            .findFirst()
+            .orElseThrow(() -> new CatalogAuthenticationException("invalid bearer token"));
+    if (privilege != null && !principal.privileges().contains(privilege)) {
+      throw new CatalogAuthorizationException(
+          "user '" + principal.userId() + "' does not hold " + privilege);
+    }
+    return new UserContext(principal.userId(), principal.bearerToken(), principal.userName());
   }
 
   private static boolean covers(LocalCatalogFile.Asset asset, String location) {

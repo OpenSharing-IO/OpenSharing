@@ -33,8 +33,12 @@ public record UserContext(String userId, String userAuthToken, String userName) 
         + "]";
   }
 
+  public boolean owns(String ownerId) {
+    return userId != null && userId.equals(ownerId);
+  }
+
   public void requireOwner(String ownerId, String what) {
-    if (userId == null || !ownerId.equals(userId)) {
+    if (!owns(ownerId)) {
       throw ApiException.permissionDenied("user '" + userName + "' does not own " + what);
     }
   }
