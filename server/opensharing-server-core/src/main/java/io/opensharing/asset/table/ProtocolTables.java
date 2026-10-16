@@ -173,12 +173,7 @@ public class ProtocolTables {
       QueryTableRequest request,
       DeltaTableQueryReader.ResponseOptions options) {
     ShareEntity granted = shares.requireGranted(recipient, share);
-    ResolvedAsset resolved = resolve(granted, schema, table);
-    List<String> accessModes = TableAccessModes.forTable(resolved);
-    if (accessModes == null || !accessModes.contains("url")) {
-      throw ApiException.invalidParameter(
-          "table '" + schema + "." + table + "' does not support url access");
-    }
+    ResolvedAsset resolved = requireUrlAccess(resolve(granted, schema, table), schema, table);
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     if (body.startingVersion() != null || body.endingVersion() != null) {
       return queryChanges(body, resolved, granted, options);
@@ -206,6 +201,41 @@ public class ProtocolTables {
         includeRefreshToken,
         body.jsonPredicateHints(),
         limitHint(body));
+  }
+
+  /**
+   * The Change Data Feed of a table in the share that supports url access and records it, from
+   * {@code startingVersion} or an ISO-8601 {@code startingTimestamp} through {@code endingVersion},
+   * {@code endingTimestamp}, or the latest version, with presigned file URLs.
+   */
+  public DeltaTableQueryReader.Result changes(
+      RecipientPrincipal recipient,
+      String share,
+      String schema,
+      String table,
+      TableChangesRequest request,
+      DeltaTableQueryReader.ResponseOptions options) {
+    ShareEntity granted = shares.requireGranted(recipient, share);
+    ResolvedAsset resolved = requireUrlAccess(resolve(granted, schema, table), schema, table);
+    return queryReader.readChangeDataFeed(
+        resolved,
+        owner(granted),
+        options,
+        request.startingVersion(),
+        parseTimestamp("startingTimestamp", request.startingTimestamp()),
+        request.endingVersion(),
+        parseTimestamp("endingTimestamp", request.endingTimestamp()),
+        Boolean.TRUE.equals(request.includeHistoricalMetadata()),
+        Boolean.TRUE.equals(request.includeHistoricalProtocol()));
+  }
+
+  private static ResolvedAsset requireUrlAccess(ResolvedAsset table, String schema, String name) {
+    List<String> accessModes = TableAccessModes.forTable(table);
+    if (accessModes == null || !accessModes.contains("url")) {
+      throw ApiException.invalidParameter(
+          "table '" + schema + "." + name + "' does not support url access");
+    }
+    return table;
   }
 
   // Predicate and limit hints apply to snapshot files only, so they are ignored here.
