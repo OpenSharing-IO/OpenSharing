@@ -13,6 +13,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
+import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientStore;
 import jakarta.persistence.EntityManager;
@@ -65,11 +66,10 @@ public class ShareService {
             validateProperties(request.properties())));
   }
 
-  /** Lists every share by name, unpaged. */
-  public ListResponse<ShareResponse> list() {
-    // TODO: page with maxResults and pageToken.
+  /** Lists one page of shares by name. */
+  public ListResponse<ShareResponse> list(Integer maxResults, String pageToken) {
     // TODO: check USE_SHARE through catalog.authorize.
-    return ListResponse.of(shares.list().stream().map(ShareResponse::from).toList());
+    return Pagination.page(maxResults, pageToken, shares::list, ShareResponse::from);
   }
 
   /** Gets a share by name in any case, with the objects in it when {@code includeSharedData}. */
@@ -135,18 +135,20 @@ public class ShareService {
     shares.delete(share, user);
   }
 
-  /** Lists who holds which privilege on the share, by recipient name, unpaged. */
-  public ListResponse<SharePermissionResponse> listPermissions(String share) {
-    // TODO: page with maxResults and pageToken.
-    return ListResponse.of(
-        permissions.list(shares.require(share)).stream()
-            .map(SharePermissionResponse::from)
-            .toList());
+  /** Lists one page of who holds which privilege on the share, by recipient name. */
+  public ListResponse<SharePermissionResponse> listPermissions(
+      String share, Integer maxResults, String pageToken) {
+    ShareEntity entity = shares.require(share);
+    return Pagination.page(
+        maxResults,
+        pageToken,
+        (offset, limit) -> permissions.list(entity, offset, limit),
+        SharePermissionResponse::from);
   }
 
   /**
    * Applies the changes in order, each revoking then granting, all in one transaction: either every
-   * change commits or none does. Returns the share's permissions. Owner only.
+   * change commits or none does. Returns the first page of the share's permissions. Owner only.
    */
   public ListResponse<SharePermissionResponse> updatePermissions(
       UserContext user, String share, UpdateSharePermissionsRequest request) {
@@ -178,7 +180,7 @@ public class ShareService {
           }
           return null;
         });
-    return listPermissions(share);
+    return listPermissions(share, null, null);
   }
 
   // Resolves the object in the catalog on behalf of the caller and checks the declared type.

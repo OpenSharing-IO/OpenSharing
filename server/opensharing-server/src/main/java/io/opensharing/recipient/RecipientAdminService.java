@@ -2,6 +2,7 @@ package io.opensharing.recipient;
 
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.annotation.Nullable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Delete;
@@ -45,10 +46,11 @@ public final class RecipientAdminService {
     return recipients.create(ProviderTokenDecorator.user(ctx), request, activationBaseUrl);
   }
 
-  /** {@code GET /recipients}: lists every recipient by name, unpaged. */
+  /** {@code GET /recipients}: lists one page of recipients by name. */
   @Get("/recipients")
-  public ListResponse<RecipientResponse> list() {
-    return recipients.list(activationBaseUrl);
+  public ListResponse<RecipientResponse> list(
+      @Param @Nullable Integer maxResults, @Param @Nullable String pageToken) {
+    return recipients.list(maxResults, pageToken, activationBaseUrl);
   }
 
   /** {@code GET /recipients/{recipient}}: gets a recipient by name in any case. */
