@@ -30,6 +30,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The tables a recipient reads through the sharing protocol in a share it holds SELECT on: the
@@ -41,6 +43,7 @@ import java.util.function.Supplier;
  */
 public class ProtocolTables {
 
+  private static final Logger log = LoggerFactory.getLogger(ProtocolTables.class);
   private static final int CATALOG_PAGE_SIZE = 1000;
 
   private final CatalogConnector catalog;
@@ -158,7 +161,8 @@ public class ProtocolTables {
    * One snapshot of a table in the share that supports url access, as of the latest version,
    * {@code version}, or an ISO-8601 {@code timestamp} in {@code request}, with presigned file
    * URLs. A latest-snapshot query can ask for a refresh token, and a later query can pass it back
-   * to re-sign the same version. Pushdown hints and startingVersion queries are not implemented.
+   * to re-sign the same version. jsonPredicateHints and limitHint narrow the files returned.
+   * startingVersion queries are not implemented.
    */
   public DeltaTableQueryReader.Result query(
       RecipientPrincipal recipient,
@@ -178,9 +182,6 @@ public class ProtocolTables {
     if (body.startingVersion() != null || body.endingVersion() != null) {
       throw ApiException.notImplemented("startingVersion queries are not supported");
     }
-    if (hasPushdownHint(body)) {
-      throw ApiException.notImplemented("predicate and limit pushdown is not supported");
-    }
     boolean historical = body.version() != null || body.timestamp() != null;
     boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
     if (includeRefreshToken && historical) {
@@ -191,6 +192,9 @@ public class ProtocolTables {
       throw ApiException.invalidParameter(
           "refreshToken cannot be used when querying a specific version.");
     }
+    if (body.predicateHints() != null && !body.predicateHints().isEmpty()) {
+      log.debug("Ignoring deprecated predicateHints {}", body.predicateHints());
+    }
     return queryReader.read(
         resolved,
         owner(granted),
@@ -198,13 +202,17 @@ public class ProtocolTables {
         body.version(),
         parseTimestamp("timestamp", body.timestamp()),
         body.refreshToken(),
-        includeRefreshToken);
+        includeRefreshToken,
+        body.jsonPredicateHints(),
+        limitHint(body));
   }
 
-  private static boolean hasPushdownHint(QueryTableRequest body) {
-    return (body.predicateHints() != null && !body.predicateHints().isEmpty())
-        || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank())
-        || body.limitHint() != null;
+  // limitHint counts unfiltered file records, so it is dropped when any predicate hint is present.
+  private static Long limitHint(QueryTableRequest body) {
+    boolean hasPredicate =
+        (body.predicateHints() != null && !body.predicateHints().isEmpty())
+            || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank());
+    return hasPredicate || body.limitHint() == null ? null : body.limitHint().longValue();
   }
 
   private List<SharedDataObjectEntity> inSchema(ShareEntity share, String schema) {
