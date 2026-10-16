@@ -65,6 +65,13 @@
         </exclusion>
       </exclusions>
     </dependency>
+    <!-- hadoop-aws needs unshaded commons-lang3; hadoop-client-runtime only has a shaded copy. -->
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+      <version>${commons-lang3.version}</version>
+      <scope>runtime</scope>
+    </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>s3</artifactId>

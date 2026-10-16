@@ -1,5 +1,8 @@
 package io.opensharing.protocol;
 
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.ResponseHeaders;
 import com.linecorp.armeria.common.annotation.Nullable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
@@ -22,6 +25,8 @@ import io.opensharing.share.ShareResponse;
 @Blocking
 @ProducesJson
 public final class OpenSharingProtocolService {
+
+  private static final String DELTA_TABLE_VERSION = "Delta-Table-Version";
 
   private final ProtocolShares shares;
   private final ProtocolSchemas schemas;
@@ -79,5 +84,23 @@ public final class OpenSharingProtocolService {
       @Param @Nullable Integer maxResults,
       @Param @Nullable String pageToken) {
     return tables.listAll(RecipientTokenDecorator.recipient(ctx), share, maxResults, pageToken);
+  }
+
+  /**
+   * {@code GET /shares/{share}/schemas/{schema}/tables/{table}/version}: the table's Delta version
+   * in the {@code Delta-Table-Version} header, with no body.
+   */
+  @Get("/shares/{share}/schemas/{schema}/tables/{table}/version")
+  public HttpResponse getTableVersion(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String schema,
+      @Param String table,
+      @Param @Nullable String startingTimestamp) {
+    long version =
+        tables.version(
+            RecipientTokenDecorator.recipient(ctx), share, schema, table, startingTimestamp);
+    return HttpResponse.of(
+        ResponseHeaders.of(HttpStatus.OK, DELTA_TABLE_VERSION, Long.toString(version)));
   }
 }
