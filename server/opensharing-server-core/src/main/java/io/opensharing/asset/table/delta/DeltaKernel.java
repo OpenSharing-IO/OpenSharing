@@ -53,7 +53,7 @@ public class DeltaKernel {
   }
 
   /** Opens the table's root with read credentials the catalog vends to {@code auth}. */
-  Session open(ResolvedAsset table, AuthContext auth) {
+  public Session open(ResolvedAsset table, AuthContext auth) {
     if (!(table.additionalProperties() instanceof TableProperties properties)
         || properties.dataSourceFormat() != DataSourceFormat.DELTA) {
       throw ApiException.invalidParameter("table '" + table.fullName() + "' is not a Delta table");
@@ -86,5 +86,5 @@ public class DeltaKernel {
     return new Session(engine, Table.forPath(engine, path), location);
   }
 
-  record Session(Engine engine, Table table, String location) {}
+  public record Session(Engine engine, Table table, String location) {}
 }
