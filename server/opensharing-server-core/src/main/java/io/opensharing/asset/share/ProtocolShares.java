@@ -4,6 +4,7 @@ import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientPrincipal;
+import io.opensharing.share.ShareEntity;
 import io.opensharing.share.ShareResponse;
 import io.opensharing.share.SharePermissionStore;
 import io.opensharing.share.ShareStore;
@@ -34,10 +35,16 @@ public class ProtocolShares {
 
   /** Gets one of the recipient's shares by name in any case. */
   public GetShareResponse get(RecipientPrincipal recipient, String share) {
+    return new GetShareResponse(ShareResponse.from(requireGranted(recipient, share)));
+  }
+
+  /**
+   * Looks up a share by name in any case. Fails with not-found unless the recipient holds SELECT.
+   */
+  public ShareEntity requireGranted(RecipientPrincipal recipient, String share) {
     return shares
         .find(share)
         .filter(candidate -> permissions.hasSelect(candidate, recipient.recipientId()))
-        .map(granted -> new GetShareResponse(ShareResponse.from(granted)))
         .orElseThrow(() -> ApiException.notFound("share '" + share + "' does not exist"));
   }
 }

@@ -39,7 +39,9 @@ public final class OpenSharingRecipientApi {
         .exceptionHandlers(errors)
         .decorator(new RecipientTokenDecorator(openSharing.recipients()))
         .decorator(errors)
-        .build(new OpenSharingProtocolService(openSharing.protocolShares()));
+        .build(
+            new OpenSharingProtocolService(
+                openSharing.protocolShares(), openSharing.protocolSchemas()));
     builder
         .annotatedService()
         .pathPrefix(activationBasePath)
