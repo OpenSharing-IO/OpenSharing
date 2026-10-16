@@ -40,7 +40,7 @@ class RecipientServiceTest {
         () ->
             recipients.create(
                 alice,
-                new CreateRecipientRequest("acme", null, AuthenticationType.TOKEN),
+                new CreateRecipientRequest("acme", null, AuthenticationType.TOKEN, 30L),
                 "http://host/activations"));
     assertEquals(List.of(Privilege.CREATE_RECIPIENT), privileges);
   }

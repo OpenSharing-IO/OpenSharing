@@ -71,4 +71,17 @@ public final class RecipientAdminService {
     recipients.delete(ProviderTokenDecorator.user(ctx), recipient);
     return HttpResponse.of(HttpStatus.NO_CONTENT);
   }
+
+  /**
+   * {@code POST /recipients/{recipient}/rotate-token}: issues a replacement token with a new
+   * activation URL. Existing tokens stop working after the grace window, immediately unless the
+   * request sets one. Owner only.
+   */
+  @Post("/recipients/{recipient}/rotate-token")
+  @StatusCode(201)
+  public IssuedTokenResponse rotateToken(
+      ServiceRequestContext ctx, @Param String recipient, RotateTokenRequest request) {
+    return recipients.rotateToken(
+        ProviderTokenDecorator.user(ctx), recipient, request, activationBaseUrl);
+  }
 }

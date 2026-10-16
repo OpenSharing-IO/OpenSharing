@@ -16,6 +16,7 @@ import io.opensharing.config.ServerProperties.Property;
 import io.opensharing.http.ApiExceptionHandler;
 import io.opensharing.http.ApiJson;
 import io.opensharing.persistence.JpaTransactions;
+import io.opensharing.protocol.ActivationService;
 import io.opensharing.recipient.RecipientAdminService;
 import io.opensharing.runtime.OpenSharing;
 import io.opensharing.share.ShareAdminService;
@@ -51,7 +52,8 @@ public final class OpenSharingServer implements AutoCloseable {
 
   /**
    * Starts a server configured by {@code properties} and returns once it is listening. Provider
-   * services are served under {@code provider.base-path}, and any other path gets a 404 in the
+   * services are served under {@code provider.base-path}, recipient activation under {@code
+   * activation.base-path} without a provider token, and any other path gets a 404 in the
    * protocol's error format. Links handed to recipients are built on {@code server.public-url},
    * which must be set. If startup fails, the database connections are closed.
    */
@@ -61,7 +63,10 @@ public final class OpenSharingServer implements AutoCloseable {
     JpaTransactions transactions = new JpaTransactions(OpenSharing.entities());
     try {
       OpenSharing openSharing =
-          OpenSharing.builder().catalog(catalog).transactions(transactions).build();
+          OpenSharing.builder()
+              .catalog(catalog)
+              .transactions(transactions)
+              .build();
       ApiExceptionHandler errors = new ApiExceptionHandler();
       HttpService notFound =
           (ctx, req) -> {
@@ -91,6 +96,14 @@ public final class OpenSharingServer implements AutoCloseable {
           new RecipientAdminService(
               openSharing.recipients(),
               publicUrl + properties.get(Property.ACTIVATION_BASE_PATH)));
+      builder
+          .annotatedService()
+          .pathPrefix(properties.get(Property.ACTIVATION_BASE_PATH))
+          .decorator(errors)
+          .build(
+              new ActivationService(
+                  openSharing.recipients(),
+                  publicUrl + properties.get(Property.PROTOCOL_BASE_PATH)));
       Server server = builder.build();
       server.start().join();
       return new OpenSharingServer(server, transactions, openSharing);
@@ -108,6 +121,11 @@ public final class OpenSharingServer implements AutoCloseable {
   /** The core services behind the HTTP endpoints, for callers such as tests that need them. */
   public OpenSharing openSharing() {
     return openSharing;
+  }
+
+  /** The database transactions behind the core services, for callers such as tests. */
+  public Transactions transactions() {
+    return transactions;
   }
 
   /** Stops the server, then closes the database connections its requests used. */

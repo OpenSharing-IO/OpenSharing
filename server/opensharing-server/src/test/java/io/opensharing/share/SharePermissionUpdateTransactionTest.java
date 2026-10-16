@@ -71,7 +71,10 @@ class SharePermissionUpdateTransactionTest {
   private static void createShareGrantedTo(String share, String... recipients) {
     assertEquals(201, server.post(SHARES, "alice-token", "{\"name\":\"" + share + "\"}").status());
     for (String recipient : recipients) {
-      String body = "{\"name\":\"" + recipient + "\",\"authenticationType\":\"TOKEN\"}";
+      String body =
+          "{\"name\":\""
+              + recipient
+              + "\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":30}";
       assertEquals(201, server.post(RECIPIENTS, "alice-token", body).status());
     }
     Response granted =
