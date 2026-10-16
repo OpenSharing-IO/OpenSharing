@@ -13,7 +13,11 @@ import io.opensharing.catalog.AssetLocation;
 import io.opensharing.catalog.AssetPage;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.catalog.StorageCredentials;
+import io.opensharing.catalog.StorageOperation;
+import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
@@ -109,6 +113,43 @@ public class ProtocolTables {
         resolve(granted, schema, table), version, asOf, owner(granted), capabilities);
   }
 
+  /**
+   * Read credentials for one table in the share that supports directory access, scoped to its root
+   * or to the auxiliary location {@code request} names. The catalog vends them to the share owner.
+   */
+  public TemporaryTableCredentialsResponse temporaryCredentials(
+      RecipientPrincipal recipient,
+      String share,
+      String schema,
+      String table,
+      TemporaryTableCredentialsRequest request) {
+    ShareEntity granted = shares.requireGranted(recipient, share);
+    ResolvedAsset resolved = resolve(granted, schema, table);
+    List<String> accessModes = TableAccessModes.forTable(resolved);
+    if (accessModes == null || !accessModes.contains("dir")) {
+      throw ApiException.invalidParameter(
+          "table '" + schema + "." + table + "' does not support directory access");
+    }
+    String location = credentialLocation(resolved, request == null ? null : request.location());
+    CredentialRequest credentials =
+        new CredentialRequest(
+            AssetType.TABLE,
+            resolved.fullName(),
+            resolved.catalogAssetId(),
+            location,
+            StorageOperation.READ,
+            null);
+    StorageCredentials minted =
+        catalog.getStorageCredentials(credentials, owner(granted)).stream()
+            .filter(candidate -> candidate.covers(location))
+            .findFirst()
+            .orElseThrow(
+                () ->
+                    new CatalogException(
+                        "catalog returned no credentials for location '" + location + "'"));
+    return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(minted));
+  }
+
   private List<SharedDataObjectEntity> inSchema(ShareEntity share, String schema) {
     List<SharedDataObjectEntity> included =
         objects.listInSchema(share, ObjectNames.normalize(schema));
@@ -135,6 +176,24 @@ public class ProtocolTables {
                         + "' does not exist in share '"
                         + share.getName()
                         + "'"));
+  }
+
+  private static String credentialLocation(ResolvedAsset table, String requested) {
+    AssetLocation location = table.location();
+    String root = location == null ? null : location.storageLocation();
+    if (requested == null || requested.isBlank()) {
+      if (root == null || root.isBlank()) {
+        throw ApiException.invalidParameter(
+            "table '" + table.fullName() + "' has no storage location");
+      }
+      return root;
+    }
+    if (requested.equals(root)
+        || (location != null && location.auxiliaryLocations().contains(requested))) {
+      return requested;
+    }
+    throw ApiException.invalidParameter(
+        "location '" + requested + "' is not part of table '" + table.fullName() + "'");
   }
 
   private static Instant parseTimestamp(String name, String value) {
