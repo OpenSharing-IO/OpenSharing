@@ -15,7 +15,7 @@ A profile file is a JSON file that contains the information for a recipient to a
 
 | Field Name              | Descrption                                                                                                                                                                                                                                                                                                                   | Note       |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client. | []         |
+| shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client. | [required]         |
 | endpoint                | The url of the sharing server.                                                                                                                                                                                                                                                                                               | [required] |
 | icebergEndpoint         | The url of the sharing server that supports the iceberg table endpoints, which is always `endpoint` + `/iceberg`                                                                                                                                                                                                             | [optional] |
 | bearerToken             | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.                                                                                                                                                                                                                                                | [required] |
@@ -52,7 +52,7 @@ Share, Schema, and shared objects are identifiable by names. To ensure compatibi
 
 - Object names cannot exceed 255 characters.
 - The following special characters are not allowed for all object names:
-  - Space ( ``)
+  - Space (` `)
   - Forward slash (`/`)
   - All ASCII control characters (`00-1F` hex)
   - The DELETE character (`7f` hex)
