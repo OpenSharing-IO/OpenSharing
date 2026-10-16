@@ -1,8 +1,10 @@
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+
+
+
 # OpenSharing Protocol
 
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 
 This document describes the OpenSharing Protocol's general concepts, including the profile file format and naming requirements.
 
@@ -10,13 +12,15 @@ This document describes the OpenSharing Protocol's general concepts, including t
 
 A profile file is a JSON file that contains the information for a recipient to access shared data on a OpenSharing server. There are a few fields in this file as listed below.
 
-Field Name | Descrption
--|-
-shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client.
-endpoint | The url of the sharing server.
-icebergEndpoint | The url of the sharing server that supports the iceberg table endpoints.
-bearerToken | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.
-expirationTime | The expiration time of the bearer token in [ISO 8601 format](https://www.w3.org/TR/NOTE-datetime). This field is optional and if it is not provided, the bearer token can be seen as never expire.
+
+| Field Name              | Descrption                                                                                                                                                                                                                                                                                                                   | Note       |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client. | []         |
+| endpoint                | The url of the sharing server.                                                                                                                                                                                                                                                                                               | [required] |
+| icebergEndpoint         | The url of the sharing server that supports the iceberg table endpoints, which is always `endpoint` + `/iceberg`                                                                                                                                                                                                             | [optional] |
+| bearerToken             | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.                                                                                                                                                                                                                                                | [required] |
+| expirationTime          | The expiration time of the bearer token in [ISO 8601 format](https://www.w3.org/TR/NOTE-datetime). This field is optional and if it is not provided, the bearer token can be seen as never expire.                                                                                                                           | [optional] |
+
 
 Example:
 
@@ -30,15 +34,28 @@ Example:
 }
 ```
 
+or 
+
+```json
+{
+  "shareCredentialsVersion": 1,
+  "endpoint": "https://sharing.opensharing.io/open-sharing/",
+  "bearerToken": "<token>"
+}
+```
+
+OpenSharing servers providing tables in iceberg format must provide their IRC endpoint, i.e., `icebergEndpoint`, under `{endpoint}/iceberg`, enabling IRC clients to leverage the same as their IRC base url, e.g. `{endpoint}/shares/<sharename>`, with iceberg tables would be explored as `{endpoint}/iceberg/v1/config?warehouse=<sharename>`.
+
 ## Names
 
 Share, Schema, and shared objects are identifiable by names. To ensure compatibility and avoid issues across different sharing servers, the following limitations apply for object names:
 
 - Object names cannot exceed 255 characters.
 - The following special characters are not allowed for all object names:
-  - Space (` `)
+  - Space ( ``)
   - Forward slash (`/`)
   - All ASCII control characters (`00-1F` hex)
   - The DELETE character (`7f` hex)
 - Schema and shared object names additionally do not allow special character Period (`.`)
 - Object names are case-insensitive
+
