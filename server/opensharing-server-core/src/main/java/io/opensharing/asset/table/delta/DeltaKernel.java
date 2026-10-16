@@ -52,7 +52,8 @@ public class DeltaKernel {
     }
   }
 
-  private Session open(ResolvedAsset table, AuthContext auth) {
+  /** Opens the table's root with read credentials the catalog vends to {@code auth}. */
+  Session open(ResolvedAsset table, AuthContext auth) {
     if (!(table.additionalProperties() instanceof TableProperties properties)
         || properties.dataSourceFormat() != DataSourceFormat.DELTA) {
       throw ApiException.invalidParameter("table '" + table.fullName() + "' is not a Delta table");
@@ -82,7 +83,7 @@ public class DeltaKernel {
     Engine engine =
         DefaultEngine.create(HadoopStorageConfiguration.from(rootCredentials, location));
     String path = HadoopStorageConfiguration.kernelPath(location);
-    return new Session(engine, Table.forPath(engine, path));
+    return new Session(engine, Table.forPath(engine, path), location);
   }
 
   private static boolean covers(String prefix, String location) {
@@ -93,5 +94,5 @@ public class DeltaKernel {
     return location.equals(prefix) || location.startsWith(normalized);
   }
 
-  private record Session(Engine engine, Table table) {}
+  record Session(Engine engine, Table table, String location) {}
 }
