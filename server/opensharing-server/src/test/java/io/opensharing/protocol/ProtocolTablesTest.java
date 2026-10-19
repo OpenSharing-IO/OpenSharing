@@ -94,6 +94,11 @@ class ProtocolTablesTest extends ProtocolApiSupport {
     assertEquals(1, second.body().path("items").size());
     assertEquals("b", second.body().path("items").path(0).path("name").asText());
     assertTrue(second.body().path("nextPageToken").isMissingNode());
+
+    // A page size of 0 returns no tables, but a token to resume from.
+    Response zero = server.get(page(tables, 0, null), bearer);
+    assertEquals(0, zero.body().path("items").size());
+    assertFalse(zero.body().path("nextPageToken").isMissingNode());
   }
 
   @Test

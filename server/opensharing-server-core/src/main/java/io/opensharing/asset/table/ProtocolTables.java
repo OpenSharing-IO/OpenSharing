@@ -102,7 +102,7 @@ public class ProtocolTables {
 
   private ListResponse<TableResponse> page(
       ShareEntity share, List<Listed> tables, Integer maxResults, String pageToken) {
-    return Pagination.page(
+    return Pagination.protocolPage(
         maxResults,
         pageToken,
         (offset, limit) -> {
