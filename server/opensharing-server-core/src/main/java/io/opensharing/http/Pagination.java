@@ -7,8 +7,8 @@ import java.util.function.Function;
 
 /**
  * Pages list endpoints. A page holds {@link #MAX_RESULTS} items when the request sets no
- * maxResults, and never more. A page token is an opaque encoding of the offset of the next page in
- * the list's order, so that order must be total.
+ * maxResults or sets 0, and never more. A page token is an opaque encoding of the offset of the
+ * next page in the list's order, so that order must be total.
  */
 public final class Pagination {
 
@@ -24,10 +24,7 @@ public final class Pagination {
     List<E> fetch(int offset, int limit);
   }
 
-  /**
-   * One page of {@code slice} starting at {@code pageToken}. A {@code maxResults} of 0 returns no
-   * items, with a next page token when any remain.
-   */
+  /** One page of {@code slice} starting at {@code pageToken}. */
   public static <E, T> ListResponse<T> page(
       Integer maxResults, String pageToken, Slice<E> slice, Function<E, T> mapper) {
     int size = pageSize(maxResults);
@@ -39,7 +36,7 @@ public final class Pagination {
   }
 
   private static int pageSize(Integer maxResults) {
-    if (maxResults == null) {
+    if (maxResults == null || maxResults == 0) {
       return MAX_RESULTS;
     }
     if (maxResults < 0) {

@@ -1,7 +1,6 @@
 package io.opensharing.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -34,11 +33,10 @@ class PaginationTest {
   }
 
   @Test
-  void returnsNoItemsButATokenForAZeroPageSize() {
-    ListResponse<Integer> empty = page(0, null);
-    assertEquals(List.of(), empty.items());
-    assertNotNull(empty.nextPageToken());
-    assertEquals(List.of(0, 1), page(2, empty.nextPageToken()).items());
+  void treatsAZeroPageSizeAsUnset() {
+    ListResponse<Integer> first = page(0, null);
+    assertEquals(ROWS.subList(0, 500), first.items());
+    assertEquals(ROWS.subList(500, 1000), page(0, first.nextPageToken()).items());
   }
 
   @Test

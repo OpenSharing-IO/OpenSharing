@@ -112,9 +112,9 @@ class ProviderListPaginationTest {
   @Test
   void validatesPageSizes() {
     create(SHARES, "{\"name\":\"capped\"}");
-    JsonNode empty = fetch(SHARES + "?maxResults=0");
-    assertEquals(0, empty.path("items").size());
-    assertFalse(empty.path("nextPageToken").isMissingNode());
+    JsonNode unset = fetch(SHARES + "?maxResults=0");
+    assertEquals(fetch(SHARES).path("items"), unset.path("items"));
+    assertTrue(unset.path("items").size() > 0);
 
     Response negative = server.get(SHARES + "?maxResults=-1", "alice-token");
     assertEquals(400, negative.status());
