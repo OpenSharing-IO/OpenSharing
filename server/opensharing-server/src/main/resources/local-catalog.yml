@@ -1,4 +1,4 @@
-# Sample catalog for opensharing.catalog.type=local.
+# Sample catalog for catalog.type=local.
 # FAKE credentials are placeholders. Use STATIC with credentials.values for real keys.
 credentials:
   provider: AWS
