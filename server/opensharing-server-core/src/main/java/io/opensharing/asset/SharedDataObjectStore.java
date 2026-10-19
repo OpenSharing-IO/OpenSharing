@@ -74,10 +74,7 @@ public class SharedDataObjectStore {
     return object;
   }
 
-  /**
-   * {@code SELECT * FROM os_shared_data_objects WHERE share_id = ? ORDER BY shared_as_schema,
-   * shared_as_table}
-   */
+  /** The objects in {@code share}, ordered by the schema and table they are shared as. */
   public List<SharedDataObjectEntity> list(ShareEntity share) {
     return tx.inTransaction(
         true,
@@ -113,7 +110,6 @@ public class SharedDataObjectStore {
     em.remove(object);
   }
 
-  /** {@code SELECT * FROM os_shared_data_objects WHERE share_id = ? AND name = ?} */
   private static Optional<SharedDataObjectEntity> findByName(
       EntityManager em, ShareEntity share, String name) {
     return em.createQuery(
@@ -125,10 +121,6 @@ public class SharedDataObjectStore {
         .findFirst();
   }
 
-  /**
-   * {@code SELECT * FROM os_shared_data_objects WHERE share_id = ? AND shared_as_schema = ? AND
-   * shared_as_table = ?}
-   */
   private static Optional<SharedDataObjectEntity> findByAlias(
       EntityManager em, ShareEntity share, String sharedAsSchema, String sharedAsTable) {
     return em.createQuery(
@@ -142,10 +134,7 @@ public class SharedDataObjectStore {
         .findFirst();
   }
 
-  /**
-   * {@code SELECT id FROM os_shared_data_objects WHERE share_id = ? AND shared_as_schema = ? AND
-   * type = 'SCHEMA' AND shared_as_table = '' LIMIT 1}
-   */
+  /** Whether {@code share} includes all of {@code schema}. */
   private static boolean schemaIncluded(EntityManager em, ShareEntity share, String schema) {
     return !em.createQuery(
             "select o.id from SharedDataObjectEntity o where o.share.id = :shareId"
@@ -159,10 +148,7 @@ public class SharedDataObjectStore {
         .isEmpty();
   }
 
-  /**
-   * {@code SELECT id FROM os_shared_data_objects WHERE share_id = ? AND shared_as_schema = ? AND
-   * type = 'TABLE' AND shared_as_table <> '' LIMIT 1}
-   */
+  /** Whether {@code share} includes any single table of {@code schema}. */
   private static boolean tablesIncluded(EntityManager em, ShareEntity share, String schema) {
     return !em.createQuery(
             "select o.id from SharedDataObjectEntity o where o.share.id = :shareId"

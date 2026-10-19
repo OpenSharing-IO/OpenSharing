@@ -98,7 +98,6 @@ public class ShareStore {
         false,
         em -> {
           ShareEntity share = getOwnedOrThrow(em, name, user);
-          // DELETE FROM os_shared_data_objects WHERE share_id = ?
           em.createQuery("delete from SharedDataObjectEntity o where o.share.id = :shareId")
               .setParameter("shareId", share.getId())
               .executeUpdate();
