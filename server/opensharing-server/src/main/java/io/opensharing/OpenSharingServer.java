@@ -12,9 +12,8 @@ import io.opensharing.runtime.OpenSharing;
 import java.util.Locale;
 
 /**
- * Runnable standalone OpenSharing server. It assembles {@link OpenSharing} from {@link
- * ServerProperties} and serves it over HTTP with Armeria. An embedding host skips this class and
- * builds {@link OpenSharing} itself.
+ * Runnable standalone OpenSharing server. It builds {@link OpenSharing} from {@link
+ * ServerProperties} and listens for HTTP with Armeria.
  */
 public final class OpenSharingServer implements AutoCloseable {
 
@@ -28,10 +27,15 @@ public final class OpenSharingServer implements AutoCloseable {
 
   /**
    * Starts the server with the settings in {@code server.properties}, overridden by JVM system
-   * properties and environment variables, and blocks until the JVM shuts down. Program arguments
-   * are ignored, so settings are passed as {@code -D} JVM options instead.
+   * properties and environment variables, and blocks until the JVM shuts down. It takes no program
+   * arguments.
    */
   public static void main(String[] args) throws InterruptedException {
+    if (args.length > 0) {
+      throw new IllegalArgumentException(
+          "program arguments are not supported; set server.properties keys as -D JVM options or"
+              + " environment variables");
+    }
     OpenSharingServer server = start(new ServerProperties());
     server.server.closeOnJvmShutdown();
     server.server.blockUntilShutdown();
@@ -49,11 +53,16 @@ public final class OpenSharingServer implements AutoCloseable {
             // Armeria refuses to start without a service; routes nothing serves are not found.
             .serviceUnder("/", (ctx, req) -> HttpResponse.of(HttpStatus.NOT_FOUND))
             .build();
-    server.start().join();
+    try {
+      server.start().join();
+    } catch (RuntimeException e) {
+      server.close();
+      throw e;
+    }
     return new OpenSharingServer(server, openSharing);
   }
 
-  /** The OpenSharing instance this server serves. */
+  /** The OpenSharing instance built from the server's settings. */
   public OpenSharing openSharing() {
     return openSharing;
   }

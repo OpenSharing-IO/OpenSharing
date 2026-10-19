@@ -55,6 +55,18 @@ class OpenSharingServerTest {
     }
   }
 
+  @Test
+  void rejectsProgramArguments() {
+    IllegalArgumentException rejected =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> OpenSharingServer.main(new String[] {"--server.port=9090"}));
+    assertEquals(
+        "program arguments are not supported; set server.properties keys as -D JVM options or"
+            + " environment variables",
+        rejected.getMessage());
+  }
+
   private static ServerProperties properties(String... overrides) {
     Properties props = new Properties();
     props.setProperty("server.port", "0");

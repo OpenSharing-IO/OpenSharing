@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.opensharing.config.ServerProperties.Property;
+import java.util.Map;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 
@@ -38,6 +39,33 @@ class ServerPropertiesTest {
     } finally {
       System.clearProperty("server.port");
     }
+  }
+
+  @Test
+  void ignoresBlankOverrides() {
+    ServerProperties properties =
+        new ServerProperties(props("server.port", "9090"), Map.of("CATALOG_TYPE", " "));
+    System.setProperty("server.port", "");
+    try {
+      assertEquals(9090, properties.getPort());
+      assertEquals("local", properties.get(Property.CATALOG_TYPE));
+    } finally {
+      System.clearProperty("server.port");
+    }
+  }
+
+  @Test
+  void readsEnvironmentVariablesByKeyOrUpperSnakeCase() {
+    ServerProperties properties =
+        new ServerProperties(
+            new Properties(),
+            Map.of(
+                "SERVER_PORT", "7070",
+                "catalog.type", "dotted",
+                "CATALOG_TYPE", "snake"));
+
+    assertEquals(7070, properties.getPort());
+    assertEquals("dotted", properties.get(Property.CATALOG_TYPE));
   }
 
   @Test

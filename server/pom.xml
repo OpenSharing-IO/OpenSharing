@@ -28,6 +28,8 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>21</maven.compiler.release>
     <armeria.version>1.28.4</armeria.version>
+    <!-- Newer than the Netty Armeria brings, for its HTTP/2 fixes; the AWS SDK expects it too. -->
+    <netty.version>4.1.126.Final</netty.version>
     <jackson.version>2.19.1</jackson.version>
     <jakarta-persistence.version>3.1.0</jakarta-persistence.version>
     <slf4j.version>2.0.17</slf4j.version>
@@ -45,6 +47,13 @@
         <groupId>io.opensharing</groupId>
         <artifactId>opensharing-server-core</artifactId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-bom</artifactId>
+        <version>${netty.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
       </dependency>
       <dependency>
         <groupId>com.linecorp.armeria</groupId>

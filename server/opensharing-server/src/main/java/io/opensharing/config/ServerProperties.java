@@ -3,17 +3,22 @@ package io.opensharing.config;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 
 /**
  * The standalone server's settings, read from {@code server.properties} on the classpath. A JVM
- * system property or an environment variable with the same name as a key overrides it.
+ * system property with the same name as a key overrides it, then an environment variable with that
+ * name or its upper snake case form, such as {@code SERVER_PORT} for {@code server.port}. A blank
+ * value anywhere means unset.
  */
 public class ServerProperties {
 
   private static final String RESOURCE = "server.properties";
 
   private final Properties properties = new Properties(defaults());
+  private final Map<String, String> env;
 
   public enum Property {
     PORT("server.port", "8080"),
@@ -38,19 +43,29 @@ public class ServerProperties {
       throw new UncheckedIOException("failed to read " + RESOURCE, e);
     }
     dropBlankValues();
+    env = System.getenv();
   }
 
-  public ServerProperties(Properties overrides) {
-    properties.putAll(overrides);
+  /** Settings read from {@code values} instead of {@code server.properties}. */
+  public ServerProperties(Properties values) {
+    this(values, System.getenv());
+  }
+
+  ServerProperties(Properties values, Map<String, String> env) {
+    properties.putAll(values);
     dropBlankValues();
+    this.env = env;
   }
 
   public String get(Property property) {
     String value = System.getProperty(property.key);
-    if (value == null) {
-      value = System.getenv(property.key);
+    if (isBlank(value)) {
+      value = env.get(property.key);
     }
-    return value != null ? value : properties.getProperty(property.key);
+    if (isBlank(value)) {
+      value = env.get(property.key.toUpperCase(Locale.ROOT).replaceAll("[.-]", "_"));
+    }
+    return isBlank(value) ? properties.getProperty(property.key) : value;
   }
 
   public int getPort() {
@@ -71,7 +86,10 @@ public class ServerProperties {
     return defaults;
   }
 
-  // A blank value in server.properties means unset, so the default applies.
+  private static boolean isBlank(String value) {
+    return value == null || value.isBlank();
+  }
+
   private void dropBlankValues() {
     properties.entrySet().removeIf(entry -> entry.getValue().toString().isBlank());
   }

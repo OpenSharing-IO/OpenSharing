@@ -36,9 +36,7 @@ public final class LocalCatalogLoader {
     }
   }
 
-  /**
-   * Parses {@code in} without closing it. {@code origin} only names the source in error messages.
-   */
+  /** Parses {@code in}. {@code origin} only names the source in error messages. */
   public static LocalCatalogFile load(InputStream in, String origin) {
     try {
       LocalCatalogFile file = MAPPER.readValue(in, LocalCatalogFile.class);
