@@ -25,7 +25,7 @@ public class ProtocolSchemas {
   public ListResponse<SchemaResponse> list(
       RecipientPrincipal recipient, String share, Integer maxResults, String pageToken) {
     ShareEntity granted = shares.requireGranted(recipient, share);
-    return Pagination.page(
+    return Pagination.protocolPage(
         maxResults,
         pageToken,
         (offset, limit) -> objects.listSchemas(granted, offset, limit),

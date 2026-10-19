@@ -71,6 +71,11 @@ class ProtocolSchemasTest extends ProtocolApiSupport {
     assertEquals("beta", second.body().path("items").path(0).path("name").asText());
     assertTrue(second.body().path("nextPageToken").isMissingNode());
 
+    // A page size of 0 returns no schemas, but a token to resume from.
+    Response zero = server.get(page(schemas, 0, null), bearer);
+    assertEquals(0, zero.body().path("items").size());
+    assertFalse(zero.body().path("nextPageToken").isMissingNode());
+
     // A granted share with no objects lists no schemas.
     Response empty = server.get(PROTOCOL + "/shares/empty-share/schemas", bearer);
     assertEquals(200, empty.status());
