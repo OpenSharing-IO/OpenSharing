@@ -87,7 +87,7 @@ public class RecipientStore {
                 .orElse(null));
   }
 
-  /** {@code SELECT * FROM os_recipients ORDER BY name ASC}: every recipient, of any owner. */
+  /** Every recipient, regardless of owner, ordered by name. */
   public List<RecipientEntity> list() {
     return tx.inTransaction(
         true,
@@ -103,7 +103,6 @@ public class RecipientStore {
         false,
         em -> {
           RecipientEntity recipient = getOwnedOrThrow(em, name, user);
-          // DELETE FROM os_recipient_tokens WHERE recipient_id = ?
           em.createQuery("delete from RecipientTokenEntity t where t.recipient.id = :recipientId")
               .setParameter("recipientId", recipient.getId())
               .executeUpdate();
@@ -112,7 +111,6 @@ public class RecipientStore {
         });
   }
 
-  /** {@code SELECT * FROM os_recipients WHERE name = ?}, plus {@code FOR UPDATE} under a lock. */
   private static Optional<RecipientEntity> find(EntityManager em, String name, LockModeType lock) {
     return em.createQuery(
             "select r from RecipientEntity r where r.name = :name", RecipientEntity.class)
