@@ -101,7 +101,6 @@ public class ShareStore {
           em.createQuery("delete from SharedDataObjectEntity o where o.share.id = :shareId")
               .setParameter("shareId", share.getId())
               .executeUpdate();
-          // DELETE FROM os_share_permissions WHERE share_id = ?
           em.createQuery("delete from SharePermissionEntity p where p.share.id = :shareId")
               .setParameter("shareId", share.getId())
               .executeUpdate();

@@ -106,7 +106,6 @@ public class RecipientStore {
           em.createQuery("delete from RecipientTokenEntity t where t.recipient.id = :recipientId")
               .setParameter("recipientId", recipient.getId())
               .executeUpdate();
-          // DELETE FROM os_share_permissions WHERE recipient_id = ?
           em.createQuery(
                   "delete from SharePermissionEntity p where p.recipient.id = :recipientId")
               .setParameter("recipientId", recipient.getId())

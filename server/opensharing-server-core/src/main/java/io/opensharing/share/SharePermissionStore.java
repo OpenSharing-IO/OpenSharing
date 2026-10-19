@@ -51,10 +51,7 @@ public class SharePermissionStore {
     em.remove(permission);
   }
 
-  /**
-   * {@code SELECT p.* FROM os_share_permissions p JOIN os_recipients r ON r.id = p.recipient_id
-   * WHERE p.share_id = ? ORDER BY r.name}
-   */
+  /** The share's permissions, ordered by recipient name. */
   public List<SharePermissionEntity> list(ShareEntity share) {
     return tx.inTransaction(
         true,
@@ -68,10 +65,6 @@ public class SharePermissionStore {
                 .getResultList());
   }
 
-  /**
-   * {@code SELECT * FROM os_share_permissions WHERE share_id = ? AND recipient_id = ? AND
-   * privilege = ?}
-   */
   private static Optional<SharePermissionEntity> find(
       EntityManager em, ShareEntity share, RecipientEntity recipient, SharePrivilege privilege) {
     return em.createQuery(
