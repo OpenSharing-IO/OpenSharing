@@ -5,6 +5,7 @@ import io.opensharing.Transactions;
 import io.opensharing.auth.UserContext;
 import io.opensharing.http.ApiException;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,7 +35,7 @@ public class RecipientStore {
     return tx.inTransaction(
         false,
         em -> {
-          if (find(em, name).isPresent()) {
+          if (find(em, name, LockModeType.NONE).isPresent()) {
             throw ApiException.alreadyExists("recipient '" + name + "' already exists");
           }
           RecipientEntity recipient = new RecipientEntity();
@@ -66,7 +67,7 @@ public class RecipientStore {
 
   /** Looks up a recipient by name in any case. Fails with not-found when it does not exist. */
   public RecipientEntity require(String name) {
-    return tx.inTransaction(true, em -> require(em, name));
+    return tx.inTransaction(true, em -> require(em, name, LockModeType.NONE));
   }
 
   /** The newest token's activation code, or null when there is none. */
@@ -110,22 +111,27 @@ public class RecipientStore {
         });
   }
 
-  /** {@code SELECT * FROM os_recipients WHERE name = ?} */
-  private static Optional<RecipientEntity> find(EntityManager em, String name) {
+  /** {@code SELECT * FROM os_recipients WHERE name = ?}, plus {@code FOR UPDATE} under a lock. */
+  private static Optional<RecipientEntity> find(EntityManager em, String name, LockModeType lock) {
     return em.createQuery(
             "select r from RecipientEntity r where r.name = :name", RecipientEntity.class)
         .setParameter("name", ObjectNames.normalize(name))
+        .setLockMode(lock)
         .getResultStream()
         .findFirst();
   }
 
-  private static RecipientEntity require(EntityManager em, String name) {
-    return find(em, name)
+  private static RecipientEntity require(EntityManager em, String name, LockModeType lock) {
+    return find(em, name, lock)
         .orElseThrow(() -> ApiException.notFound("recipient '" + name + "' does not exist"));
   }
 
+  /**
+   * Locks the row of a recipient the caller owns, so changes to one recipient run one at a time and
+   * each sees what the one before it wrote.
+   */
   private static RecipientEntity requireOwned(EntityManager em, String name, UserContext user) {
-    RecipientEntity recipient = require(em, name);
+    RecipientEntity recipient = require(em, name, LockModeType.PESSIMISTIC_WRITE);
     user.requireOwner(recipient.getOwnerId(), "recipient '" + recipient.getName() + "'");
     return recipient;
   }
