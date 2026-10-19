@@ -25,7 +25,7 @@ public class ProtocolShares {
   /** Lists one page of the recipient's shares by name. */
   public ListResponse<ShareResponse> list(
       RecipientPrincipal recipient, Integer maxResults, String pageToken) {
-    return Pagination.page(
+    return Pagination.protocolPage(
         maxResults,
         pageToken,
         (offset, limit) -> permissions.listSharesFor(recipient.recipientId(), offset, limit),

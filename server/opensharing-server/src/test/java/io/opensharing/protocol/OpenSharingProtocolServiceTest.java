@@ -99,6 +99,13 @@ class OpenSharingProtocolServiceTest extends ProtocolApiSupport {
         first.body().path("items").path(0).path("name").asText(),
         second.body().path("items").path(0).path("name").asText());
 
+    // A page size of 0 returns no items, with a token that resumes from the same position.
+    Response empty = server.get(page(SHARES, 0, null), bearer);
+    assertEquals(200, empty.status());
+    assertEquals(0, empty.body().path("items").size());
+    String resume = empty.body().path("nextPageToken").asText();
+    assertEquals(2, server.get(page(SHARES, 2, resume), bearer).body().path("items").size());
+
     // Malformed pagination input is rejected.
     Response malformed = server.get(SHARES + "?pageToken=not-a-token", bearer);
     assertEquals(400, malformed.status());
