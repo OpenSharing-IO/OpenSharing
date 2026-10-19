@@ -1,13 +1,15 @@
 package io.opensharing;
 
-import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.server.HttpService;
+import com.linecorp.armeria.server.HttpStatusException;
 import com.linecorp.armeria.server.Server;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogLoader;
 import io.opensharing.config.ServerProperties;
 import io.opensharing.config.ServerProperties.Property;
+import io.opensharing.http.ApiExceptionHandler;
 import io.opensharing.runtime.OpenSharing;
 import java.util.Locale;
 
@@ -47,11 +49,14 @@ public final class OpenSharingServer implements AutoCloseable {
    */
   public static OpenSharingServer start(ServerProperties properties) {
     OpenSharing openSharing = OpenSharing.builder().catalog(catalog(properties)).build();
+    HttpService notFound =
+        (ctx, req) -> {
+          throw HttpStatusException.of(HttpStatus.NOT_FOUND);
+        };
     Server server =
         Server.builder()
             .http(properties.getPort())
-            // Armeria refuses to start without a service; routes nothing serves are not found.
-            .serviceUnder("/", (ctx, req) -> HttpResponse.of(HttpStatus.NOT_FOUND))
+            .serviceUnder("/", notFound.decorate(new ApiExceptionHandler()))
             .build();
     try {
       server.start().join();
@@ -60,6 +65,11 @@ public final class OpenSharingServer implements AutoCloseable {
       throw e;
     }
     return new OpenSharingServer(server, openSharing);
+  }
+
+  /** The port the server listens on, which it picks itself when configured with 0. */
+  public int port() {
+    return server.activeLocalPort();
   }
 
   /** The OpenSharing instance built from the server's settings. */
