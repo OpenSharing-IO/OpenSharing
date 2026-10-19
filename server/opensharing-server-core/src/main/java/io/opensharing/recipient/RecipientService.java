@@ -60,7 +60,7 @@ public class RecipientService {
   /** Gets a recipient by name in any case. */
   public RecipientResponse get(String recipient, String activationBaseUrl) {
     // TODO: introduce USE_RECIPIENT and get only the caller's recipient unless they hold it.
-    return toResponse(recipients.require(recipient), activationBaseUrl);
+    return toResponse(recipients.getOrThrow(recipient), activationBaseUrl);
   }
 
   /** Updates the fields set in {@code request}. Owner only. */

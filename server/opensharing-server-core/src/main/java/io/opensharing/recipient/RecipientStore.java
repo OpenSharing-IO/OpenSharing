@@ -2,6 +2,7 @@ package io.opensharing.recipient;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.Transactions;
+import io.opensharing.auth.Ownership;
 import io.opensharing.auth.UserContext;
 import io.opensharing.http.ApiException;
 import jakarta.persistence.EntityManager;
@@ -57,7 +58,7 @@ public class RecipientStore {
     return tx.inTransaction(
         false,
         em -> {
-          RecipientEntity recipient = requireOwned(em, name, user);
+          RecipientEntity recipient = getOwnedOrThrow(em, name, user);
           if (comment != null) {
             recipient.setComment(comment);
           }
@@ -66,8 +67,8 @@ public class RecipientStore {
   }
 
   /** Looks up a recipient by name in any case. Fails with not-found when it does not exist. */
-  public RecipientEntity require(String name) {
-    return tx.inTransaction(true, em -> require(em, name, LockModeType.NONE));
+  public RecipientEntity getOrThrow(String name) {
+    return tx.inTransaction(true, em -> getOrThrow(em, name, LockModeType.NONE));
   }
 
   /** The newest token's activation code, or null when there is none. */
@@ -101,7 +102,7 @@ public class RecipientStore {
     tx.inTransaction(
         false,
         em -> {
-          RecipientEntity recipient = requireOwned(em, name, user);
+          RecipientEntity recipient = getOwnedOrThrow(em, name, user);
           // DELETE FROM os_recipient_tokens WHERE recipient_id = ?
           em.createQuery("delete from RecipientTokenEntity t where t.recipient.id = :recipientId")
               .setParameter("recipientId", recipient.getId())
@@ -121,7 +122,7 @@ public class RecipientStore {
         .findFirst();
   }
 
-  private static RecipientEntity require(EntityManager em, String name, LockModeType lock) {
+  private static RecipientEntity getOrThrow(EntityManager em, String name, LockModeType lock) {
     return find(em, name, lock)
         .orElseThrow(() -> ApiException.notFound("recipient '" + name + "' does not exist"));
   }
@@ -130,9 +131,9 @@ public class RecipientStore {
    * Locks the row of a recipient the caller owns, so changes to one recipient run one at a time and
    * each sees what the one before it wrote.
    */
-  private static RecipientEntity requireOwned(EntityManager em, String name, UserContext user) {
-    RecipientEntity recipient = require(em, name, LockModeType.PESSIMISTIC_WRITE);
-    user.requireOwner(recipient.getOwnerId(), "recipient '" + recipient.getName() + "'");
+  private static RecipientEntity getOwnedOrThrow(EntityManager em, String name, UserContext user) {
+    RecipientEntity recipient = getOrThrow(em, name, LockModeType.PESSIMISTIC_WRITE);
+    Ownership.check(user, recipient.getOwnerId(), "recipient '" + recipient.getName() + "'");
     return recipient;
   }
 }
