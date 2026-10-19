@@ -163,7 +163,7 @@ public class RecipientStore {
     return tx.inTransaction(
         false,
         em -> {
-          RecipientEntity recipient = requireOwned(em, name, user);
+          RecipientEntity recipient = getOwnedOrThrow(em, name, user);
           // SELECT * FROM os_recipient_tokens WHERE recipient_id = ?
           List<RecipientTokenEntity> current =
               em.createQuery(
