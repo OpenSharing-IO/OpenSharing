@@ -32,8 +32,8 @@ public class ShareEntity extends BaseEntity {
   private String comment;
 
   /**
-   * The catalog's user id for whoever created this share. Not a foreign key: there is no principal
-   * table.
+   * The catalog's user id for whoever created this share. It is not kept in sync with the catalog,
+   * so it goes stale if the catalog removes the user.
    */
   @Column(name = "owner_id", nullable = false, length = 255)
   private String ownerId;

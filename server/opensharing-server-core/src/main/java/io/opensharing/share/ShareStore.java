@@ -2,6 +2,7 @@ package io.opensharing.share;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.Transactions;
+import io.opensharing.auth.Ownership;
 import io.opensharing.auth.UserContext;
 import io.opensharing.http.ApiException;
 import jakarta.persistence.EntityManager;
@@ -12,8 +13,8 @@ import java.util.Optional;
 
 /**
  * Storage for shares. Names are stored lowercase and looked up case-insensitively. Each method runs
- * in its own transaction, so returned entities are detached and must be fully loaded. Each loaded
- * share also runs {@code SELECT * FROM os_share_properties WHERE share_id = ?}.
+ * in its own transaction and returns shares with their properties loaded, so callers can read them
+ * after it ends.
  */
 public class ShareStore {
 
@@ -60,7 +61,7 @@ public class ShareStore {
     return tx.inTransaction(
         false,
         em -> {
-          ShareEntity share = requireOwned(em, name, user);
+          ShareEntity share = getOwnedOrThrow(em, name, user);
           if (displayName != null) {
             share.setDisplayName(displayName);
           }
@@ -80,16 +81,16 @@ public class ShareStore {
   }
 
   /** Like {@link #find}, but fails with not-found when the share does not exist. */
-  public ShareEntity require(String name) {
-    return tx.inTransaction(true, em -> require(em, name, LockModeType.NONE));
+  public ShareEntity getOrThrow(String name) {
+    return tx.inTransaction(true, em -> getOrThrow(em, name, LockModeType.NONE));
   }
 
-  /** Like {@link #require}, but also fails unless {@code user} owns the share. */
-  public ShareEntity requireOwned(String name, UserContext user) {
-    return tx.inTransaction(true, em -> requireOwner(require(em, name, LockModeType.NONE), user));
+  /** Like {@link #getOrThrow}, but also fails unless {@code user} owns the share. */
+  public ShareEntity getOwnedOrThrow(String name, UserContext user) {
+    return tx.inTransaction(true, em -> checkOwner(getOrThrow(em, name, LockModeType.NONE), user));
   }
 
-  /** {@code SELECT * FROM os_shares ORDER BY name ASC}: every share, regardless of owner. */
+  /** Every share, regardless of owner, ordered by name. */
   public List<ShareEntity> list() {
     return tx.inTransaction(
         true,
@@ -103,12 +104,11 @@ public class ShareStore {
     tx.inTransaction(
         false,
         em -> {
-          em.remove(requireOwned(em, name, user));
+          em.remove(getOwnedOrThrow(em, name, user));
           return null;
         });
   }
 
-  /** {@code SELECT id FROM os_shares WHERE name = ? LIMIT 1} */
   private static boolean exists(EntityManager em, String name) {
     return !em.createQuery("select s.id from ShareEntity s where s.name = :name", String.class)
         .setParameter("name", name)
@@ -117,7 +117,6 @@ public class ShareStore {
         .isEmpty();
   }
 
-  /** {@code SELECT * FROM os_shares WHERE name = ?}, plus {@code FOR UPDATE} under a lock. */
   private static Optional<ShareEntity> find(EntityManager em, String name, LockModeType lock) {
     return em.createQuery("select s from ShareEntity s where s.name = :name", ShareEntity.class)
         .setParameter("name", ObjectNames.normalize(name))
@@ -126,7 +125,7 @@ public class ShareStore {
         .findFirst();
   }
 
-  private static ShareEntity require(EntityManager em, String name, LockModeType lock) {
+  private static ShareEntity getOrThrow(EntityManager em, String name, LockModeType lock) {
     return find(em, name, lock)
         .orElseThrow(() -> ApiException.notFound("share '" + name + "' does not exist"));
   }
@@ -135,12 +134,12 @@ public class ShareStore {
    * Locks the row of a share the caller owns, so changes to one share run one at a time and each
    * sees what the one before it wrote.
    */
-  private static ShareEntity requireOwned(EntityManager em, String name, UserContext user) {
-    return requireOwner(require(em, name, LockModeType.PESSIMISTIC_WRITE), user);
+  private static ShareEntity getOwnedOrThrow(EntityManager em, String name, UserContext user) {
+    return checkOwner(getOrThrow(em, name, LockModeType.PESSIMISTIC_WRITE), user);
   }
 
-  private static ShareEntity requireOwner(ShareEntity share, UserContext user) {
-    user.requireOwner(share.getOwnerId(), "share '" + share.getName() + "'");
+  private static ShareEntity checkOwner(ShareEntity share, UserContext user) {
+    Ownership.check(user, share.getOwnerId(), "share '" + share.getName() + "'");
     return share;
   }
 }

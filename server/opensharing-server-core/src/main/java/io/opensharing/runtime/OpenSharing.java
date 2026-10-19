@@ -52,7 +52,11 @@ public final class OpenSharing {
       return this;
     }
 
-    /** The host's database transactions (required). */
+    /**
+     * How OpenSharing reaches the host's database. OpenSharing keeps its own tables there and runs
+     * every read and write through these transactions, so the host's persistence setup must
+     * register the classes from {@link OpenSharing#entities}. Must be set before {@link #build}.
+     */
     public Builder transactions(Transactions transactions) {
       this.transactions = transactions;
       return this;

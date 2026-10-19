@@ -46,7 +46,7 @@ public class ShareService {
 
   /** Gets a share by name in any case. */
   public ShareResponse get(String share) {
-    return ShareResponse.from(shares.require(share));
+    return ShareResponse.from(shares.getOrThrow(share));
   }
 
   /** Updates the fields set in {@code request}. Owner only. */
