@@ -139,7 +139,7 @@ public class ShareService {
   public ListResponse<SharePermissionResponse> listPermissions(String share) {
     // TODO: page with maxResults and pageToken.
     return ListResponse.of(
-        permissions.list(shares.require(share)).stream()
+        permissions.list(shares.getOrThrow(share)).stream()
             .map(SharePermissionResponse::from)
             .toList());
   }
@@ -150,7 +150,7 @@ public class ShareService {
    */
   public ListResponse<SharePermissionResponse> updatePermissions(
       UserContext user, String share, UpdateSharePermissionsRequest request) {
-    shares.requireOwned(share, user);
+    shares.getOwnedOrThrow(share, user);
     List<RecipientChange> changes = new ArrayList<>();
     for (UpdateSharePermissionsRequest.Change change : request.changes()) {
       if (change == null) {
@@ -161,13 +161,13 @@ public class ShareService {
         throw ApiException.invalidParameter("changes.add and changes.remove must not contain null");
       }
       RecipientEntity recipient =
-          recipients.require(requireText(change.recipientName(), "changes.recipientName"));
+          recipients.getOrThrow(requireText(change.recipientName(), "changes.recipientName"));
       changes.add(new RecipientChange(recipient, change));
     }
     tx.inTransaction(
         false,
         em -> {
-          ShareEntity entity = shares.requireOwned(em, share, user);
+          ShareEntity entity = shares.getOwnedOrThrow(em, share, user);
           for (RecipientChange change : changes) {
             for (SharePrivilege privilege : change.change().remove()) {
               permissions.revoke(em, entity, change.recipient(), privilege);
