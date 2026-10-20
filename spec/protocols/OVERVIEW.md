@@ -44,7 +44,7 @@ or
 }
 ```
 
-OpenSharing servers providing tables in iceberg format must provide their IRC endpoint, i.e., `icebergEndpoint`, under `{endpoint}/iceberg`, enabling IRC clients to leverage the same as their IRC base url, e.g. `{endpoint}/shares/<sharename>`, with iceberg tables would be explored as `{endpoint}/iceberg/v1/config?warehouse=<sharename>`.
+OpenSharing servers that share tables in Iceberg format may optionally provide an `icebergEndpoint` in the profile file. If provided, it must be `{endpoint}/iceberg`. Clients must not assume `icebergEndpoint` is present and should handle its absence gracefully.
 
 ## Names
 
