@@ -199,6 +199,16 @@
           <artifactId>maven-assembly-plugin</artifactId>
           <version>3.7.1</version>
         </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>flatten-maven-plugin</artifactId>
+          <version>1.8.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>3.1.4</version>
+        </plugin>
       </plugins>
     </pluginManagement>
   </build>
@@ -252,6 +262,36 @@
                 </configuration>
               </execution>
             </executions>
+          </plugin>
+          <!-- Only the modules are published, so each pom carries the parent's metadata and
+               dependency versions instead of referring to it. -->
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>flatten-maven-plugin</artifactId>
+            <configuration>
+              <flattenMode>ossrh</flattenMode>
+              <pomElements>
+                <dependencyManagement>resolve</dependencyManagement>
+              </pomElements>
+              <outputDirectory>${project.build.directory}</outputDirectory>
+            </configuration>
+            <executions>
+              <execution>
+                <id>flatten</id>
+                <phase>process-resources</phase>
+                <goals>
+                  <goal>flatten</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-install-plugin</artifactId>
+            <inherited>false</inherited>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
           </plugin>
         </plugins>
       </build>
