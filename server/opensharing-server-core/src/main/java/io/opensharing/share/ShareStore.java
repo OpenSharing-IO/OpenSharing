@@ -94,7 +94,7 @@ public class ShareStore {
                 .getResultList());
   }
 
-  /** {@code SELECT * FROM os_shares WHERE owner_id = ? ORDER BY name ASC LIMIT ? OFFSET ?}. */
+  /** Shares owned by {@code ownerId}, ordered by name. */
   public List<ShareEntity> listOwnedBy(String ownerId, int offset, int limit) {
     return tx.inTransaction(
         true,
