@@ -104,7 +104,7 @@ public class RecipientStore {
                 .getResultList());
   }
 
-  /** {@code SELECT * FROM os_recipients WHERE owner_id = ? ORDER BY name ASC LIMIT ? OFFSET ?}. */
+  /** Recipients owned by {@code ownerId}, ordered by name. */
   public List<RecipientEntity> listOwnedBy(String ownerId, int offset, int limit) {
     return tx.inTransaction(
         true,
