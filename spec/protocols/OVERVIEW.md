@@ -10,7 +10,6 @@ This document describes the OpenSharing Protocol's general concepts, including t
 
 A profile file is a JSON file that contains the information for a recipient to access shared data on a OpenSharing server. There are a few fields in this file as listed below.
 
-
 | Field Name              | Description                                                                                                                                                                                                                                                                                                                  | Note       |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
 | shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client. | [required] |
@@ -18,7 +17,6 @@ A profile file is a JSON file that contains the information for a recipient to a
 | icebergEndpoint         | The url of the sharing server's Iceberg REST catalog endpoint. If provided, it must be `{endpoint}/iceberg`.                                                                                                                                                                                                                 | [optional] |
 | bearerToken             | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.                                                                                                                                                                                                                                                | [required] |
 | expirationTime          | The expiration time of the bearer token in [ISO 8601 format](https://www.w3.org/TR/NOTE-datetime). This field is optional and if it is not provided, the bearer token can be seen as never expire.                                                                                                                           | [optional] |
-
 
 Example:
 
