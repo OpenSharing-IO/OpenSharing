@@ -52,9 +52,8 @@ public class SharePermissionStore {
   }
 
   /**
-   * {@code SELECT p.* FROM os_share_permissions p JOIN os_recipients r ON r.id = p.recipient_id
-   * WHERE p.share_id = ? ORDER BY r.name, p.privilege LIMIT ? OFFSET ?}. A recipient holds each
-   * privilege at most once, so the order is total.
+   * The share's permissions, ordered by recipient name and then privilege. A recipient holds
+   * each privilege at most once, so the order is total.
    */
   public List<SharePermissionEntity> list(ShareEntity share, int offset, int limit) {
     return tx.inTransaction(

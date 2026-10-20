@@ -92,10 +92,7 @@ public class RecipientStore {
         });
   }
 
-  /**
-   * {@code SELECT * FROM os_recipients ORDER BY name ASC LIMIT ? OFFSET ?}: recipients of any
-   * owner. Names are unique, so the order is total.
-   */
+  /** Recipients of any owner, ordered by name; names are unique, so the order is total. */
   public List<RecipientEntity> list(int offset, int limit) {
     return tx.inTransaction(
         true,
