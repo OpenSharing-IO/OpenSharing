@@ -13,7 +13,7 @@
   <artifactId>opensharing-server</artifactId>
 
   <name>OpenSharing Reference Server</name>
-  <description>Runnable OpenSharing server for standalone deployments</description>
+  <description>Standalone OpenSharing server built on opensharing-server-core</description>
 
   <dependencies>
     <dependency>
