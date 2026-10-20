@@ -87,10 +87,7 @@ public class SharedDataObjectStore {
                 .getResultList());
   }
 
-  /**
-   * {@code SELECT * FROM os_shared_data_objects WHERE share_id = ? AND shared_as_schema = ? ORDER
-   * BY shared_as_table}
-   */
+  /** The objects {@code share} shares under {@code schema}, ordered by table. */
   public List<SharedDataObjectEntity> listInSchema(ShareEntity share, String schema) {
     return tx.inTransaction(
         true,
@@ -104,10 +101,7 @@ public class SharedDataObjectStore {
                 .getResultList());
   }
 
-  /**
-   * {@code SELECT DISTINCT shared_as_schema FROM os_shared_data_objects WHERE share_id = ? ORDER BY
-   * shared_as_schema LIMIT ? OFFSET ?}: the schemas recipients see in the share.
-   */
+  /** One page of the schemas recipients see in {@code share}, ordered by name. */
   public List<String> listSchemas(ShareEntity share, int offset, int limit) {
     return tx.inTransaction(
         true,
