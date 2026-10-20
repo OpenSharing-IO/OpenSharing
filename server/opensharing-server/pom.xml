@@ -122,22 +122,46 @@
             <includedLicense>MIT</includedLicense>
             <includedLicense>MIT-0</includedLicense>
             <includedLicense>MPL-2.0</includedLicense>
+            <!-- Allowed as unmodified dependencies; reviewed per artifact, as listed below. -->
+            <includedLicense>LGPL-2.1-or-later</includedLicense>
+            <includedLicense>GPL-2.0-with-classpath-exception</includedLicense>
+            <includedLicense>GPL-2.0-with-universal-FOSS-exception</includedLicense>
           </includedLicenses>
           <licenseMerges>
             <licenseMerge>
               Apache-2.0 | Apache License, Version 2.0 | The Apache Software License, Version 2.0
               | Apache License 2.0 | The Apache License, Version 2.0 | Apache 2
-              | Apache Software License - Version 2.0
+              | Apache Software License - Version 2.0 | Apache 2.0 | Apache License, version 2.0
+              | Apache License Version 2.0
             </licenseMerge>
             <licenseMerge>BSD-2-Clause | BSD 2-Clause License</licenseMerge>
+            <licenseMerge>BSD-3-Clause | BSD New license | Go License</licenseMerge>
             <licenseMerge>CC0-1.0 | Public Domain, per Creative Commons CC0</licenseMerge>
-            <licenseMerge>EDL-1.0 | Eclipse Distribution License v. 1.0</licenseMerge>
+            <licenseMerge>
+              EDL-1.0 | Eclipse Distribution License v. 1.0 | Eclipse Distribution License - v 1.0
+              | EDL 1.0
+            </licenseMerge>
             <licenseMerge>
               EPL-1.0 | Eclipse Public License - v 1.0 | Eclipse Public License - Version 1.0
+              | EPL 1.0
             </licenseMerge>
-            <licenseMerge>EPL-2.0 | Eclipse Public License v. 2.0</licenseMerge>
+            <licenseMerge>EPL-2.0 | Eclipse Public License v. 2.0 | EPL 2.0</licenseMerge>
             <licenseMerge>LGPL-2.1 | GNU Lesser General Public License</licenseMerge>
-            <licenseMerge>MIT | The MIT License (MIT)</licenseMerge>
+            <!-- hibernate-core, hibernate-hikaricp -->
+            <licenseMerge>
+              LGPL-2.1-or-later | GNU Library General Public License v2.1 or later
+            </licenseMerge>
+            <!-- jakarta.transaction-api, javax.annotation-api -->
+            <licenseMerge>
+              GPL-2.0-with-classpath-exception | GPL2 w/ CPE | CDDL + GPLv2 with classpath exception
+            </licenseMerge>
+            <!-- mysql-connector-j -->
+            <licenseMerge>
+              GPL-2.0-with-universal-FOSS-exception
+              | The GNU General Public License, v2 with Universal FOSS Exception, v1.0
+            </licenseMerge>
+            <licenseMerge>MIT | The MIT License (MIT) | The MIT License | MIT license</licenseMerge>
+            <licenseMerge>MPL-2.0 | MPL 2.0</licenseMerge>
           </licenseMerges>
         </configuration>
         <executions>
