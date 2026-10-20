@@ -56,4 +56,3 @@ Share, Schema, and shared objects are identifiable by names. To ensure compatibi
   - The DELETE character (`7f` hex)
 - Schema and shared object names additionally do not allow special character Period (`.`)
 - Object names are case-insensitive
-
