@@ -1,10 +1,7 @@
-
-
-
-
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 # OpenSharing Protocol
-
-
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 This document describes the OpenSharing Protocol's general concepts, including the profile file format and naming requirements.
 
@@ -13,9 +10,9 @@ This document describes the OpenSharing Protocol's general concepts, including t
 A profile file is a JSON file that contains the information for a recipient to access shared data on a OpenSharing server. There are a few fields in this file as listed below.
 
 
-| Field Name              | Descrption                                                                                                                                                                                                                                                                                                                   | Note       |
+| Field Name              | Description                                                                                                                                                                                                                                                                                                                   | Note       |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client. | [required]         |
+| shareCredentialsVersion | The file format version of the profile file. This version will be increased whenever non-forward-compatible changes are made to the profile format. When a client is running an unsupported profile file format version, it should show an error message instructing the user to upgrade to a newer version of their client. | [required] |
 | endpoint                | The url of the sharing server.                                                                                                                                                                                                                                                                                               | [required] |
 | icebergEndpoint         | The url of the sharing server that supports the iceberg table endpoints, which is always `endpoint` + `/iceberg`                                                                                                                                                                                                             | [optional] |
 | bearerToken             | The [bearer token](https://tools.ietf.org/html/rfc6750) to access the server.                                                                                                                                                                                                                                                | [required] |
@@ -27,8 +24,8 @@ Example:
 ```json
 {
   "shareCredentialsVersion": 1,
-  "endpoint": "https://sharing.opensharing.io/open-sharing/",
-  "icebergEndpoint": "https://sharing.opensharing.io/open-sharing/iceberg/",
+  "endpoint": "https://sharing.opensharing.io/open-sharing",
+  "icebergEndpoint": "https://sharing.opensharing.io/open-sharing/iceberg",
   "bearerToken": "<token>",
   "expirationTime": "2021-11-12T00:12:29.0Z"
 }
@@ -39,7 +36,7 @@ or
 ```json
 {
   "shareCredentialsVersion": 1,
-  "endpoint": "https://sharing.opensharing.io/open-sharing/",
+  "endpoint": "https://sharing.opensharing.io/open-sharing",
   "bearerToken": "<token>"
 }
 ```
