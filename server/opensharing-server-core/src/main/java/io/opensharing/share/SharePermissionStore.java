@@ -71,9 +71,8 @@ public class SharePermissionStore {
   }
 
   /**
-   * {@code SELECT s.* FROM os_share_permissions p JOIN os_shares s ON s.id = p.share_id WHERE
-   * p.recipient_id = ? AND p.privilege = 'SELECT' ORDER BY s.name LIMIT ? OFFSET ?}. Share names
-   * are unique, so the order is total.
+   * Shares the recipient holds SELECT on, ordered by name. Share names are unique, so the order
+   * is total.
    */
   public List<ShareEntity> listSharesFor(String recipientId, int offset, int limit) {
     return tx.inTransaction(
@@ -91,10 +90,7 @@ public class SharePermissionStore {
                 .getResultList());
   }
 
-  /**
-   * {@code SELECT id FROM os_share_permissions WHERE share_id = ? AND recipient_id = ? AND
-   * privilege = 'SELECT' LIMIT 1}
-   */
+  /** Whether the recipient holds SELECT on {@code share}. */
   public boolean hasSelect(ShareEntity share, String recipientId) {
     return tx.inTransaction(
         true,
@@ -111,10 +107,6 @@ public class SharePermissionStore {
                 .isEmpty());
   }
 
-  /**
-   * {@code SELECT * FROM os_share_permissions WHERE share_id = ? AND recipient_id = ? AND
-   * privilege = ?}
-   */
   private static Optional<SharePermissionEntity> find(
       EntityManager em, ShareEntity share, RecipientEntity recipient, SharePrivilege privilege) {
     return em.createQuery(

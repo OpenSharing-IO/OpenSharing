@@ -163,10 +163,7 @@ public class RecipientStore {
         });
   }
 
-  /**
-   * {@code SELECT * FROM os_recipient_tokens WHERE token_hash = ?}, kept only when the token is
-   * activated and unexpired at {@code now}.
-   */
+  /** The token with {@code tokenHash}, when it is activated and unexpired at {@code now}. */
   public Optional<RecipientTokenEntity> findUsableToken(String tokenHash, Instant now) {
     return tx.inTransaction(
         true,
