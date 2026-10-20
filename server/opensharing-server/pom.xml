@@ -82,6 +82,7 @@
         </configuration>
         <executions>
           <execution>
+            <id>exec-jar</id>
             <phase>package</phase>
             <goals>
               <goal>shade</goal>
@@ -91,4 +92,25 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!-- Maven Central gets the library jar only; the runnable jar ships separately. -->
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>exec-jar</id>
+                <phase>none</phase>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
