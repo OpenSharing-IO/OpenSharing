@@ -128,7 +128,6 @@ public class RecipientStore {
     return tx.inTransaction(
         false,
         em -> {
-          // SELECT * FROM os_recipient_tokens WHERE activation_code = ? FOR UPDATE
           RecipientTokenEntity token =
               em.createQuery(
                       "select t from RecipientTokenEntity t where t.activationCode = :code",
@@ -164,7 +163,6 @@ public class RecipientStore {
         false,
         em -> {
           RecipientEntity recipient = getOwnedOrThrow(em, name, user);
-          // SELECT * FROM os_recipient_tokens WHERE recipient_id = ?
           List<RecipientTokenEntity> current =
               em.createQuery(
                       "select t from RecipientTokenEntity t where t.recipient.id = :recipientId",
@@ -195,7 +193,6 @@ public class RecipientStore {
         });
   }
 
-  /** {@code SELECT * FROM os_recipients WHERE name = ?}, plus {@code FOR UPDATE} under a lock. */
   private static Optional<RecipientEntity> find(EntityManager em, String name, LockModeType lock) {
     return em.createQuery(
             "select r from RecipientEntity r where r.name = :name", RecipientEntity.class)
