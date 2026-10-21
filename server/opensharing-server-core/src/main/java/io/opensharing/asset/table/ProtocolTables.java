@@ -76,8 +76,8 @@ public class ProtocolTables {
   private record Listed(String schema, String name, String id, Supplier<ResolvedAsset> resolved) {}
 
   /**
-   * The tables {@code included} puts on the listing, by schema alias and then table name in any
-   * case: each included table, plus the catalog's current tables under each included schema.
+   * The tables {@code included} puts on the listing, by schema alias and then table alias: each
+   * included table, plus the catalog's current tables under each included schema.
    */
   private List<Listed> listed(ShareEntity share, List<SharedDataObjectEntity> included) {
     List<Listed> tables = new ArrayList<>();
@@ -85,8 +85,7 @@ public class ProtocolTables {
       String schema = object.getSharedAsSchema();
       if (object.getType() == AssetType.SCHEMA) {
         for (ResolvedAsset child : tablesIn(share, object)) {
-          String name = lastSegment(child.fullName());
-          tables.add(new Listed(schema, name, child.catalogAssetId(), () -> child));
+          tables.add(new Listed(schema, alias(child), child.catalogAssetId(), () -> child));
         }
       } else if (object.getType() == AssetType.TABLE) {
         Asset asset = new Asset(AssetType.TABLE, object.getName());
@@ -98,9 +97,7 @@ public class ProtocolTables {
                 () -> catalog.resolveAsset(asset, owner(share))));
       }
     }
-    tables.sort(
-        Comparator.comparing(Listed::schema)
-            .thenComparing(table -> ObjectNames.normalize(table.name())));
+    tables.sort(Comparator.comparing(Listed::schema).thenComparing(Listed::name));
     return tables;
   }
 
@@ -152,8 +149,12 @@ public class ProtocolTables {
     return AuthContext.of(UserContext.fromUserIdAndName(share.getOwnerId(), null));
   }
 
-  /** The table name in a catalog full name such as {@code catalog.schema.table}. */
-  private static String lastSegment(String fullName) {
-    return fullName.substring(fullName.lastIndexOf('.') + 1);
+  /**
+   * The alias recipients see for a catalog table in an included schema: its table name, lowercased
+   * like every alias.
+   */
+  private static String alias(ResolvedAsset table) {
+    String fullName = table.fullName();
+    return ObjectNames.normalize(fullName.substring(fullName.lastIndexOf('.') + 1));
   }
 }

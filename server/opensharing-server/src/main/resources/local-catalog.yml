@@ -77,3 +77,13 @@ assets:
       subtype: MANAGED
     storageLocation: s3://test/main.ops.people/
     format: delta
+
+  - identifier: main.legal
+    type: SCHEMA
+
+  - identifier: main.legal.Contracts
+    type: TABLE
+    attributes:
+      subtype: MANAGED
+    storageLocation: s3://test/main.legal.Contracts/
+    format: delta

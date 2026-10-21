@@ -75,6 +75,21 @@ class ProtocolTablesTest extends ProtocolApiSupport {
   }
 
   @Test
+  void namesCatalogChildrenOfASharedSchemaByLowercaseAlias() {
+    createShare("cased-tables");
+    addObject("cased-tables", "SCHEMA", "main.legal", "legal");
+    String bearer = createAndActivateRecipient("cased-tables-partner");
+    grant("cased-tables", "cased-tables-partner");
+
+    Response list = server.get(PROTOCOL + "/shares/cased-tables/schemas/legal/tables", bearer);
+    assertEquals(200, list.status());
+    JsonNode items = list.body().path("items");
+    assertEquals(1, items.size());
+    assertEquals("contracts", items.path(0).path("name").asText());
+    assertEquals("legal", items.path(0).path("schema").asText());
+  }
+
+  @Test
   void paginatesTablesInASchema() {
     createShare("paged-tables");
     addObject("paged-tables", "TABLE", "main.sales.table1", "sales.a");
