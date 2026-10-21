@@ -239,7 +239,10 @@ public class ProtocolTables {
         limitHint(body));
   }
 
-  // Predicate and limit hints apply to snapshot files only, so they are ignored here.
+  /**
+   * Reads the data change files from {@code startingVersion}. Predicate and limit hints apply to
+   * snapshot files only, so they are ignored here.
+   */
   private DeltaTableQueryReader.Result queryChanges(
       QueryTableRequest body,
       ResolvedAsset table,
