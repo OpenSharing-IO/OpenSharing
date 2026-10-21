@@ -4,6 +4,7 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
+import com.linecorp.armeria.server.annotation.Default;
 import com.linecorp.armeria.server.annotation.Delete;
 import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Param;
@@ -41,13 +42,21 @@ public final class ShareAdminService {
     return shares.list();
   }
 
-  /** {@code GET /shares/{share}}: gets a share by name in any case. */
+  /**
+   * {@code GET /shares/{share}}: gets a share by name in any case, with the objects in it when
+   * {@code include_shared_data} is true.
+   */
   @Get("/shares/{share}")
-  public ShareResponse get(@Param String share) {
-    return shares.get(share);
+  public ShareResponse get(
+      @Param String share,
+      @Param("include_shared_data") @Default("false") boolean includeSharedData) {
+    return shares.get(share, includeSharedData);
   }
 
-  /** {@code PATCH /shares/{share}}: updates the fields set in the body. Owner only. */
+  /**
+   * {@code PATCH /shares/{share}}: applies the object removes, then the adds, in {@code updates},
+   * then the other fields set in the body, all or nothing. Owner only.
+   */
   @Patch("/shares/{share}")
   public ShareResponse update(
       ServiceRequestContext ctx, @Param String share, UpdateShareRequest request) {
