@@ -242,7 +242,10 @@ public class ProtocolTables {
         limitHint(body));
   }
 
-  // Predicate and limit hints apply to snapshot files only, so they are ignored here.
+  /**
+   * Reads the data change files from {@code startingVersion} into {@code sink}. Predicate and limit
+   * hints apply to snapshot files only, so they are ignored here.
+   */
   private void queryChanges(
       QueryTableRequest body,
       ResolvedAsset table,
