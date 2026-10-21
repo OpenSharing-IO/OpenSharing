@@ -230,6 +230,10 @@ public class ProtocolTables {
     return findTable(share, schemaAlias, tableAlias).catalogTable();
   }
 
+  /**
+   * The location to vend credentials for: the table's root when none is requested, otherwise {@code
+   * requested} when it is the root or one of the table's auxiliary locations.
+   */
   private static String credentialLocation(ResolvedAsset table, String requested) {
     AssetLocation location = table.location();
     String root = location == null ? null : location.storageLocation();
