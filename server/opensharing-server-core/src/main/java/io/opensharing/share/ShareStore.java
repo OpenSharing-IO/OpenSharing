@@ -92,13 +92,16 @@ public class ShareStore {
                 .getResultList());
   }
 
-  /** Deletes a share and the objects in it. Only the owner may delete it. */
+  /** Deletes a share, the objects in it and its permissions. Only the owner may delete it. */
   public void delete(String name, UserContext user) {
     tx.inTransaction(
         false,
         em -> {
           ShareEntity share = getOwnedOrThrow(em, name, user);
           em.createQuery("delete from SharedDataObjectEntity o where o.share.id = :shareId")
+              .setParameter("shareId", share.getId())
+              .executeUpdate();
+          em.createQuery("delete from SharePermissionEntity p where p.share.id = :shareId")
               .setParameter("shareId", share.getId())
               .executeUpdate();
           em.remove(share);

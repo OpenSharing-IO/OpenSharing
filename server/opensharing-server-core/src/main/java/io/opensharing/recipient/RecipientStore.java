@@ -97,13 +97,17 @@ public class RecipientStore {
                 .getResultList());
   }
 
-  /** Deletes a recipient and its tokens. Only the owner may delete it. */
+  /** Deletes a recipient, its tokens and its permissions. Only the owner may delete it. */
   public void delete(String name, UserContext user) {
     tx.inTransaction(
         false,
         em -> {
           RecipientEntity recipient = getOwnedOrThrow(em, name, user);
           em.createQuery("delete from RecipientTokenEntity t where t.recipient.id = :recipientId")
+              .setParameter("recipientId", recipient.getId())
+              .executeUpdate();
+          em.createQuery(
+                  "delete from SharePermissionEntity p where p.recipient.id = :recipientId")
               .setParameter("recipientId", recipient.getId())
               .executeUpdate();
           em.remove(recipient);
