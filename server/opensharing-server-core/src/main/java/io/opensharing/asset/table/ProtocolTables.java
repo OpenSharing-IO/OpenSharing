@@ -240,7 +240,10 @@ public class ProtocolTables {
         limitHint(body));
   }
 
-  // limitHint counts unfiltered file records, so it is dropped when any predicate hint is present.
+  /**
+   * The limit hint to push down. It counts unfiltered file records, so it is dropped when any
+   * predicate hint is present.
+   */
   private static Long limitHint(QueryTableRequest body) {
     boolean hasPredicate =
         (body.predicateHints() != null && !body.predicateHints().isEmpty())
