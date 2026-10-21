@@ -12,6 +12,7 @@ import io.opensharing.catalog.AssetPage;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.catalog.TableProperties;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
@@ -53,13 +54,7 @@ public class ProtocolTables {
       Integer maxResults,
       String pageToken) {
     ShareEntity granted = shares.requireGranted(recipient, share);
-    List<SharedDataObjectEntity> included =
-        objects.listInSchema(granted, ObjectNames.normalize(schema));
-    if (included.isEmpty()) {
-      throw ApiException.notFound(
-          "schema '" + schema + "' does not exist in share '" + granted.getName() + "'");
-    }
-    return page(granted, listed(granted, included), maxResults, pageToken);
+    return page(granted, listed(granted, inSchema(granted, schema)), maxResults, pageToken);
   }
 
   /** Lists one page of all the tables in the share, by schema and then name. */
@@ -67,6 +62,47 @@ public class ProtocolTables {
       RecipientPrincipal recipient, String share, Integer maxResults, String pageToken) {
     ShareEntity granted = shares.requireGranted(recipient, share);
     return page(granted, listed(granted, objects.list(granted)), maxResults, pageToken);
+  }
+
+  /** Gets one table in one schema of the share. */
+  public GetTableResponse get(
+      RecipientPrincipal recipient, String share, String schema, String table) {
+    ShareEntity granted = shares.requireGranted(recipient, share);
+    Listed found = find(granted, schema, table);
+    return new GetTableResponse(
+        found.name(),
+        found.schema(),
+        granted.getName(),
+        granted.getId(),
+        found.id(),
+        format(found.resolved().get()));
+  }
+
+  private List<SharedDataObjectEntity> inSchema(ShareEntity share, String schema) {
+    List<SharedDataObjectEntity> included =
+        objects.listInSchema(share, ObjectNames.normalize(schema));
+    if (included.isEmpty()) {
+      throw ApiException.notFound(
+          "schema '" + schema + "' does not exist in share '" + share.getName() + "'");
+    }
+    return included;
+  }
+
+  private Listed find(ShareEntity share, String schema, String table) {
+    String name = ObjectNames.normalize(table);
+    return listed(share, inSchema(share, schema)).stream()
+        .filter(listed -> name.equals(ObjectNames.normalize(listed.name())))
+        .findFirst()
+        .orElseThrow(
+            () ->
+                ApiException.notFound(
+                    "table '"
+                        + schema
+                        + "."
+                        + table
+                        + "' does not exist in share '"
+                        + share.getName()
+                        + "'"));
   }
 
   /**
@@ -142,6 +178,13 @@ public class ProtocolTables {
             ? null
             : location.auxiliaryLocations(),
         TableAccessModes.forTable(resolved));
+  }
+
+  private static String format(ResolvedAsset table) {
+    return table.additionalProperties() instanceof TableProperties properties
+            && properties.dataSourceFormat() != null
+        ? properties.dataSourceFormat().wireName()
+        : null;
   }
 
   /** The share's owner, whom every catalog call acts as. */

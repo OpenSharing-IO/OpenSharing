@@ -10,14 +10,15 @@ import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.schema.SchemaResponse;
 import io.opensharing.asset.share.GetShareResponse;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.GetTableResponse;
 import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.asset.table.TableResponse;
 import io.opensharing.http.ListResponse;
 import io.opensharing.share.ShareResponse;
 
 /**
- * The Delta Sharing protocol API: every endpoint recipients call with their bearer token, served
- * behind {@link RecipientTokenDecorator}.
+ * The OpenSharing protocol endpoints that list and get shares, schemas and tables, which recipients
+ * call with their bearer token, served behind {@link RecipientTokenDecorator}.
  */
 @Blocking
 @ProducesJson
@@ -79,5 +80,12 @@ public final class OpenSharingProtocolService {
       @Param @Nullable Integer maxResults,
       @Param @Nullable String pageToken) {
     return tables.listAll(RecipientTokenDecorator.recipient(ctx), share, maxResults, pageToken);
+  }
+
+  /** {@code GET /shares/{share}/schemas/{schema}/tables/{table}}: gets a table in a schema. */
+  @Get("/shares/{share}/schemas/{schema}/tables/{table}")
+  public GetTableResponse getTable(
+      ServiceRequestContext ctx, @Param String share, @Param String schema, @Param String table) {
+    return tables.get(RecipientTokenDecorator.recipient(ctx), share, schema, table);
   }
 }
