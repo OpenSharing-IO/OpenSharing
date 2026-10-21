@@ -138,12 +138,14 @@ class OpenSharingProtocolServiceTest extends ProtocolApiSupport {
     assertTrue(all.body().path("nextPageToken").isMissingNode());
   }
 
+  /** The protocol serves its bodies as {@code application/json} in UTF-8. */
   private static void assertJsonUtf8(Response response) {
     MediaType contentType = response.headers().contentType();
     assertTrue(contentType.is(MediaType.JSON), contentType.toString());
     assertEquals(StandardCharsets.UTF_8, contentType.charset());
   }
 
+  /** A page of {@code size} shares from {@code first} to {@code last}. */
   private static void assertNames(Response response, int size, String first, String last) {
     assertEquals(200, response.status());
     JsonNode items = response.body().path("items");

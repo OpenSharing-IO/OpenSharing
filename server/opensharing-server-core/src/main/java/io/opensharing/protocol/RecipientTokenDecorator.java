@@ -27,6 +27,7 @@ public final class RecipientTokenDecorator implements DecoratingHttpServiceFunct
     this.recipients = recipients;
   }
 
+  /** Serves the request as the recipient its bearer token belongs to. */
   @Override
   public HttpResponse serve(HttpService delegate, ServiceRequestContext ctx, HttpRequest req) {
     OAuth2Token token = AuthTokenExtractors.oAuth2().apply(req.headers());

@@ -33,6 +33,7 @@ public abstract class ProtocolApiSupport {
     server.close();
   }
 
+  /** Creates a share owned by Alice through the provider API. */
   protected static void createShare(String name, String displayName) {
     String body = "{\"name\":\"%s\",\"displayName\":\"%s\"}".formatted(name, displayName);
     assertEquals(201, server.post(PROVIDER + "/shares", ALICE, body).status());
@@ -54,6 +55,7 @@ public abstract class ProtocolApiSupport {
     return profile.body().path("bearerToken").asText();
   }
 
+  /** Grants {@code recipient} SELECT on Alice's {@code share} through the provider API. */
   protected static void grant(String share, String recipient) {
     String body = "{\"changes\":[{\"recipientName\":\"%s\",\"add\":[\"SELECT\"]}]}";
     Response granted =
