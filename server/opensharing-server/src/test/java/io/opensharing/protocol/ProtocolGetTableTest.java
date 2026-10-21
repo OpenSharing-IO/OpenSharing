@@ -63,6 +63,7 @@ class ProtocolGetTableTest extends ProtocolApiSupport {
     assertNotFound(server.get(PROTOCOL + "/shares/get-hidden/schemas/sales/tables/orders", bearer));
   }
 
+  /** Missing tables, schemas and shares all get the protocol's not-found error. */
   private static void assertNotFound(Response response) {
     assertEquals(404, response.status());
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, response.errorCode());

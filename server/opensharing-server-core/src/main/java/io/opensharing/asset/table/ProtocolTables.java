@@ -78,6 +78,7 @@ public class ProtocolTables {
         format(found.resolved().get()));
   }
 
+  /** The objects the share includes under the schema alias {@code schema}, in any case. */
   private List<SharedDataObjectEntity> inSchema(ShareEntity share, String schema) {
     List<SharedDataObjectEntity> included =
         objects.listInSchema(share, ObjectNames.normalize(schema));
@@ -88,6 +89,7 @@ public class ProtocolTables {
     return included;
   }
 
+  /** The listed table {@code table} under the schema alias {@code schema}, both in any case. */
   private Listed find(ShareEntity share, String schema, String table) {
     String name = ObjectNames.normalize(table);
     return listed(share, inSchema(share, schema)).stream()
@@ -180,6 +182,7 @@ public class ProtocolTables {
         TableAccessModes.forTable(resolved));
   }
 
+  /** The table's format by its protocol name, or null when the catalog reports none. */
   private static String format(ResolvedAsset table) {
     return table.additionalProperties() instanceof TableProperties properties
             && properties.dataSourceFormat() != null
