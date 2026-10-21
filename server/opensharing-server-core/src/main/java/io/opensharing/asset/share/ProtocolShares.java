@@ -4,8 +4,8 @@ import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientPrincipal;
-import io.opensharing.share.ShareResponse;
 import io.opensharing.share.SharePermissionStore;
+import io.opensharing.share.ShareResponse;
 import io.opensharing.share.ShareStore;
 
 /**
