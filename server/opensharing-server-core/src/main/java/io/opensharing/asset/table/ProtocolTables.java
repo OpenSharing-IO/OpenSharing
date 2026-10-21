@@ -222,6 +222,7 @@ public class ProtocolTables {
         parseTimestamp("timestamp", body.timestamp()));
   }
 
+  /** Whether the query asks for predicate or limit pushdown. */
   private static boolean hasPushdownHint(QueryTableRequest body) {
     return (body.predicateHints() != null && !body.predicateHints().isEmpty())
         || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank())
