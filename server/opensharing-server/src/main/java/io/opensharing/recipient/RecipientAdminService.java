@@ -14,6 +14,7 @@ import com.linecorp.armeria.server.annotation.ProducesJson;
 import com.linecorp.armeria.server.annotation.StatusCode;
 import io.opensharing.auth.ProviderTokenDecorator;
 import io.opensharing.http.ListResponse;
+import io.opensharing.http.Pagination;
 
 /**
  * Provider HTTP API for recipient CRUD, behind {@link ProviderTokenDecorator}. Only the owner may
@@ -53,10 +54,13 @@ public final class RecipientAdminService {
   @Get("/recipients")
   public ListResponse<RecipientResponse> list(
       ServiceRequestContext ctx,
-      @Param @Nullable Integer maxResults,
+      @Param @Nullable String maxResults,
       @Param @Nullable String pageToken) {
     return recipients.list(
-        ProviderTokenDecorator.user(ctx), maxResults, pageToken, activationBaseUrl);
+        ProviderTokenDecorator.user(ctx),
+        Pagination.maxResults(maxResults),
+        pageToken,
+        activationBaseUrl);
   }
 
   /**

@@ -15,6 +15,7 @@ import com.linecorp.armeria.server.annotation.ProducesJson;
 import com.linecorp.armeria.server.annotation.StatusCode;
 import io.opensharing.auth.ProviderTokenDecorator;
 import io.opensharing.http.ListResponse;
+import io.opensharing.http.Pagination;
 
 /**
  * Provider HTTP API for share CRUD and recipient grants, behind {@link ProviderTokenDecorator}.
@@ -45,9 +46,10 @@ public final class ShareAdminService {
   @Get("/shares")
   public ListResponse<ShareResponse> list(
       ServiceRequestContext ctx,
-      @Param @Nullable Integer maxResults,
+      @Param @Nullable String maxResults,
       @Param @Nullable String pageToken) {
-    return shares.list(ProviderTokenDecorator.user(ctx), maxResults, pageToken);
+    return shares.list(
+        ProviderTokenDecorator.user(ctx), Pagination.maxResults(maxResults), pageToken);
   }
 
   /**
@@ -87,9 +89,10 @@ public final class ShareAdminService {
   public ListResponse<SharePermissionResponse> listPermissions(
       ServiceRequestContext ctx,
       @Param String share,
-      @Param @Nullable Integer maxResults,
+      @Param @Nullable String maxResults,
       @Param @Nullable String pageToken) {
-    return shares.listPermissions(ProviderTokenDecorator.user(ctx), share, maxResults, pageToken);
+    return shares.listPermissions(
+        ProviderTokenDecorator.user(ctx), share, Pagination.maxResults(maxResults), pageToken);
   }
 
   /**

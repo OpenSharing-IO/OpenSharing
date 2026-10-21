@@ -35,6 +35,18 @@ public final class Pagination {
     return new ListResponse<>(items, rows.size() > size ? encode(offset + size) : null);
   }
 
+  /** Reads a {@code maxResults} query parameter, which is null when absent. */
+  public static Integer maxResults(String value) {
+    if (value == null || value.isEmpty()) {
+      return null;
+    }
+    try {
+      return Integer.valueOf(value);
+    } catch (NumberFormatException notAnInteger) {
+      throw ApiException.invalidParameter("maxResults must be an integer");
+    }
+  }
+
   private static int pageSize(Integer maxResults) {
     if (maxResults == null || maxResults == 0) {
       return MAX_RESULTS;
