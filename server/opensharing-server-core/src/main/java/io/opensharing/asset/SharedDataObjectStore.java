@@ -8,13 +8,14 @@ import io.opensharing.http.ApiException;
 import io.opensharing.share.ShareEntity;
 import jakarta.persistence.EntityManager;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
  * Persists catalog objects included in a share. Callers resolve the object in the catalog and parse
- * its alias first; the store only enforces the share's alias rules. Adds and removes run in the
- * caller's transaction, so a batch of them commits or rolls back together. A schema-level row has
- * an empty {@code shared_as_table}.
+ * its alias first; the store only enforces the share's rules on aliases and catalog names. Adds and
+ * removes run in the caller's transaction, so a batch of them commits or rolls back together. A
+ * schema-level row has an empty {@code shared_as_table}.
  */
 public class SharedDataObjectStore {
 
@@ -27,7 +28,8 @@ public class SharedDataObjectStore {
   /**
    * Includes an object in the share. Fails when the alias or the object is already in the share,
    * when a table is added under an already included schema, or when a schema is added while tables
-   * under it are already included.
+   * under it are already included. Under means under the alias or in the catalog, so that no table
+   * is shared twice under two aliases.
    */
   public SharedDataObjectEntity add(
       EntityManager em,
@@ -57,6 +59,18 @@ public class SharedDataObjectStore {
               + sharedAsSchema
               + "' are already included in share '"
               + share.getName()
+              + "'");
+    }
+    Optional<SharedDataObjectEntity> overlapping =
+        sharedAsTable.isEmpty() ? tableIn(em, share, name) : schemaOf(em, share, name);
+    if (overlapping.isPresent()) {
+      throw ApiException.conflict(
+          "'"
+              + overlapping.get().getName()
+              + "' is already included in share '"
+              + share.getName()
+              + "' as '"
+              + overlapping.get().getSharedAs()
               + "'");
     }
 
@@ -160,6 +174,39 @@ public class SharedDataObjectStore {
         .setMaxResults(1)
         .getResultList()
         .isEmpty();
+  }
+
+  /** The included schema that holds the catalog table {@code table}. */
+  private static Optional<SharedDataObjectEntity> schemaOf(
+      EntityManager em, ShareEntity share, String table) {
+    String schema = table.substring(0, table.lastIndexOf('.')).toLowerCase(Locale.ROOT);
+    return em.createQuery(
+            "select o from SharedDataObjectEntity o where o.share.id = :shareId"
+                + " and o.type = :type and lower(o.name) = :schema",
+            SharedDataObjectEntity.class)
+        .setParameter("shareId", share.getId())
+        .setParameter("type", AssetType.SCHEMA)
+        .setParameter("schema", schema)
+        .setMaxResults(1)
+        .getResultStream()
+        .findFirst();
+  }
+
+  /** An included table of the catalog schema {@code schema}. */
+  private static Optional<SharedDataObjectEntity> tableIn(
+      EntityManager em, ShareEntity share, String schema) {
+    String prefix = schema.toLowerCase(Locale.ROOT) + ".";
+    return em.createQuery(
+            "select o from SharedDataObjectEntity o where o.share.id = :shareId"
+                + " and o.type = :type and substring(lower(o.name), 1, :length) = :prefix",
+            SharedDataObjectEntity.class)
+        .setParameter("shareId", share.getId())
+        .setParameter("type", AssetType.TABLE)
+        .setParameter("length", prefix.length())
+        .setParameter("prefix", prefix)
+        .setMaxResults(1)
+        .getResultStream()
+        .findFirst();
   }
 
   // An object of another type under the same name or alias counts as not included.
