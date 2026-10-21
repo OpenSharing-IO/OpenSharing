@@ -115,8 +115,8 @@ public class ProtocolTables {
       String startingTimestamp) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     Instant timestamp = parseTimestamp(startingTimestamp);
-    ResolvedAsset catalogTable = findTable(share, schemaAlias, tableAlias).catalogTable();
-    return kernel.getVersion(catalogTable, timestamp, owner(share));
+    return kernel.getVersion(
+        resolveTable(share, schemaAlias, tableAlias), timestamp, owner(share));
   }
 
   /**
@@ -160,6 +160,12 @@ public class ProtocolTables {
             + "'");
   }
 
+  /** The catalog table shared under {@code tableAlias}, resolved as the share's owner. */
+  private ResolvedAsset resolveTable(ShareEntity share, String schemaAlias, String tableAlias) {
+    return findTable(share, schemaAlias, tableAlias).catalogTable();
+  }
+
+  /** An ISO-8601 UTC timestamp query value, or null when absent. */
   private static Instant parseTimestamp(String value) {
     if (value == null || value.isBlank()) {
       return null;
