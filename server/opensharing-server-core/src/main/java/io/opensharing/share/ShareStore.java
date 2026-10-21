@@ -83,12 +83,14 @@ public class ShareStore {
     return tx.inTransaction(true, em -> checkOwner(getOrThrow(em, name, LockModeType.NONE), user));
   }
 
-  /** Every share, regardless of owner, ordered by name. */
-  public List<ShareEntity> list() {
+  /** Shares of any owner, ordered by name; names are unique, so the order is total. */
+  public List<ShareEntity> list(int offset, int limit) {
     return tx.inTransaction(
         true,
         em ->
             em.createQuery("select s from ShareEntity s order by s.name", ShareEntity.class)
+                .setFirstResult(offset)
+                .setMaxResults(limit)
                 .getResultList());
   }
 

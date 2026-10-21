@@ -92,13 +92,15 @@ public class RecipientStore {
         });
   }
 
-  /** Every recipient, regardless of owner, ordered by name. */
-  public List<RecipientEntity> list() {
+  /** Recipients of any owner, ordered by name; names are unique, so the order is total. */
+  public List<RecipientEntity> list(int offset, int limit) {
     return tx.inTransaction(
         true,
         em ->
             em.createQuery(
                     "select r from RecipientEntity r order by r.name", RecipientEntity.class)
+                .setFirstResult(offset)
+                .setMaxResults(limit)
                 .getResultList());
   }
 
