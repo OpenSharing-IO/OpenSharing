@@ -64,7 +64,8 @@ class SharePermissionConcurrencyTest {
   // The recipient is named after the share.
   private static void createShareAndRecipient(String share) {
     assertEquals(201, server.post(SHARES, "alice-token", "{\"name\":\"" + share + "\"}").status());
-    String body = "{\"name\":\"" + share + "\",\"authenticationType\":\"TOKEN\"}";
+    String body =
+        "{\"name\":\"" + share + "\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":1}";
     assertEquals(201, server.post(RECIPIENTS, "alice-token", body).status());
   }
 

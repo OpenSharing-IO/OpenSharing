@@ -27,6 +27,7 @@ public class ServerProperties {
     PUBLIC_URL("server.public-url", null),
     PROVIDER_BASE_PATH("provider.base-path", "/api/1.0/opensharing/provider"),
     ACTIVATION_BASE_PATH("activation.base-path", "/api/1.0/opensharing/activations"),
+    PROTOCOL_BASE_PATH("protocol.base-path", "/api/1.0/opensharing"),
     CATALOG_TYPE("catalog.type", "local"),
     LOCAL_CATALOG_FILE("catalog.local.file", "classpath:local-catalog.yml");
 
