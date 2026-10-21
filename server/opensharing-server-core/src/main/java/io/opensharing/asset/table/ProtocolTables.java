@@ -262,6 +262,7 @@ public class ProtocolTables {
         Boolean.TRUE.equals(request.includeHistoricalProtocol()));
   }
 
+  /** Returns {@code catalogTable} once it is known to support the {@code url} access mode. */
   private static ResolvedAsset requireUrlAccess(
       ResolvedAsset catalogTable, String schemaAlias, String tableAlias) {
     List<String> accessModes = TableAccessModes.forTable(catalogTable);
