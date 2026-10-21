@@ -33,6 +33,7 @@ public abstract class ProtocolApiSupport {
     server.close();
   }
 
+  /** Creates a share owned by Alice, with no display name, through the provider API. */
   protected static void createShare(String name) {
     String body = "{\"name\":\"%s\"}".formatted(name);
     assertEquals(201, server.post(PROVIDER + "/shares", ALICE, body).status());
