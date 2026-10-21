@@ -75,6 +75,10 @@ public class ProtocolTables {
    */
   private record Listed(String schema, String name, String id, Supplier<ResolvedAsset> resolved) {}
 
+  /**
+   * The tables {@code included} puts on the listing, by schema alias and then table name in any
+   * case: each included table, plus the catalog's current tables under each included schema.
+   */
   private List<Listed> listed(ShareEntity share, List<SharedDataObjectEntity> included) {
     List<Listed> tables = new ArrayList<>();
     for (SharedDataObjectEntity object : included) {
@@ -100,6 +104,7 @@ public class ProtocolTables {
     return tables;
   }
 
+  /** One page of {@code tables}, resolving only the tables on it. */
   private ListResponse<TableResponse> page(
       ShareEntity share, List<Listed> tables, Integer maxResults, String pageToken) {
     return Pagination.protocolPage(
@@ -112,6 +117,7 @@ public class ProtocolTables {
         table -> response(share, table));
   }
 
+  /** Every table the catalog lists under the included {@code schema}, across all its pages. */
   private List<ResolvedAsset> tablesIn(ShareEntity share, SharedDataObjectEntity schema) {
     Asset parent = new Asset(AssetType.SCHEMA, schema.getName());
     List<ResolvedAsset> tables = new ArrayList<>();
@@ -124,6 +130,7 @@ public class ProtocolTables {
     return tables;
   }
 
+  /** The listed table with the storage locations and access modes of its catalog table. */
   private static TableResponse response(ShareEntity share, Listed table) {
     ResolvedAsset resolved = table.resolved().get();
     AssetLocation location = resolved.location();
@@ -140,10 +147,12 @@ public class ProtocolTables {
         TableAccessModes.forTable(resolved));
   }
 
+  /** The share's owner, whom every catalog call acts as. */
   private static AuthContext owner(ShareEntity share) {
     return AuthContext.of(UserContext.fromUserIdAndName(share.getOwnerId(), null));
   }
 
+  /** The table name in a catalog full name such as {@code catalog.schema.table}. */
   private static String lastSegment(String fullName) {
     return fullName.substring(fullName.lastIndexOf('.') + 1);
   }

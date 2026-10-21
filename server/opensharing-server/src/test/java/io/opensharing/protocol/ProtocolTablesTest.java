@@ -149,6 +149,7 @@ class ProtocolTablesTest extends ProtocolApiSupport {
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, missing.errorCode());
   }
 
+  /** The protocol serves its bodies as {@code application/json} in UTF-8. */
   private static void assertJsonUtf8(Response response) {
     MediaType contentType = response.headers().contentType();
     assertTrue(contentType.is(MediaType.JSON), contentType.toString());
