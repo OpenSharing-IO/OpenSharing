@@ -13,6 +13,7 @@ import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.TableProperties;
+import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
@@ -89,22 +90,32 @@ public class ProtocolTables {
     return included;
   }
 
-  /** The listed table {@code table} under the schema alias {@code schema}, both in any case. */
+  /**
+   * The table {@code table} under the schema alias {@code schema}: an included table, matched in
+   * any case, or a table the catalog holds directly in an included schema, resolved without listing
+   * the schema. A name with a dot is never on the listing.
+   */
   private Listed find(ShareEntity share, String schema, String table) {
     String name = ObjectNames.normalize(table);
-    return listed(share, inSchema(share, schema)).stream()
-        .filter(listed -> name.equals(ObjectNames.normalize(listed.name())))
-        .findFirst()
-        .orElseThrow(
-            () ->
-                ApiException.notFound(
-                    "table '"
-                        + schema
-                        + "."
-                        + table
-                        + "' does not exist in share '"
-                        + share.getName()
-                        + "'"));
+    for (SharedDataObjectEntity object : inSchema(share, schema)) {
+      if (object.getType() == AssetType.TABLE
+          && name.equals(ObjectNames.normalize(object.getSharedAsTable()))) {
+        return included(share, object);
+      }
+      if (object.getType() == AssetType.SCHEMA && !table.contains(".")) {
+        Asset asset = new Asset(AssetType.TABLE, object.getName() + "." + table);
+        try {
+          ResolvedAsset child = catalog.resolveAsset(asset, owner(share));
+          return new Listed(
+              object.getSharedAsSchema(), alias(child), child.catalogAssetId(), () -> child);
+        } catch (AssetNotFoundException missing) {
+          break;
+        }
+      }
+    }
+    // Recipients see aliases only, so the catalog's own not-found message must not reach them.
+    throw ApiException.notFound(
+        "table '" + schema + "." + table + "' does not exist in share '" + share.getName() + "'");
   }
 
   /**
@@ -126,17 +137,21 @@ public class ProtocolTables {
           tables.add(new Listed(schema, alias(child), child.catalogAssetId(), () -> child));
         }
       } else if (object.getType() == AssetType.TABLE) {
-        Asset asset = new Asset(AssetType.TABLE, object.getName());
-        tables.add(
-            new Listed(
-                schema,
-                object.getSharedAsTable(),
-                object.getSourceAssetId(),
-                () -> catalog.resolveAsset(asset, owner(share))));
+        tables.add(included(share, object));
       }
     }
     tables.sort(Comparator.comparing(Listed::schema).thenComparing(Listed::name));
     return tables;
+  }
+
+  /** The included table {@code object}, resolved only when read. */
+  private Listed included(ShareEntity share, SharedDataObjectEntity object) {
+    Asset asset = new Asset(AssetType.TABLE, object.getName());
+    return new Listed(
+        object.getSharedAsSchema(),
+        object.getSharedAsTable(),
+        object.getSourceAssetId(),
+        () -> catalog.resolveAsset(asset, owner(share)));
   }
 
   /** One page of {@code tables}, resolving only the tables on it. */

@@ -38,13 +38,28 @@ class ProtocolGetTableTest extends ProtocolApiSupport {
     String bearer = createAndActivateRecipient("get-schema-table-partner");
     grant("get-schema-table", "get-schema-table-partner");
 
+    // The table is looked up in the catalog, which matches its name in any case.
     Response got =
-        server.get(PROTOCOL + "/shares/get-schema-table/schemas/hr/tables/salaries", bearer);
+        server.get(PROTOCOL + "/shares/get-schema-table/schemas/HR/tables/Salaries", bearer);
     assertEquals(200, got.status());
     assertEquals("salaries", got.body().path("name").asText());
     assertEquals("hr", got.body().path("schema").asText());
     assertEquals("main.hr.salaries", got.body().path("id").asText());
     assertEquals("delta", got.body().path("format").asText());
+  }
+
+  @Test
+  void namesACatalogChildOfASharedSchemaByLowercaseAlias() {
+    createShare("get-cased-table");
+    addObject("get-cased-table", "SCHEMA", "main.legal", "legal");
+    String bearer = createAndActivateRecipient("get-cased-table-partner");
+    grant("get-cased-table", "get-cased-table-partner");
+
+    Response got =
+        server.get(PROTOCOL + "/shares/get-cased-table/schemas/legal/tables/contracts", bearer);
+    assertEquals(200, got.status());
+    assertEquals("contracts", got.body().path("name").asText());
+    assertEquals("legal", got.body().path("schema").asText());
   }
 
   @Test
@@ -61,6 +76,29 @@ class ProtocolGetTableTest extends ProtocolApiSupport {
     assertNotFound(server.get(tables + "missing/tables/orders", bearer));
     // An ungranted share is reported as missing.
     assertNotFound(server.get(PROTOCOL + "/shares/get-hidden/schemas/sales/tables/orders", bearer));
+  }
+
+  @Test
+  void getsATableOfAnAliasedSchemaAndReportsAMissingOneByItsAlias() {
+    createShare("get-schema-missing");
+    addObject("get-schema-missing", "SCHEMA", "main.hr", "people");
+    String bearer = createAndActivateRecipient("get-schema-missing-partner");
+    grant("get-schema-missing", "get-schema-missing-partner");
+
+    String tables = PROTOCOL + "/shares/get-schema-missing/schemas/people/tables/";
+    Response got = server.get(tables + "salaries", bearer);
+    assertEquals(200, got.status());
+    assertEquals("salaries", got.body().path("name").asText());
+    assertEquals("people", got.body().path("schema").asText());
+    assertEquals("main.hr.salaries", got.body().path("id").asText());
+
+    Response missing = server.get(tables + "bonuses", bearer);
+    assertNotFound(missing);
+    assertEquals(
+        "table 'people.bonuses' does not exist in share 'get-schema-missing'",
+        missing.body().path("message").asText());
+    // Only tables directly in the schema are on the listing.
+    assertNotFound(server.get(tables + "salaries.history", bearer));
   }
 
   /** Missing tables, schemas and shares all get the protocol's not-found error. */
