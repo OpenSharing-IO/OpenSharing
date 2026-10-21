@@ -94,6 +94,20 @@ public class ShareStore {
                 .getResultList());
   }
 
+  /** Shares owned by {@code ownerId}, ordered by name. */
+  public List<ShareEntity> listOwnedBy(String ownerId, int offset, int limit) {
+    return tx.inTransaction(
+        true,
+        em ->
+            em.createQuery(
+                    "select s from ShareEntity s where s.ownerId = :ownerId order by s.name",
+                    ShareEntity.class)
+                .setParameter("ownerId", ownerId)
+                .setFirstResult(offset)
+                .setMaxResults(limit)
+                .getResultList());
+  }
+
   /** Deletes a share, the objects in it and its permissions. Only the owner may delete it. */
   public void delete(String name, UserContext user) {
     tx.inTransaction(
