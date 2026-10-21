@@ -17,6 +17,7 @@ class UnknownRouteTest {
   void answersUnknownRoutesWithTheProtocolErrorBody() throws Exception {
     Properties props = new Properties();
     props.setProperty("server.port", "0");
+    props.setProperty("server.public-url", "https://sharing.example.com");
     try (OpenSharingServer server = OpenSharingServer.start(new ServerProperties(props))) {
       WebClient client = WebClient.of("http://127.0.0.1:" + server.port());
       AggregatedHttpResponse response = client.get("/no-such-route").aggregate().join();
