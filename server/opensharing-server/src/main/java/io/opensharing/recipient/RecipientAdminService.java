@@ -17,8 +17,8 @@ import io.opensharing.http.ListResponse;
 
 /**
  * Provider HTTP API for recipient CRUD, behind {@link ProviderTokenDecorator}. Only the owner may
- * change a recipient. Only the owner and callers with USE_RECIPIENT, who may read anyone's
- * recipients, are meant to list and get recipients.
+ * change a recipient. The owner and callers with USE_RECIPIENT may read it; listing without
+ * USE_RECIPIENT returns only the caller's own recipients.
  */
 @Blocking
 @ProducesJson
@@ -46,17 +46,26 @@ public final class RecipientAdminService {
     return recipients.create(ProviderTokenDecorator.user(ctx), request, activationBaseUrl);
   }
 
-  /** {@code GET /recipients}: lists one page of recipients by name. */
+  /**
+   * {@code GET /recipients}: lists one page of recipients by name: every recipient with
+   * USE_RECIPIENT, otherwise the caller's own.
+   */
   @Get("/recipients")
   public ListResponse<RecipientResponse> list(
-      @Param @Nullable Integer maxResults, @Param @Nullable String pageToken) {
-    return recipients.list(maxResults, pageToken, activationBaseUrl);
+      ServiceRequestContext ctx,
+      @Param @Nullable Integer maxResults,
+      @Param @Nullable String pageToken) {
+    return recipients.list(
+        ProviderTokenDecorator.user(ctx), maxResults, pageToken, activationBaseUrl);
   }
 
-  /** {@code GET /recipients/{recipient}}: gets a recipient by name in any case. */
+  /**
+   * {@code GET /recipients/{recipient}}: gets a recipient by name in any case. Owner or
+   * USE_RECIPIENT.
+   */
   @Get("/recipients/{recipient}")
-  public RecipientResponse get(@Param String recipient) {
-    return recipients.get(recipient, activationBaseUrl);
+  public RecipientResponse get(ServiceRequestContext ctx, @Param String recipient) {
+    return recipients.get(ProviderTokenDecorator.user(ctx), recipient, activationBaseUrl);
   }
 
   /** {@code PATCH /recipients/{recipient}}: updates the fields set in the body. Owner only. */
