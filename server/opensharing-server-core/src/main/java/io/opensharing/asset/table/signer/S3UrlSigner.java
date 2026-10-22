@@ -22,30 +22,39 @@ final class S3UrlSigner implements UrlSigner {
   }
 
   @Override
-  public SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
-    String[] bucketAndKey = StoragePaths.bucketAndKey(path);
+  public SigningSession open(StorageCredentials credentials) {
     AwsCredentials aws = awsCredentials(credentials);
-    Instant expiration = Instant.now().plus(ttl);
-    try (S3Presigner presigner =
+    S3Presigner presigner =
         S3Presigner.builder()
             .region(Region.of(credentials.require(StorageCredentials.REGION)))
             .credentialsProvider(StaticCredentialsProvider.create(aws))
-            .build()) {
-      String url =
-          presigner
-              .presignGetObject(
-                  GetObjectPresignRequest.builder()
-                      .signatureDuration(ttl)
-                      .getObjectRequest(
-                          GetObjectRequest.builder()
-                              .bucket(bucketAndKey[0])
-                              .key(bucketAndKey[1])
-                              .build())
-                      .build())
-              .url()
-              .toString();
-      return new SignedUrl(url, expiration);
-    }
+            .build();
+    return new SigningSession() {
+      @Override
+      public SignedUrl sign(String path, Duration ttl) {
+        String[] bucketAndKey = StoragePaths.bucketAndKey(path);
+        Instant expiration = Instant.now().plus(ttl);
+        String url =
+            presigner
+                .presignGetObject(
+                    GetObjectPresignRequest.builder()
+                        .signatureDuration(ttl)
+                        .getObjectRequest(
+                            GetObjectRequest.builder()
+                                .bucket(bucketAndKey[0])
+                                .key(bucketAndKey[1])
+                                .build())
+                        .build())
+                .url()
+                .toString();
+        return new SignedUrl(url, expiration);
+      }
+
+      @Override
+      public void close() {
+        presigner.close();
+      }
+    };
   }
 
   private static AwsCredentials awsCredentials(StorageCredentials credentials) {

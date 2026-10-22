@@ -83,7 +83,10 @@ class UrlSignerCloudIntegrationTest {
                     Duration.ofMinutes(15)),
                 AUTH)
             .getFirst();
-    SignedUrl signed = signers.sign(path, credentials, Duration.ofMinutes(5));
+    SignedUrl signed;
+    try (SigningSession signer = signers.open(credentials)) {
+      signed = signer.sign(path, Duration.ofMinutes(5));
+    }
     assertTrue(signed.url().startsWith("https://"), signed.url());
     assertTrue(signed.url().contains(signatureMarker), signed.url());
     int status = getFirstByte(signed.url());

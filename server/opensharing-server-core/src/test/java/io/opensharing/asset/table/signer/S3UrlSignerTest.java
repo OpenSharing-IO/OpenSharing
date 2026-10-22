@@ -29,7 +29,7 @@ class S3UrlSignerTest {
             expiration);
 
     SignedUrl signed =
-        signer.sign(
+        sign(
             "s3a://delta-exchange-test/table2/date=2021-04-28/part.parquet",
             credentials,
             Duration.ofMinutes(15));
@@ -59,9 +59,15 @@ class S3UrlSignerTest {
                 StorageCredentials.REGION, "us-west-2"),
             Instant.now().plus(Duration.ofHours(1)));
 
-    SignedUrl signed = signer.sign("s3://bucket/key.parquet", credentials, Duration.ofMinutes(5));
+    SignedUrl signed = sign("s3://bucket/key.parquet", credentials, Duration.ofMinutes(5));
 
     assertTrue(signed.url().startsWith("https://bucket.s3.us-west-2.amazonaws.com/key.parquet?"));
     assertFalse(signed.url().contains("X-Amz-Security-Token"));
+  }
+
+  private SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
+    try (SigningSession session = signer.open(credentials)) {
+      return session.sign(path, ttl);
+    }
   }
 }

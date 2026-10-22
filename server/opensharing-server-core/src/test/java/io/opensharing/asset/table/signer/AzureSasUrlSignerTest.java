@@ -24,7 +24,7 @@ class AzureSasUrlSignerTest {
             Instant.now().plus(Duration.ofHours(1)));
 
     SignedUrl signed =
-        signer.sign(
+        sign(
             "abfss://container@account.dfs.core.windows.net/table/part.parquet",
             credentials,
             Duration.ofMinutes(15));
@@ -51,7 +51,7 @@ class AzureSasUrlSignerTest {
             Instant.now().plus(Duration.ofHours(1)));
 
     SignedUrl signed =
-        signer.sign(
+        sign(
             "abfss://container@account.dfs.core.windows.net/table/part.parquet",
             credentials,
             Duration.ofMinutes(15));
@@ -80,11 +80,17 @@ class AzureSasUrlSignerTest {
             Instant.now().plus(Duration.ofHours(1)));
 
     SignedUrl signed =
-        signer.sign(
+        sign(
             "abfss://container@account.dfs.core.windows.net/table/c2=foo bar/part.parquet",
             credentials,
             Duration.ofMinutes(15));
 
     assertTrue(signed.url().contains("/table/c2%3Dfoo%20bar/part.parquet?"), signed.url());
+  }
+
+  private SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
+    try (SigningSession session = signer.open(credentials)) {
+      return session.sign(path, ttl);
+    }
   }
 }

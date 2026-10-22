@@ -23,7 +23,6 @@ class GcsUrlSignerTest {
   @Test
   void signsGsPathsWithCatalogServiceAccountKey() throws Exception {
     Path keyFile = writeServiceAccount(tempDir.resolve("sa.json"));
-    GcsUrlSigner signer = new GcsUrlSigner();
     StorageCredentials credentials =
         new StorageCredentials(
             "gs://bucket/",
@@ -31,8 +30,7 @@ class GcsUrlSignerTest {
             Map.of(StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE, keyFile.toString()),
             Instant.now().plus(Duration.ofHours(1)));
 
-    SignedUrl signed =
-        signer.sign("gs://bucket/path/file.parquet", credentials, Duration.ofMinutes(10));
+    SignedUrl signed = sign("gs://bucket/path/file.parquet", credentials, Duration.ofMinutes(10));
 
     assertTrue(signed.url().startsWith("https://storage.googleapis.com/bucket/path/file.parquet?"));
     assertTrue(signed.url().contains("X-Goog-Algorithm=GOOG4-RSA-SHA256"));
@@ -45,7 +43,6 @@ class GcsUrlSignerTest {
   @Test
   void encodesSpacesInObjectPaths() throws Exception {
     Path keyFile = writeServiceAccount(tempDir.resolve("sa.json"));
-    GcsUrlSigner signer = new GcsUrlSigner();
     StorageCredentials credentials =
         new StorageCredentials(
             "gs://bucket/",
@@ -54,7 +51,7 @@ class GcsUrlSignerTest {
             Instant.now().plus(Duration.ofHours(1)));
 
     SignedUrl signed =
-        signer.sign("gs://bucket/c2=foo bar/file.parquet", credentials, Duration.ofMinutes(10));
+        sign("gs://bucket/c2=foo bar/file.parquet", credentials, Duration.ofMinutes(10));
 
     assertTrue(
         signed.url().contains("/bucket/c2%3Dfoo%20bar/file.parquet?"), signed.url());
@@ -83,5 +80,11 @@ class GcsUrlSignerTest {
     json.put("token_uri", "https://oauth2.googleapis.com/token");
     new ObjectMapper().writeValue(file.toFile(), json);
     return file;
+  }
+
+  private static SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
+    try (SigningSession session = new GcsUrlSigner().open(credentials)) {
+      return session.sign(path, ttl);
+    }
   }
 }
