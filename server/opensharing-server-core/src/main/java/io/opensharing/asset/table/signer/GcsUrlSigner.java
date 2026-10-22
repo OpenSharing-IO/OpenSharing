@@ -26,18 +26,33 @@ final class GcsUrlSigner implements UrlSigner {
   }
 
   @Override
-  public SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
-    String[] bucketAndObject = StoragePaths.bucketAndKey(path);
-    Instant expiration = Instant.now().plus(ttl);
-    String url =
-        storage(credentials)
-            .signUrl(
-                BlobInfo.newBuilder(BlobId.of(bucketAndObject[0], bucketAndObject[1])).build(),
-                ttl.toSeconds(),
-                TimeUnit.SECONDS,
-                Storage.SignUrlOption.withV4Signature())
-            .toString();
-    return new SignedUrl(url, expiration);
+  public SigningSession open(StorageCredentials credentials) {
+    Storage storage = storage(credentials);
+    return new SigningSession() {
+      @Override
+      public SignedUrl sign(String path, Duration ttl) {
+        String[] bucketAndObject = StoragePaths.bucketAndKey(path);
+        Instant expiration = Instant.now().plus(ttl);
+        String url =
+            storage
+                .signUrl(
+                    BlobInfo.newBuilder(BlobId.of(bucketAndObject[0], bucketAndObject[1])).build(),
+                    ttl.toSeconds(),
+                    TimeUnit.SECONDS,
+                    Storage.SignUrlOption.withV4Signature())
+                .toString();
+        return new SignedUrl(url, expiration);
+      }
+
+      @Override
+      public void close() {
+        try {
+          storage.close();
+        } catch (Exception e) {
+          throw new IllegalStateException("the GCS client cannot be closed", e);
+        }
+      }
+    };
   }
 
   /**

@@ -25,8 +25,13 @@ final class AzureSasUrlSigner implements UrlSigner {
     return Set.of("abfs", "abfss", "wasb", "wasbs");
   }
 
+  // A SAS is computed locally per blob, so there is no client to share.
   @Override
-  public SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
+  public SigningSession open(StorageCredentials credentials) {
+    return (path, ttl) -> sign(path, credentials, ttl);
+  }
+
+  private static SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
     Instant expiration = Instant.now().plus(ttl);
     String sas = credentials.credentials().get(StorageCredentials.SAS_TOKEN);
     if (sas != null && !sas.isBlank()) {

@@ -26,8 +26,25 @@ public class UrlSigners {
     }
   }
 
-  public SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
-    return signerFor(path).sign(path, credentials, capped(credentials, ttl));
+  /**
+   * Signs paths with {@code credentials}. Each cloud's signer is opened on its first path and
+   * reused for the rest, and closing the session closes them.
+   */
+  public SigningSession open(StorageCredentials credentials) {
+    Map<UrlSigner, SigningSession> opened = new HashMap<>();
+    return new SigningSession() {
+      @Override
+      public SignedUrl sign(String path, Duration ttl) {
+        UrlSigner signer = signerFor(path);
+        Duration capped = capped(credentials, ttl);
+        return opened.computeIfAbsent(signer, s -> s.open(credentials)).sign(path, capped);
+      }
+
+      @Override
+      public void close() {
+        opened.values().forEach(SigningSession::close);
+      }
+    };
   }
 
   private UrlSigner signerFor(String path) {
