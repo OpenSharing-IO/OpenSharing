@@ -154,11 +154,7 @@ public class ProtocolTables {
   private record SharedTable(
       String schemaAlias, String tableAlias, String tableId, ResolvedAsset catalogTable) {}
 
-  /**
-   * The tables {@code includedObjects} puts on the listing, by schema alias and then table alias:
-   * each included table as the share recorded it, plus the catalog's current tables under each
-   * included schema the catalog still has.
-   */
+  /** The tables {@code includedObjects} puts on the listing, by schema alias and table alias. */
   private List<TableResponse> listTables(
       ShareEntity share, List<SharedDataObjectEntity> includedObjects) {
     List<TableResponse> tables = new ArrayList<>();
