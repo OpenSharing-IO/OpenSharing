@@ -10,25 +10,27 @@ import io.opensharing.share.ShareEntity;
 /**
  * The schemas a recipient sees through the sharing protocol: the distinct schema aliases of the
  * objects in a share it holds SELECT on.
+ *
+ * <p>Callers pass the share name normalized.
  */
 public class ProtocolSchemas {
 
-  private final ProtocolShares shares;
-  private final SharedDataObjectStore objects;
+  private final ProtocolShares protocolShares;
+  private final SharedDataObjectStore sharedObjects;
 
-  public ProtocolSchemas(ProtocolShares shares, SharedDataObjectStore objects) {
-    this.shares = shares;
-    this.objects = objects;
+  public ProtocolSchemas(ProtocolShares protocolShares, SharedDataObjectStore sharedObjects) {
+    this.protocolShares = protocolShares;
+    this.sharedObjects = sharedObjects;
   }
 
-  /** Lists one page of the share's schemas by name. */
+  /** Lists one page of the share's schemas by schema alias. */
   public ListResponse<SchemaResponse> list(
-      RecipientPrincipal recipient, String share, Integer maxResults, String pageToken) {
-    ShareEntity granted = shares.requireGranted(recipient, share);
+      RecipientPrincipal recipient, String shareName, Integer maxResults, String pageToken) {
+    ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     return Pagination.protocolPage(
         maxResults,
         pageToken,
-        (offset, limit) -> objects.listSchemas(granted, offset, limit),
-        name -> new SchemaResponse(name, granted.getName()));
+        (offset, limit) -> sharedObjects.listSchemas(share, offset, limit),
+        schemaAlias -> new SchemaResponse(schemaAlias, share.getName()));
   }
 }
