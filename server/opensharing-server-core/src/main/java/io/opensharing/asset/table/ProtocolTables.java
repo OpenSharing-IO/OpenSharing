@@ -8,9 +8,11 @@ import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
+import io.opensharing.catalog.AssetLocation;
 import io.opensharing.catalog.AssetPage;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.TableProperties;
 import io.opensharing.exception.AssetNotFoundException;
@@ -31,7 +33,7 @@ import org.slf4j.LoggerFactory;
 /**
  * The tables a recipient sees through the sharing protocol in a share it holds SELECT on: the
  * tables the share includes one by one, plus the tables the catalog currently lists under each
- * schema the share includes as a whole. Listing names included tables as the share recorded them;
+ * schema the share includes as a whole. Listing serves included tables as the share recorded them;
  * only Get Table resolves them in the catalog.
  *
  * <p>Every catalog call is made as the share's owner, so the catalog decides whether the owner may
@@ -167,6 +169,7 @@ public class ProtocolTables {
           continue;
         }
         for (ResolvedAsset catalogTable : catalogTablesIn(share, sharedObject)) {
+          AssetLocation location = catalogTable.location();
           tables.add(
               new TableResponse(
                   alias(catalogTable),
@@ -174,9 +177,9 @@ public class ProtocolTables {
                   share.getName(),
                   share.getId(),
                   catalogTable.catalogAssetId(),
-                  null,
-                  null,
-                  null));
+                  location == null ? null : location.storageLocation(),
+                  location == null ? null : orNull(location.auxiliaryLocations()),
+                  TableAccessModes.forFormat(dataSourceFormat(catalogTable))));
         }
       } else if (sharedObject.getType() == AssetType.TABLE) {
         tables.add(
@@ -186,9 +189,9 @@ public class ProtocolTables {
                 share.getName(),
                 share.getId(),
                 sharedObject.getSourceAssetId(),
-                null,
-                null,
-                null));
+                sharedObject.getStorageLocation(),
+                orNull(sharedObject.getAuxiliaryLocations()),
+                TableAccessModes.forFormat(sharedObject.getSourceFormat())));
       }
     }
     tables.sort(Comparator.comparing(TableResponse::schema).thenComparing(TableResponse::name));
@@ -249,10 +252,20 @@ public class ProtocolTables {
 
   /** The table's format by its protocol name, or null when the catalog reports none. */
   private static String format(ResolvedAsset catalogTable) {
+    DataSourceFormat format = dataSourceFormat(catalogTable);
+    return format == null ? null : format.wireName();
+  }
+
+  /** The table's format, or null when the catalog reports none. */
+  private static DataSourceFormat dataSourceFormat(ResolvedAsset catalogTable) {
     return catalogTable.additionalProperties() instanceof TableProperties tableProperties
-            && tableProperties.dataSourceFormat() != null
-        ? tableProperties.dataSourceFormat().wireName()
+        ? tableProperties.dataSourceFormat()
         : null;
+  }
+
+  /** Leaves out an empty list of auxiliary locations. */
+  private static List<String> orNull(List<String> auxiliaryLocations) {
+    return auxiliaryLocations.isEmpty() ? null : auxiliaryLocations;
   }
 
   /** The share's owner, whom every catalog call acts as. */

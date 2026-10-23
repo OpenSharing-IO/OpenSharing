@@ -68,6 +68,10 @@ public class SharedDataObjectStore {
     if (resolved.additionalProperties() instanceof TableProperties table) {
       object.setSourceFormat(table.dataSourceFormat());
     }
+    if (type == AssetType.TABLE && resolved.location() != null) {
+      object.setStorageLocation(resolved.location().storageLocation());
+      object.setAuxiliaryLocations(resolved.location().auxiliaryLocations());
+    }
     object.setSharedAsSchema(sharedAsSchema);
     object.setSharedAsTable(sharedAsTable);
     em.persist(object);

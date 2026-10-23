@@ -24,6 +24,8 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     JsonNode items = list.body().path("items");
     assertEquals(2, items.size());
     assertEquals("customers", items.path(0).path("name").asText());
+    assertEquals("s3://test/main.sales.customers/", items.path(0).path("location").asText());
+    assertEquals("dir", items.path(0).path("accessModes").path(1).asText());
     assertEquals("other-id", items.path(1).path("id").asText());
 
     // Get Table checks the catalog.
