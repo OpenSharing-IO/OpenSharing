@@ -10,96 +10,99 @@ import org.junit.jupiter.api.Test;
 class ProtocolStaleObjectsTest extends ProtocolApiSupport {
 
   @Test
-  void listsIncludedTablesAsTheShareRecordedThem() {
-    createShare("stale-tables");
-    addObject("stale-tables", "TABLE", "main.sales.orders", "sales.orders");
-    addObject("stale-tables", "TABLE", "main.sales.customers", "sales.customers");
-    String bearer = createAndActivateRecipient("stale-tables-partner");
-    grant("stale-tables", "stale-tables-partner");
+  void listsSharedTablesWithoutCallingTheCatalog() {
+    createShare("listed-tables");
+    addObject("listed-tables", "TABLE", "main.sales.orders", "sales.orders");
+    addObject("listed-tables", "TABLE", "main.sales.customers", "sales.customers");
+    String recipientToken = createAndActivateRecipient("listed-tables-partner");
+    grant("listed-tables", "listed-tables-partner");
 
     // Another table now has the name of one shared table, and another is gone from the catalog.
-    editIncluded("stale-tables", "main.sales.orders", o -> o.setSourceAssetId("other-id"));
-    editIncluded("stale-tables", "main.sales.customers", o -> o.setFullName("main.sales.dropped"));
+    replaceInCatalog("listed-tables", "main.sales.orders");
+    dropFromCatalog("listed-tables", "main.sales.customers");
     // Listing serves both from what the share recorded, without asking the catalog.
-    Response list = server.get(PROTOCOL + "/shares/stale-tables/schemas/sales/tables", bearer);
-    assertEquals(200, list.status());
-    JsonNode items = list.body().path("items");
-    assertEquals(2, items.size());
-    JsonNode customers = items.path(0);
+    Response salesTables =
+        server.get(PROTOCOL + "/shares/listed-tables/schemas/sales/tables", recipientToken);
+    assertEquals(200, salesTables.status());
+    JsonNode listedTables = salesTables.body().path("items");
+    assertEquals(2, listedTables.size());
+    JsonNode customers = listedTables.path(0);
     assertEquals("customers", customers.path("name").asText());
     assertEquals("main.sales.customers", customers.path("id").asText());
     assertEquals("s3://test/main.sales.customers/", customers.path("location").asText());
     assertEquals("url", customers.path("accessModes").path(0).asText());
     assertEquals("dir", customers.path("accessModes").path(1).asText());
-    assertEquals("orders", items.path(1).path("name").asText());
-    assertEquals("other-id", items.path(1).path("id").asText());
+    JsonNode orders = listedTables.path(1);
+    assertEquals("orders", orders.path("name").asText());
+    assertEquals("replaced-id", orders.path("id").asText());
   }
 
   @Test
-  void listsTheCatalogsCurrentTablesUnderASharedSchema() {
+  void listsTablesUnderASharedSchemaFromTheCatalog() {
+    createShare("listed-schemas");
+    addObject("listed-schemas", "SCHEMA", "main.hr", "hr");
+    addObject("listed-schemas", "SCHEMA", "main.legal", "legal");
+    addObject("listed-schemas", "TABLE", "main.sales.orders", "sales.orders");
+    String recipientToken = createAndActivateRecipient("listed-schemas-partner");
+    grant("listed-schemas", "listed-schemas-partner");
+    String allTablesPath = PROTOCOL + "/shares/listed-schemas/all-tables";
+    assertEquals(4, server.get(allTablesPath, recipientToken).body().path("items").size());
+
+    // Another schema now has the name of one shared schema, and another is gone from the catalog.
+    replaceInCatalog("listed-schemas", "main.hr");
+    dropFromCatalog("listed-schemas", "main.legal");
+    // The catalog lists the replacing schema's tables, and none for the dropped one.
+    String schemasPath = PROTOCOL + "/shares/listed-schemas/schemas/";
+    Response hrTables = server.get(schemasPath + "hr/tables", recipientToken);
+    assertEquals(2, hrTables.body().path("items").size());
+    Response legalTables = server.get(schemasPath + "legal/tables", recipientToken);
+    assertEquals(200, legalTables.status());
+    assertEquals(0, legalTables.body().path("items").size());
+    assertEquals(3, server.get(allTablesPath, recipientToken).body().path("items").size());
+  }
+
+  @Test
+  void getTableReportsReplacedOrDroppedTablesAsMissing() {
+    createShare("stale-tables");
+    addObject("stale-tables", "TABLE", "main.sales.orders", "sales.orders");
+    addObject("stale-tables", "TABLE", "main.sales.customers", "sales.customers");
+    String recipientToken = createAndActivateRecipient("stale-tables-partner");
+    grant("stale-tables", "stale-tables-partner");
+    String salesTablesPath = PROTOCOL + "/shares/stale-tables/schemas/sales/tables/";
+    assertEquals(200, server.get(salesTablesPath + "orders", recipientToken).status());
+
+    // Another table now has the name of one shared table, and another is gone from the catalog.
+    replaceInCatalog("stale-tables", "main.sales.orders");
+    dropFromCatalog("stale-tables", "main.sales.customers");
+    // Get Table resolves each in the catalog and reports both as missing, by alias.
+    assertNotFound(
+        server.get(salesTablesPath + "orders", recipientToken),
+        "table 'sales.orders' does not exist in share 'stale-tables'");
+    assertNotFound(
+        server.get(salesTablesPath + "customers", recipientToken),
+        "table 'sales.customers' does not exist in share 'stale-tables'");
+  }
+
+  @Test
+  void getTableReportsTablesUnderAReplacedOrDroppedSchemaAsMissing() {
     createShare("stale-schemas");
     addObject("stale-schemas", "SCHEMA", "main.hr", "hr");
     addObject("stale-schemas", "SCHEMA", "main.legal", "legal");
-    addObject("stale-schemas", "TABLE", "main.sales.orders", "sales.orders");
-    String bearer = createAndActivateRecipient("stale-schemas-partner");
+    String recipientToken = createAndActivateRecipient("stale-schemas-partner");
     grant("stale-schemas", "stale-schemas-partner");
-    String all = PROTOCOL + "/shares/stale-schemas/all-tables";
-    assertEquals(4, server.get(all, bearer).body().path("items").size());
+    String schemasPath = PROTOCOL + "/shares/stale-schemas/schemas/";
+    assertEquals(200, server.get(schemasPath + "hr/tables/salaries", recipientToken).status());
 
     // Another schema now has the name of one shared schema, and another is gone from the catalog.
-    editIncluded("stale-schemas", "main.hr", o -> o.setSourceAssetId("other-id"));
-    editIncluded("stale-schemas", "main.legal", o -> o.setFullName("main.dropped"));
-    // The catalog lists the replacing schema's tables, and none for the dropped one.
-    String schemas = PROTOCOL + "/shares/stale-schemas/schemas/";
-    assertEquals(2, server.get(schemas + "hr/tables", bearer).body().path("items").size());
-    Response dropped = server.get(schemas + "legal/tables", bearer);
-    assertEquals(200, dropped.status());
-    assertEquals(0, dropped.body().path("items").size());
-    assertEquals(3, server.get(all, bearer).body().path("items").size());
-  }
-
-  @Test
-  void reportsIncludedTablesTheCatalogReplacedOrDroppedAsMissingFromGetTable() {
-    createShare("get-stale");
-    addObject("get-stale", "TABLE", "main.sales.orders", "sales.orders");
-    addObject("get-stale", "TABLE", "main.sales.customers", "sales.customers");
-    String bearer = createAndActivateRecipient("get-stale-partner");
-    grant("get-stale", "get-stale-partner");
-    String tables = PROTOCOL + "/shares/get-stale/schemas/sales/tables/";
-    assertEquals(200, server.get(tables + "orders", bearer).status());
-
-    // Another table now has the name of one shared table, and another is gone from the catalog.
-    editIncluded("get-stale", "main.sales.orders", o -> o.setSourceAssetId("other-id"));
-    editIncluded("get-stale", "main.sales.customers", o -> o.setFullName("main.sales.dropped"));
-    // Get Table resolves each in the catalog and reports both as missing, by alias.
-    assertNotFound(
-        server.get(tables + "orders", bearer),
-        "table 'sales.orders' does not exist in share 'get-stale'");
-    assertNotFound(
-        server.get(tables + "customers", bearer),
-        "table 'sales.customers' does not exist in share 'get-stale'");
-  }
-
-  @Test
-  void reportsTablesUnderASchemaTheCatalogReplacedOrDroppedAsMissingFromGetTable() {
-    createShare("get-stale-schemas");
-    addObject("get-stale-schemas", "SCHEMA", "main.hr", "hr");
-    addObject("get-stale-schemas", "SCHEMA", "main.legal", "legal");
-    String bearer = createAndActivateRecipient("get-stale-schemas-partner");
-    grant("get-stale-schemas", "get-stale-schemas-partner");
-    String schemas = PROTOCOL + "/shares/get-stale-schemas/schemas/";
-    assertEquals(200, server.get(schemas + "hr/tables/salaries", bearer).status());
-
-    // Another schema now has the name of one shared schema, and another is gone from the catalog.
-    editIncluded("get-stale-schemas", "main.hr", o -> o.setSourceAssetId("other-id"));
-    editIncluded("get-stale-schemas", "main.legal", o -> o.setFullName("main.dropped"));
+    replaceInCatalog("stale-schemas", "main.hr");
+    dropFromCatalog("stale-schemas", "main.legal");
     // Get Table checks the schema before looking up its table, so both tables are missing.
     assertNotFound(
-        server.get(schemas + "hr/tables/salaries", bearer),
-        "table 'hr.salaries' does not exist in share 'get-stale-schemas'");
+        server.get(schemasPath + "hr/tables/salaries", recipientToken),
+        "table 'hr.salaries' does not exist in share 'stale-schemas'");
     assertNotFound(
-        server.get(schemas + "legal/tables/contracts", bearer),
-        "table 'legal.contracts' does not exist in share 'get-stale-schemas'");
+        server.get(schemasPath + "legal/tables/contracts", recipientToken),
+        "table 'legal.contracts' does not exist in share 'stale-schemas'");
   }
 
   /** A hidden table gets the protocol's not-found error, by its alias. */

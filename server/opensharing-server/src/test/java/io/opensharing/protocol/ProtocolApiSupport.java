@@ -83,10 +83,25 @@ public abstract class ProtocolApiSupport {
   }
 
   /**
-   * Applies {@code edit} to what {@code shareName} recorded about its included object {@code
-   * fullName}, standing in for a catalog change made after the object was shared.
+   * Stands in for the catalog replacing the shared object {@code fullName} with another of the same
+   * name, by changing the catalog id the share recorded for it.
    */
-  protected static void editIncluded(
+  protected static void replaceInCatalog(String shareName, String fullName) {
+    editSharedObject(
+        shareName, fullName, sharedObject -> sharedObject.setSourceAssetId("replaced-id"));
+  }
+
+  /**
+   * Stands in for the catalog dropping the shared object {@code fullName}, by pointing the share at
+   * a name the catalog doesn't have.
+   */
+  protected static void dropFromCatalog(String shareName, String fullName) {
+    editSharedObject(
+        shareName, fullName, sharedObject -> sharedObject.setFullName(fullName + "_dropped"));
+  }
+
+  /** Applies {@code edit} to what {@code shareName} recorded about its object {@code fullName}. */
+  private static void editSharedObject(
       String shareName, String fullName, Consumer<SharedDataObjectEntity> edit) {
     server
         .server()

@@ -10,66 +10,66 @@ import org.junit.jupiter.api.Test;
 class ShareStaleObjectsTest extends ProtocolApiSupport {
 
   @Test
-  void asksTheProviderToRemoveATableTheCatalogReplacedOrDropped() {
-    createShare("stale-replaced");
-    addObject("stale-replaced", "TABLE", "main.sales.orders", "sales.orders");
-    createShare("stale-dropped");
-    addObject("stale-dropped", "TABLE", "main.sales.orders", "sales.orders");
-    String replacedShare = PROVIDER + "/shares/stale-replaced?include_shared_data=true";
-    assertEquals(200, server.get(replacedShare, ALICE).status());
+  void getShareAsksToRemoveAReplacedOrDroppedTable() {
+    createShare("replaced-table");
+    addObject("replaced-table", "TABLE", "main.sales.orders", "sales.orders");
+    createShare("dropped-table");
+    addObject("dropped-table", "TABLE", "main.sales.orders", "sales.orders");
+    String replacedSharePath = PROVIDER + "/shares/replaced-table?include_shared_data=true";
+    assertEquals(200, server.get(replacedSharePath, ALICE).status());
 
     // Another table now has the shared table's name.
-    editIncluded("stale-replaced", "main.sales.orders", o -> o.setSourceAssetId("other-id"));
-    Response replaced = server.get(replacedShare, ALICE);
-    assertEquals(409, replaced.status());
-    assertEquals(ErrorCodes.RESOURCE_CONFLICT, replaced.errorCode());
+    replaceInCatalog("replaced-table", "main.sales.orders");
+    Response replacedShare = server.get(replacedSharePath, ALICE);
+    assertEquals(409, replacedShare.status());
+    assertEquals(ErrorCodes.RESOURCE_CONFLICT, replacedShare.errorCode());
     assertEquals(
-        "table 'sales.orders' in share 'stale-replaced' was dropped or replaced in the catalog;"
+        "table 'sales.orders' in share 'replaced-table' was dropped or replaced in the catalog;"
             + " remove it from the share",
-        replaced.body().path("message").asText());
+        replacedShare.body().path("message").asText());
     // The share itself is still readable without its objects.
-    assertEquals(200, server.get(PROVIDER + "/shares/stale-replaced", ALICE).status());
+    assertEquals(200, server.get(PROVIDER + "/shares/replaced-table", ALICE).status());
 
     // The shared table is gone from the catalog.
-    editIncluded("stale-dropped", "main.sales.orders", o -> o.setFullName("main.sales.dropped"));
-    Response dropped =
-        server.get(PROVIDER + "/shares/stale-dropped?include_shared_data=true", ALICE);
-    assertEquals(409, dropped.status());
-    assertEquals(ErrorCodes.RESOURCE_CONFLICT, dropped.errorCode());
+    dropFromCatalog("dropped-table", "main.sales.orders");
+    Response droppedShare =
+        server.get(PROVIDER + "/shares/dropped-table?include_shared_data=true", ALICE);
+    assertEquals(409, droppedShare.status());
+    assertEquals(ErrorCodes.RESOURCE_CONFLICT, droppedShare.errorCode());
 
     // Once the provider removes the table, the share reads again with its objects.
-    String remove =
+    String removeOrders =
         "{\"updates\":[{\"action\":\"REMOVE\","
             + "\"dataObject\":{\"type\":\"TABLE\",\"sharedAs\":\"sales.orders\"}}]}";
     assertEquals(
-        200, server.patch(PROVIDER + "/shares/stale-replaced", ALICE, remove).status());
-    assertEquals(200, server.get(replacedShare, ALICE).status());
+        200, server.patch(PROVIDER + "/shares/replaced-table", ALICE, removeOrders).status());
+    assertEquals(200, server.get(replacedSharePath, ALICE).status());
   }
 
   @Test
-  void asksTheProviderToRemoveASchemaTheCatalogReplacedOrDropped() {
-    createShare("stale-schema");
-    addObject("stale-schema", "SCHEMA", "main.hr", "hr");
-    createShare("stale-dropped-schema");
-    addObject("stale-dropped-schema", "SCHEMA", "main.legal", "legal");
-    String share = PROVIDER + "/shares/stale-schema?include_shared_data=true";
-    assertEquals(200, server.get(share, ALICE).status());
+  void getShareAsksToRemoveAReplacedOrDroppedSchema() {
+    createShare("replaced-schema");
+    addObject("replaced-schema", "SCHEMA", "main.hr", "hr");
+    createShare("dropped-schema");
+    addObject("dropped-schema", "SCHEMA", "main.legal", "legal");
+    String replacedSharePath = PROVIDER + "/shares/replaced-schema?include_shared_data=true";
+    assertEquals(200, server.get(replacedSharePath, ALICE).status());
 
     // Another schema now has the shared schema's name.
-    editIncluded("stale-schema", "main.hr", o -> o.setSourceAssetId("other-id"));
-    Response replaced = server.get(share, ALICE);
-    assertEquals(409, replaced.status());
-    assertEquals(ErrorCodes.RESOURCE_CONFLICT, replaced.errorCode());
+    replaceInCatalog("replaced-schema", "main.hr");
+    Response replacedShare = server.get(replacedSharePath, ALICE);
+    assertEquals(409, replacedShare.status());
+    assertEquals(ErrorCodes.RESOURCE_CONFLICT, replacedShare.errorCode());
     assertEquals(
-        "schema 'hr' in share 'stale-schema' was dropped or replaced in the catalog;"
+        "schema 'hr' in share 'replaced-schema' was dropped or replaced in the catalog;"
             + " remove it from the share",
-        replaced.body().path("message").asText());
+        replacedShare.body().path("message").asText());
 
     // The shared schema is gone from the catalog.
-    editIncluded("stale-dropped-schema", "main.legal", o -> o.setFullName("main.dropped"));
-    Response dropped =
-        server.get(PROVIDER + "/shares/stale-dropped-schema?include_shared_data=true", ALICE);
-    assertEquals(409, dropped.status());
-    assertEquals(ErrorCodes.RESOURCE_CONFLICT, dropped.errorCode());
+    dropFromCatalog("dropped-schema", "main.legal");
+    Response droppedShare =
+        server.get(PROVIDER + "/shares/dropped-schema?include_shared_data=true", ALICE);
+    assertEquals(409, droppedShare.status());
+    assertEquals(ErrorCodes.RESOURCE_CONFLICT, droppedShare.errorCode());
   }
 }
