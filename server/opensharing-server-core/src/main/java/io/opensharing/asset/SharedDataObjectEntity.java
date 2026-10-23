@@ -23,7 +23,9 @@ import jakarta.persistence.UniqueConstraint;
 @Table(
     name = "os_shared_data_objects",
     uniqueConstraints = {
-      @UniqueConstraint(name = "uk_shared_objects_source", columnNames = {"share_id", "name"}),
+      @UniqueConstraint(
+          name = "uk_shared_objects_source",
+          columnNames = {"share_id", "full_name"}),
       @UniqueConstraint(
           name = "uk_shared_objects_alias",
           columnNames = {"share_id", "shared_as_schema", "shared_as_table"})
@@ -40,8 +42,8 @@ public class SharedDataObjectEntity extends BaseEntity {
   private String sourceAssetId;
 
   /** Full catalog name as the provider gave it, such as {@code main.sales.orders}. */
-  @Column(nullable = false, length = 512)
-  private String name;
+  @Column(name = "full_name", nullable = false, length = 512)
+  private String fullName;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 32)
@@ -76,12 +78,12 @@ public class SharedDataObjectEntity extends BaseEntity {
     this.sourceAssetId = sourceAssetId;
   }
 
-  public String getName() {
-    return name;
+  public String getFullName() {
+    return fullName;
   }
 
-  public void setName(String name) {
-    this.name = name;
+  public void setFullName(String fullName) {
+    this.fullName = fullName;
   }
 
   public AssetType getType() {

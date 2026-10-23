@@ -309,7 +309,7 @@ public class ShareService {
       if (alias != null) {
         objects.removeByAlias(em, share, type, alias.schema(), alias.table());
       } else {
-        objects.removeByName(em, share, type, name);
+        objects.removeByFullName(em, share, type, name);
       }
     }
   }

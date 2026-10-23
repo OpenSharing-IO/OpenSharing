@@ -102,7 +102,7 @@ public class ProtocolTables {
         return included(share, object);
       }
       if (object.getType() == AssetType.SCHEMA && !tableAlias.contains(".")) {
-        Asset asset = new Asset(AssetType.TABLE, object.getName() + "." + tableAlias);
+        Asset asset = new Asset(AssetType.TABLE, object.getFullName() + "." + tableAlias);
         try {
           ResolvedAsset child = catalog.resolveAsset(asset, owner(share));
           return new Listed(
@@ -151,7 +151,7 @@ public class ProtocolTables {
 
   /** The included table {@code object}, resolved only when read. */
   private Listed included(ShareEntity share, SharedDataObjectEntity object) {
-    Asset asset = new Asset(AssetType.TABLE, object.getName());
+    Asset asset = new Asset(AssetType.TABLE, object.getFullName());
     return new Listed(
         object.getSharedAsSchema(),
         object.getSharedAsTable(),
@@ -174,7 +174,7 @@ public class ProtocolTables {
 
   /** Every table the catalog lists under the included {@code schema}, across all its pages. */
   private List<ResolvedAsset> tablesIn(ShareEntity share, SharedDataObjectEntity schema) {
-    Asset parent = new Asset(AssetType.SCHEMA, schema.getName());
+    Asset parent = new Asset(AssetType.SCHEMA, schema.getFullName());
     List<ResolvedAsset> tables = new ArrayList<>();
     String pageToken = null;
     do {
