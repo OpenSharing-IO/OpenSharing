@@ -10,6 +10,8 @@ import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.schema.SchemaResponse;
 import io.opensharing.asset.share.GetShareResponse;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.ProtocolTables;
+import io.opensharing.asset.table.TableResponse;
 import io.opensharing.http.ListResponse;
 import io.opensharing.share.ShareResponse;
 
@@ -23,10 +25,13 @@ public final class OpenSharingProtocolService {
 
   private final ProtocolShares shares;
   private final ProtocolSchemas schemas;
+  private final ProtocolTables tables;
 
-  public OpenSharingProtocolService(ProtocolShares shares, ProtocolSchemas schemas) {
+  public OpenSharingProtocolService(
+      ProtocolShares shares, ProtocolSchemas schemas, ProtocolTables tables) {
     this.shares = shares;
     this.schemas = schemas;
+    this.tables = tables;
   }
 
   /** {@code GET /shares}: lists one page of the shares the recipient holds SELECT on. */
@@ -52,5 +57,27 @@ public final class OpenSharingProtocolService {
       @Param @Nullable Integer maxResults,
       @Param @Nullable String pageToken) {
     return schemas.list(RecipientTokenDecorator.recipient(ctx), share, maxResults, pageToken);
+  }
+
+  /** {@code GET /shares/{share}/schemas/{schema}/tables}: lists one page of a schema's tables. */
+  @Get("/shares/{share}/schemas/{schema}/tables")
+  public ListResponse<TableResponse> listTables(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String schema,
+      @Param @Nullable Integer maxResults,
+      @Param @Nullable String pageToken) {
+    return tables.list(
+        RecipientTokenDecorator.recipient(ctx), share, schema, maxResults, pageToken);
+  }
+
+  /** {@code GET /shares/{share}/all-tables}: lists one page of all the tables in a share. */
+  @Get("/shares/{share}/all-tables")
+  public ListResponse<TableResponse> listAllTables(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param @Nullable Integer maxResults,
+      @Param @Nullable String pageToken) {
+    return tables.listAll(RecipientTokenDecorator.recipient(ctx), share, maxResults, pageToken);
   }
 }

@@ -87,6 +87,20 @@ public class SharedDataObjectStore {
                 .getResultList());
   }
 
+  /** The objects {@code share} shares under {@code schema}, ordered by table. */
+  public List<SharedDataObjectEntity> listInSchema(ShareEntity share, String schema) {
+    return tx.inTransaction(
+        true,
+        em ->
+            em.createQuery(
+                    "select o from SharedDataObjectEntity o where o.share.id = :shareId"
+                        + " and o.sharedAsSchema = :schema order by o.sharedAsTable",
+                    SharedDataObjectEntity.class)
+                .setParameter("shareId", share.getId())
+                .setParameter("schema", schema)
+                .getResultList());
+  }
+
   /** One page of the schemas recipients see in {@code share}, ordered by name. */
   public List<String> listSchemas(ShareEntity share, int offset, int limit) {
     return tx.inTransaction(

@@ -47,12 +47,43 @@ assets:
     storageLocation: s3://test/main.sales.orders/
     format: delta
 
+  - identifier: main.sales.customers
+    type: TABLE
+    attributes:
+      subtype: MANAGED
+    storageLocation: s3://test/main.sales.customers/
+    format: delta
+
   - identifier: main.hr
     type: SCHEMA
+
+  - identifier: main.hr.employees
+    type: TABLE
+    attributes:
+      subtype: MANAGED
+    storageLocation: s3://test/main.hr.employees/
+    format: delta
+
+  - identifier: main.hr.salaries
+    type: TABLE
+    attributes:
+      subtype: MANAGED
+    storageLocation: s3://test/main.hr.salaries/
+    format: delta
 
   - identifier: main.ops.people
     type: TABLE
     attributes:
       subtype: MANAGED
     storageLocation: s3://test/main.ops.people/
+    format: delta
+
+  - identifier: main.legal
+    type: SCHEMA
+
+  - identifier: main.legal.Contracts
+    type: TABLE
+    attributes:
+      subtype: MANAGED
+    storageLocation: s3://test/main.legal.Contracts/
     format: delta
