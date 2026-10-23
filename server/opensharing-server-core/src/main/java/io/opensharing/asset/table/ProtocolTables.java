@@ -87,13 +87,14 @@ public class ProtocolTables {
       RecipientPrincipal recipient, String shareName, String schemaAlias, String tableAlias) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     SharedTable table = findTable(share, schemaAlias, tableAlias);
+    DataSourceFormat format = dataSourceFormat(table.catalogTable());
     return new GetTableResponse(
         table.tableAlias(),
         table.schemaAlias(),
         share.getName(),
         share.getId(),
         table.tableId(),
-        format(table.catalogTable()));
+        format == null ? null : format.wireName());
   }
 
   /**
@@ -159,7 +160,9 @@ public class ProtocolTables {
                   share.getId(),
                   catalogTable.catalogAssetId(),
                   location == null ? null : location.storageLocation(),
-                  location == null ? null : orNull(location.auxiliaryLocations()),
+                  location == null || location.auxiliaryLocations().isEmpty()
+                      ? null
+                      : location.auxiliaryLocations(),
                   TableAccessModes.forFormat(dataSourceFormat(catalogTable))));
         }
       } else if (sharedObject.getType() == AssetType.TABLE) {
@@ -173,7 +176,9 @@ public class ProtocolTables {
                 share.getId(),
                 sharedObject.getSourceAssetId(),
                 sharedObject.getStorageLocation(),
-                orNull(sharedObject.getAuxiliaryLocations()),
+                sharedObject.getAuxiliaryLocations().isEmpty()
+                    ? null
+                    : sharedObject.getAuxiliaryLocations(),
                 TableAccessModes.forFormat(sharedObject.getSourceFormat())));
       }
     }
@@ -245,22 +250,11 @@ public class ProtocolTables {
     return catalogTables;
   }
 
-  /** The table's format by its protocol name, or null when the catalog reports none. */
-  private static String format(ResolvedAsset catalogTable) {
-    DataSourceFormat format = dataSourceFormat(catalogTable);
-    return format == null ? null : format.wireName();
-  }
-
   /** The table's format, or null when the catalog reports none. */
   private static DataSourceFormat dataSourceFormat(ResolvedAsset catalogTable) {
     return catalogTable.additionalProperties() instanceof TableProperties tableProperties
         ? tableProperties.dataSourceFormat()
         : null;
-  }
-
-  /** Leaves out an empty list of auxiliary locations. */
-  private static List<String> orNull(List<String> auxiliaryLocations) {
-    return auxiliaryLocations.isEmpty() ? null : auxiliaryLocations;
   }
 
   /** The share's owner, whom every catalog call acts as. */
