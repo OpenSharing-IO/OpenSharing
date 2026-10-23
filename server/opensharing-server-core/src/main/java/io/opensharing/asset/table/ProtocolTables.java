@@ -183,21 +183,17 @@ public class ProtocolTables {
                   () -> catalogTable));
         }
       } else if (sharedObject.getType() == AssetType.TABLE) {
-        listedTables.add(includedTable(share, sharedObject));
+        listedTables.add(
+            new ListedTable(
+                schemaAlias,
+                sharedObject.getSharedAsTable(),
+                sharedObject.getSourceAssetId(),
+                () -> resolveIncluded(share, sharedObject)));
       }
     }
     listedTables.sort(
         Comparator.comparing(ListedTable::schemaAlias).thenComparing(ListedTable::tableAlias));
     return listedTables;
-  }
-
-  /** The included {@code sharedTable}, resolved only when read. */
-  private ListedTable includedTable(ShareEntity share, SharedDataObjectEntity sharedTable) {
-    return new ListedTable(
-        sharedTable.getSharedAsSchema(),
-        sharedTable.getSharedAsTable(),
-        sharedTable.getSourceAssetId(),
-        () -> resolveIncluded(share, sharedTable));
   }
 
   /**
