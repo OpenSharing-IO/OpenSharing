@@ -19,10 +19,13 @@ import io.opensharing.http.ApiException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Opens a Kernel session against catalog-vended credentials for a Delta table root. */
 public class DeltaKernel {
 
+  private static final Logger log = LoggerFactory.getLogger(DeltaKernel.class);
   private static final Duration CREDENTIAL_TTL = Duration.ofMinutes(5);
 
   private final CatalogConnector catalog;
@@ -36,8 +39,9 @@ public class DeltaKernel {
    * at or after it. Reads the table as {@code auth}.
    */
   public long getVersion(ResolvedAsset table, Instant startingTimestamp, AuthContext auth) {
-    Session session = open(table, auth);
-    return versionAtOrAfter((TableImpl) session.table(), session.engine(), startingTimestamp);
+    try (Session session = open(table, auth)) {
+      return versionAtOrAfter((TableImpl) session.table(), session.engine(), startingTimestamp);
+    }
   }
 
   static long versionAtOrAfter(TableImpl table, Engine engine, Instant startingTimestamp) {
@@ -55,11 +59,12 @@ public class DeltaKernel {
   private Session open(ResolvedAsset table, AuthContext auth) {
     if (!(table.additionalProperties() instanceof TableProperties properties)
         || properties.dataSourceFormat() != DataSourceFormat.DELTA) {
-      throw ApiException.invalidParameter("table '" + table.fullName() + "' is not a Delta table");
+      throw ApiException.invalidParameter("the table is not a Delta table");
     }
     String location = table.location() == null ? null : table.location().storageLocation();
     if (location == null || location.isBlank()) {
-      throw new CatalogException("table '" + table.fullName() + "' has no storage location");
+      log.error("Catalog table '{}' has no storage location", table.fullName());
+      throw new CatalogException("the catalog reported no storage location for the table");
     }
     List<StorageCredentials> credentials =
         catalog.getStorageCredentials(
@@ -76,13 +81,15 @@ public class DeltaKernel {
             .filter(candidate -> covers(candidate.prefix(), location))
             .findFirst()
             .orElseThrow(
-                () ->
-                    new CatalogException(
-                        "catalog returned no credentials for table root '" + location + "'"));
-    Engine engine =
-        DefaultEngine.create(HadoopStorageConfiguration.from(rootCredentials, location));
+                () -> {
+                  log.error("Catalog returned no credentials for table root '{}'", location);
+                  return new CatalogException("the catalog returned no credentials for the table");
+                });
     String path = HadoopStorageConfiguration.kernelPath(location);
-    return new Session(engine, Table.forPath(engine, path));
+    SessionFileIO files =
+        new SessionFileIO(HadoopStorageConfiguration.from(rootCredentials, location), path);
+    Engine engine = DefaultEngine.create(files);
+    return new Session(engine, Table.forPath(engine, path), files);
   }
 
   private static boolean covers(String prefix, String location) {
@@ -93,5 +100,13 @@ public class DeltaKernel {
     return location.equals(prefix) || location.startsWith(normalized);
   }
 
-  private record Session(Engine engine, Table table) {}
+  /** A Kernel engine and table reading through files the session owns until it is closed. */
+  private record Session(Engine engine, Table table, SessionFileIO files)
+      implements AutoCloseable {
+
+    @Override
+    public void close() {
+      files.close();
+    }
+  }
 }
