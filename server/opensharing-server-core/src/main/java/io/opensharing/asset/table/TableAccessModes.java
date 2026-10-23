@@ -10,14 +10,10 @@ final class TableAccessModes {
 
   private TableAccessModes() {}
 
-  /** Managed and external Delta tables support QueryTable and temporary credentials. */
+  /** Delta tables support QueryTable and temporary credentials. */
   static List<String> forTable(ResolvedAsset table) {
-    if (!(table.additionalProperties() instanceof TableProperties properties)
-        || properties.dataSourceFormat() != DataSourceFormat.DELTA) {
-      return null;
-    }
-    String subtype = properties.attributes().get("subtype");
-    if ("MANAGED".equalsIgnoreCase(subtype) || "EXTERNAL".equalsIgnoreCase(subtype)) {
+    if (table.additionalProperties() instanceof TableProperties properties
+        && properties.dataSourceFormat() == DataSourceFormat.DELTA) {
       return List.of("url", "dir");
     }
     return null;

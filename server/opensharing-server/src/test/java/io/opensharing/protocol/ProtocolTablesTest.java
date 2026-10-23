@@ -90,6 +90,22 @@ class ProtocolTablesTest extends ProtocolApiSupport {
   }
 
   @Test
+  void givesEveryDeltaTableUrlAndDirAccess() {
+    createShare("subtype-tables");
+    addObject("subtype-tables", "TABLE", "main.finance.ledger", "finance.ledger");
+    String bearer = createAndActivateRecipient("subtype-tables-partner");
+    grant("subtype-tables", "subtype-tables-partner");
+
+    // The catalog reports no subtype for this table.
+    Response list = server.get(PROTOCOL + "/shares/subtype-tables/schemas/finance/tables", bearer);
+    assertEquals(200, list.status());
+    JsonNode accessModes = list.body().path("items").path(0).path("accessModes");
+    assertEquals(2, accessModes.size());
+    assertEquals("url", accessModes.path(0).asText());
+    assertEquals("dir", accessModes.path(1).asText());
+  }
+
+  @Test
   void paginatesTablesInASchema() {
     createShare("paged-tables");
     addObject("paged-tables", "TABLE", "main.sales.table1", "sales.a");
