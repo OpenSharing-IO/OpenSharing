@@ -17,7 +17,6 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     String recipientToken = createAndActivateRecipient("listed-tables-partner");
     grant("listed-tables", "listed-tables-partner");
 
-    // Another table now has the name of one shared table, and another is gone from the catalog.
     replaceInCatalog("listed-tables", "main.sales.orders");
     dropFromCatalog("listed-tables", "main.sales.customers");
     // Listing serves both from what the share recorded, without asking the catalog.
@@ -48,10 +47,10 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     String allTablesPath = PROTOCOL + "/shares/listed-schemas/all-tables";
     assertEquals(4, server.get(allTablesPath, recipientToken).body().path("items").size());
 
-    // Another schema now has the name of one shared schema, and another is gone from the catalog.
     replaceInCatalog("listed-schemas", "main.hr");
     dropFromCatalog("listed-schemas", "main.legal");
     String schemasPath = PROTOCOL + "/shares/listed-schemas/schemas/";
+
     // The replaced schema lists the catalog's tables under its name.
     Response hrTables = server.get(schemasPath + "hr/tables", recipientToken);
     assertEquals(2, hrTables.body().path("items").size());
@@ -75,7 +74,6 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     String salesTablesPath = PROTOCOL + "/shares/stale-tables/schemas/sales/tables/";
     assertEquals(200, server.get(salesTablesPath + "orders", recipientToken).status());
 
-    // Another table now has the name of one shared table, and another is gone from the catalog.
     replaceInCatalog("stale-tables", "main.sales.orders");
     dropFromCatalog("stale-tables", "main.sales.customers");
     // Get Table resolves each in the catalog and reports both as missing, by alias.
@@ -97,7 +95,7 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     String schemasPath = PROTOCOL + "/shares/stale-schemas/schemas/";
     assertEquals(200, server.get(schemasPath + "hr/tables/salaries", recipientToken).status());
 
-    // Another schema now has the name of one shared schema, and another is gone from the catalog.
+    // The replaced schema lists the catalog's tables under its name.
     replaceInCatalog("stale-schemas", "main.hr");
     dropFromCatalog("stale-schemas", "main.legal");
     // Get Table checks the schema before looking up its table, so both tables are missing.
