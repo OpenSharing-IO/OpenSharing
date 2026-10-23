@@ -165,6 +165,7 @@ public class ProtocolTables {
     for (SharedDataObjectEntity sharedObject : includedObjects) {
       String schemaAlias = sharedObject.getSharedAsSchema();
       if (sharedObject.getType() == AssetType.SCHEMA) {
+        // The share records no tables under a shared schema, so only the catalog can list them.
         if (resolveIncluded(share, sharedObject) == null) {
           continue;
         }
@@ -182,6 +183,8 @@ public class ProtocolTables {
                   TableAccessModes.forFormat(dataSourceFormat(catalogTable))));
         }
       } else if (sharedObject.getType() == AssetType.TABLE) {
+        // The share recorded everything listed about an included table, so the catalog isn't
+        // called; Get Table resolves it.
         tables.add(
             new TableResponse(
                 sharedObject.getSharedAsTable(),
