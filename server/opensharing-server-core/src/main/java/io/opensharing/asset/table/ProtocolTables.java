@@ -173,7 +173,10 @@ public class ProtocolTables {
                   schemaAlias,
                   share.getName(),
                   share.getId(),
-                  catalogTable.catalogAssetId()));
+                  catalogTable.catalogAssetId(),
+                  null,
+                  null,
+                  null));
         }
       } else if (sharedObject.getType() == AssetType.TABLE) {
         tables.add(
@@ -182,7 +185,10 @@ public class ProtocolTables {
                 schemaAlias,
                 share.getName(),
                 share.getId(),
-                sharedObject.getSourceAssetId()));
+                sharedObject.getSourceAssetId(),
+                null,
+                null,
+                null));
       }
     }
     tables.sort(Comparator.comparing(TableResponse::schema).thenComparing(TableResponse::name));
