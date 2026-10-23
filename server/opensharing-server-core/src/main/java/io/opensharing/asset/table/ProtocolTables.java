@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  * The tables a recipient reads through the sharing protocol in a share it holds SELECT on: the
  * tables the share includes one by one, plus the tables the catalog currently lists under each
  * schema the share includes as a whole. Listing serves included tables as the share recorded them;
- * only Get Table resolves them in the catalog.
+ * reading a table resolves it in the catalog.
  *
  * <p>Every catalog call is made as the share's owner, so the catalog decides whether the owner may
  * still read each table.
