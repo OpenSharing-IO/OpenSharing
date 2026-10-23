@@ -3,6 +3,7 @@ package io.opensharing.runtime;
 import io.opensharing.Transactions;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
+import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.recipient.RecipientEntity;
@@ -27,22 +28,19 @@ public final class OpenSharing {
   private final ShareService shares;
   private final RecipientService recipients;
   private final ProtocolShares protocolShares;
+  private final ProtocolSchemas protocolSchemas;
 
   private OpenSharing(CatalogConnector catalog, Transactions tx) {
     this.catalog = catalog;
     ShareStore shareStore = new ShareStore(tx);
+    SharedDataObjectStore objectStore = new SharedDataObjectStore(tx);
     SharePermissionStore permissionStore = new SharePermissionStore(tx);
     RecipientStore recipientStore = new RecipientStore(tx);
     this.shares =
-        new ShareService(
-            catalog,
-            tx,
-            shareStore,
-            new SharedDataObjectStore(tx),
-            permissionStore,
-            recipientStore);
+        new ShareService(catalog, tx, shareStore, objectStore, permissionStore, recipientStore);
     this.recipients = new RecipientService(catalog, recipientStore);
     this.protocolShares = new ProtocolShares(shareStore, permissionStore);
+    this.protocolSchemas = new ProtocolSchemas(protocolShares, objectStore);
   }
 
   public static Builder builder() {
@@ -74,6 +72,11 @@ public final class OpenSharing {
   /** The shares recipients see through the sharing protocol. */
   public ProtocolShares protocolShares() {
     return protocolShares;
+  }
+
+  /** The schemas recipients see in their shares through the sharing protocol. */
+  public ProtocolSchemas protocolSchemas() {
+    return protocolSchemas;
   }
 
   public static final class Builder {
