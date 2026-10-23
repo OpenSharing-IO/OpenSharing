@@ -1,7 +1,6 @@
 package io.opensharing.protocol;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -35,15 +34,10 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     assertEquals(1, items.size());
     assertEquals("people", items.path(0).path("name").asText());
 
-    // A page keeps its place in the share even when its tables are hidden.
-    Response first = server.get(page(all, 2, null), bearer);
-    assertEquals(1, first.body().path("items").size());
-    String pageToken = first.body().path("nextPageToken").asText();
-    assertFalse(pageToken.isEmpty());
-    Response second = server.get(page(all, 2, pageToken), bearer);
-    assertEquals(200, second.status());
-    assertEquals(0, second.body().path("items").size());
-    assertTrue(second.body().path("nextPageToken").isMissingNode());
+    // Hidden tables take no room on a page.
+    Response first = server.get(page(all, 1, null), bearer);
+    assertEquals("people", first.body().path("items").path(0).path("name").asText());
+    assertTrue(first.body().path("nextPageToken").isMissingNode());
   }
 
   @Test

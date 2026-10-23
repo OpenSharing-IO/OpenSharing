@@ -24,9 +24,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -89,7 +87,7 @@ public class ProtocolTables {
         share.getName(),
         share.getId(),
         table.tableId(),
-        format(table.catalogTable().get()));
+        format(table.catalogTable()));
   }
 
   /** The objects the share includes under {@code schemaAlias}. */
@@ -120,7 +118,7 @@ public class ProtocolTables {
             sharedObject.getSharedAsSchema(),
             sharedObject.getSharedAsTable(),
             sharedObject.getSourceAssetId(),
-            () -> catalogTable);
+            catalogTable);
       }
       if (sharedObject.getType() == AssetType.SCHEMA && !tableAlias.contains(".")) {
         if (resolveIncluded(share, sharedObject) == null) {
@@ -134,7 +132,7 @@ public class ProtocolTables {
               sharedObject.getSharedAsSchema(),
               alias(catalogTable),
               catalogTable.catalogAssetId(),
-              () -> catalogTable);
+              catalogTable);
         } catch (AssetNotFoundException notInCatalog) {
           break;
         }
@@ -151,19 +149,14 @@ public class ProtocolTables {
             + "'");
   }
 
-  /**
-   * A table on the listing. Included tables are resolved only when they land on the requested
-   * page, to null when hidden; catalog children arrive resolved.
-   */
+  /** A table on the listing, with the catalog table it resolved to. */
   private record ListedTable(
-      String schemaAlias,
-      String tableAlias,
-      String tableId,
-      Supplier<ResolvedAsset> catalogTable) {}
+      String schemaAlias, String tableAlias, String tableId, ResolvedAsset catalogTable) {}
 
   /**
    * The tables {@code includedObjects} puts on the listing, by schema alias and then table alias:
-   * each included table, plus the catalog's current tables under each included schema.
+   * each included table, plus the catalog's current tables under each included schema, leaving out
+   * hidden ones.
    */
   private List<ListedTable> listTables(
       ShareEntity share, List<SharedDataObjectEntity> includedObjects) {
@@ -180,15 +173,19 @@ public class ProtocolTables {
                   schemaAlias,
                   alias(catalogTable),
                   catalogTable.catalogAssetId(),
-                  () -> catalogTable));
+                  catalogTable));
         }
       } else if (sharedObject.getType() == AssetType.TABLE) {
+        ResolvedAsset catalogTable = resolveIncluded(share, sharedObject);
+        if (catalogTable == null) {
+          continue;
+        }
         listedTables.add(
             new ListedTable(
                 schemaAlias,
                 sharedObject.getSharedAsTable(),
                 sharedObject.getSourceAssetId(),
-                () -> resolveIncluded(share, sharedObject)));
+                catalogTable));
       }
     }
     listedTables.sort(
@@ -218,23 +215,18 @@ public class ProtocolTables {
     return catalogAsset.orElse(null);
   }
 
-  /**
-   * One page of {@code listedTables}, resolving only the tables on it and leaving out hidden ones.
-   */
+  /** One page of {@code listedTables}. */
   private ListResponse<TableResponse> page(
       ShareEntity share, List<ListedTable> listedTables, Integer maxResults, String pageToken) {
-    ListResponse<TableResponse> tablePage =
-        Pagination.protocolPage(
-            maxResults,
-            pageToken,
-            (offset, limit) -> {
-              int fromIndex = Math.min(offset, listedTables.size());
-              int toIndex = fromIndex + Math.min(limit, listedTables.size() - fromIndex);
-              return listedTables.subList(fromIndex, toIndex);
-            },
-            listedTable -> response(share, listedTable));
-    return new ListResponse<>(
-        tablePage.items().stream().filter(Objects::nonNull).toList(), tablePage.nextPageToken());
+    return Pagination.protocolPage(
+        maxResults,
+        pageToken,
+        (offset, limit) -> {
+          int fromIndex = Math.min(offset, listedTables.size());
+          int toIndex = fromIndex + Math.min(limit, listedTables.size() - fromIndex);
+          return listedTables.subList(fromIndex, toIndex);
+        },
+        listedTable -> response(share, listedTable));
   }
 
   /** Every table the catalog lists under the included {@code sharedSchema}, across all pages. */
@@ -254,15 +246,9 @@ public class ProtocolTables {
     return catalogTables;
   }
 
-  /**
-   * The listed table with the storage locations and access modes of its catalog table, or null when
-   * it is hidden.
-   */
+  /** The listed table with the storage locations and access modes of its catalog table. */
   private static TableResponse response(ShareEntity share, ListedTable listedTable) {
-    ResolvedAsset catalogTable = listedTable.catalogTable().get();
-    if (catalogTable == null) {
-      return null;
-    }
+    ResolvedAsset catalogTable = listedTable.catalogTable();
     AssetLocation location = catalogTable.location();
     return new TableResponse(
         listedTable.tableAlias(),
