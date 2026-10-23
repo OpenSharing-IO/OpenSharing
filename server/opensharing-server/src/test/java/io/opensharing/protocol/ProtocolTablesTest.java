@@ -34,9 +34,8 @@ class ProtocolTablesTest extends ProtocolApiSupport {
     assertEquals("table-share", customers.path("share").asText());
     assertTrue(customers.has("shareId"));
     assertEquals("main.sales.customers", customers.path("id").asText());
-    assertEquals("s3://test/main.sales.customers/", customers.path("location").asText());
-    assertEquals("url", customers.path("accessModes").path(0).asText());
-    assertEquals("dir", customers.path("accessModes").path(1).asText());
+    assertTrue(customers.path("location").isMissingNode());
+    assertTrue(customers.path("accessModes").isMissingNode());
     assertEquals("orders", items.path(1).path("name").asText());
     assertTrue(list.body().path("nextPageToken").isMissingNode());
 
@@ -59,14 +58,11 @@ class ProtocolTablesTest extends ProtocolApiSupport {
     JsonNode items = list.body().path("items");
     assertEquals(2, items.size());
     assertEquals("employees", items.path(0).path("name").asText());
-    assertEquals("s3://test/main.hr.employees/", items.path(0).path("location").asText());
     assertEquals("main.hr.employees", items.path(0).path("id").asText());
     JsonNode salaries = items.path(1);
     assertEquals("salaries", salaries.path("name").asText());
-    assertEquals("s3://test/main.hr.salaries/", salaries.path("location").asText());
     assertEquals("main.hr.salaries", salaries.path("id").asText());
-    assertEquals("url", salaries.path("accessModes").path(0).asText());
-    assertEquals("dir", salaries.path("accessModes").path(1).asText());
+    assertTrue(salaries.path("location").isMissingNode());
 
     // An ungranted share is reported as missing.
     Response hidden = server.get(PROTOCOL + "/shares/hidden-tables/schemas/sales/tables", bearer);
@@ -87,22 +83,6 @@ class ProtocolTablesTest extends ProtocolApiSupport {
     assertEquals(1, items.size());
     assertEquals("contracts", items.path(0).path("name").asText());
     assertEquals("legal", items.path(0).path("schema").asText());
-  }
-
-  @Test
-  void givesEveryDeltaTableUrlAndDirAccess() {
-    createShare("subtype-tables");
-    addObject("subtype-tables", "TABLE", "main.finance.ledger", "finance.ledger");
-    String bearer = createAndActivateRecipient("subtype-tables-partner");
-    grant("subtype-tables", "subtype-tables-partner");
-
-    // The catalog reports no subtype for this table.
-    Response list = server.get(PROTOCOL + "/shares/subtype-tables/schemas/finance/tables", bearer);
-    assertEquals(200, list.status());
-    JsonNode accessModes = list.body().path("items").path(0).path("accessModes");
-    assertEquals(2, accessModes.size());
-    assertEquals("url", accessModes.path(0).asText());
-    assertEquals("dir", accessModes.path(1).asText());
   }
 
   @Test

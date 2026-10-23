@@ -1,8 +1,6 @@
 package io.opensharing.protocol;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import io.opensharing.TestServer.Response;
 import io.opensharing.http.ErrorCodes;
@@ -11,33 +9,27 @@ import org.junit.jupiter.api.Test;
 class ProtocolStaleObjectsTest extends ProtocolApiSupport {
 
   @Test
-  void hidesIncludedTablesTheCatalogReplacedOrDropped() {
+  void listsIncludedTablesAsTheShareRecordedThem() {
     createShare("stale-tables");
     addObject("stale-tables", "TABLE", "main.sales.orders", "sales.orders");
     addObject("stale-tables", "TABLE", "main.sales.customers", "sales.customers");
-    addObject("stale-tables", "TABLE", "main.ops.people", "ops.people");
     String bearer = createAndActivateRecipient("stale-tables-partner");
     grant("stale-tables", "stale-tables-partner");
-    String sales = PROTOCOL + "/shares/stale-tables/schemas/sales/tables";
-    assertEquals(2, server.get(sales, bearer).body().path("items").size());
 
     // Another table now has the name of one shared table, and another is gone from the catalog.
     editIncluded("stale-tables", "main.sales.orders", o -> o.setSourceAssetId("other-id"));
     editIncluded("stale-tables", "main.sales.customers", o -> o.setFullName("main.sales.dropped"));
-    Response hidden = server.get(sales, bearer);
-    assertEquals(200, hidden.status());
-    assertEquals(0, hidden.body().path("items").size());
-    assertTrue(hidden.body().path("nextPageToken").isMissingNode());
+    Response list = server.get(PROTOCOL + "/shares/stale-tables/schemas/sales/tables", bearer);
+    assertEquals(200, list.status());
+    JsonNode items = list.body().path("items");
+    assertEquals(2, items.size());
+    assertEquals("customers", items.path(0).path("name").asText());
+    assertEquals("other-id", items.path(1).path("id").asText());
 
-    String all = PROTOCOL + "/shares/stale-tables/all-tables";
-    JsonNode items = server.get(all, bearer).body().path("items");
-    assertEquals(1, items.size());
-    assertEquals("people", items.path(0).path("name").asText());
-
-    // Hidden tables take no room on a page.
-    Response first = server.get(page(all, 1, null), bearer);
-    assertEquals("people", first.body().path("items").path(0).path("name").asText());
-    assertTrue(first.body().path("nextPageToken").isMissingNode());
+    // Get Table checks the catalog.
+    String tables = PROTOCOL + "/shares/stale-tables/schemas/sales/tables/";
+    assertEquals(404, server.get(tables + "orders", bearer).status());
+    assertEquals(404, server.get(tables + "customers", bearer).status());
   }
 
   @Test

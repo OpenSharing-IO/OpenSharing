@@ -8,7 +8,6 @@ import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
-import io.opensharing.catalog.AssetLocation;
 import io.opensharing.catalog.AssetPage;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
@@ -25,13 +24,15 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * The tables a recipient sees through the sharing protocol in a share it holds SELECT on: the
  * tables the share includes one by one, plus the tables the catalog currently lists under each
- * schema the share includes as a whole.
+ * schema the share includes as a whole. Listing names included tables as the share recorded them;
+ * only Get Table resolves them in the catalog.
  *
  * <p>Every catalog call is made as the share's owner, so the catalog decides whether the owner may
  * still read each table.
@@ -64,23 +65,21 @@ public class ProtocolTables {
       Integer maxResults,
       String pageToken) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    List<ListedTable> listedTables = listTables(share, objectsInSchema(share, schemaAlias));
-    return page(share, listedTables, maxResults, pageToken);
+    return page(listTables(share, objectsInSchema(share, schemaAlias)), maxResults, pageToken);
   }
 
   /** Lists one page of all the tables in the share, by schema alias and then table alias. */
   public ListResponse<TableResponse> listAll(
       RecipientPrincipal recipient, String shareName, Integer maxResults, String pageToken) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    List<ListedTable> listedTables = listTables(share, sharedObjects.list(share));
-    return page(share, listedTables, maxResults, pageToken);
+    return page(listTables(share, sharedObjects.list(share)), maxResults, pageToken);
   }
 
   /** Gets one table of the share by its schema alias and table alias. */
   public GetTableResponse get(
       RecipientPrincipal recipient, String shareName, String schemaAlias, String tableAlias) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    ListedTable table = findTable(share, schemaAlias, tableAlias);
+    SharedTable table = findTable(share, schemaAlias, tableAlias);
     return new GetTableResponse(
         table.tableAlias(),
         table.schemaAlias(),
@@ -106,7 +105,7 @@ public class ProtocolTables {
    * a dot is never on the listing, and a hidden table, or any table under a hidden schema, is
    * missing.
    */
-  private ListedTable findTable(ShareEntity share, String schemaAlias, String tableAlias) {
+  private SharedTable findTable(ShareEntity share, String schemaAlias, String tableAlias) {
     for (SharedDataObjectEntity sharedObject : objectsInSchema(share, schemaAlias)) {
       if (sharedObject.getType() == AssetType.TABLE
           && tableAlias.equals(sharedObject.getSharedAsTable())) {
@@ -114,7 +113,7 @@ public class ProtocolTables {
         if (catalogTable == null) {
           break;
         }
-        return new ListedTable(
+        return new SharedTable(
             sharedObject.getSharedAsSchema(),
             sharedObject.getSharedAsTable(),
             sharedObject.getSourceAssetId(),
@@ -128,7 +127,7 @@ public class ProtocolTables {
             new Asset(AssetType.TABLE, sharedObject.getFullName() + "." + tableAlias);
         try {
           ResolvedAsset catalogTable = catalog.resolveAsset(childTable, owner(share));
-          return new ListedTable(
+          return new SharedTable(
               sharedObject.getSharedAsSchema(),
               alias(catalogTable),
               catalogTable.catalogAssetId(),
@@ -149,18 +148,18 @@ public class ProtocolTables {
             + "'");
   }
 
-  /** A table on the listing, with the catalog table it resolved to. */
-  private record ListedTable(
+  /** A table of the share, with the catalog table it resolved to. */
+  private record SharedTable(
       String schemaAlias, String tableAlias, String tableId, ResolvedAsset catalogTable) {}
 
   /**
    * The tables {@code includedObjects} puts on the listing, by schema alias and then table alias:
-   * each included table, plus the catalog's current tables under each included schema, leaving out
-   * hidden ones.
+   * each included table as the share recorded it, plus the catalog's current tables under each
+   * included schema the catalog still has.
    */
-  private List<ListedTable> listTables(
+  private List<TableResponse> listTables(
       ShareEntity share, List<SharedDataObjectEntity> includedObjects) {
-    List<ListedTable> listedTables = new ArrayList<>();
+    List<TableResponse> tables = new ArrayList<>();
     for (SharedDataObjectEntity sharedObject : includedObjects) {
       String schemaAlias = sharedObject.getSharedAsSchema();
       if (sharedObject.getType() == AssetType.SCHEMA) {
@@ -168,29 +167,26 @@ public class ProtocolTables {
           continue;
         }
         for (ResolvedAsset catalogTable : catalogTablesIn(share, sharedObject)) {
-          listedTables.add(
-              new ListedTable(
-                  schemaAlias,
+          tables.add(
+              new TableResponse(
                   alias(catalogTable),
-                  catalogTable.catalogAssetId(),
-                  catalogTable));
+                  schemaAlias,
+                  share.getName(),
+                  share.getId(),
+                  catalogTable.catalogAssetId()));
         }
       } else if (sharedObject.getType() == AssetType.TABLE) {
-        ResolvedAsset catalogTable = resolveIncluded(share, sharedObject);
-        if (catalogTable == null) {
-          continue;
-        }
-        listedTables.add(
-            new ListedTable(
-                schemaAlias,
+        tables.add(
+            new TableResponse(
                 sharedObject.getSharedAsTable(),
-                sharedObject.getSourceAssetId(),
-                catalogTable));
+                schemaAlias,
+                share.getName(),
+                share.getId(),
+                sharedObject.getSourceAssetId()));
       }
     }
-    listedTables.sort(
-        Comparator.comparing(ListedTable::schemaAlias).thenComparing(ListedTable::tableAlias));
-    return listedTables;
+    tables.sort(Comparator.comparing(TableResponse::schema).thenComparing(TableResponse::name));
+    return tables;
   }
 
   /**
@@ -215,18 +211,17 @@ public class ProtocolTables {
     return catalogAsset.orElse(null);
   }
 
-  /** One page of {@code listedTables}. */
-  private ListResponse<TableResponse> page(
-      ShareEntity share, List<ListedTable> listedTables, Integer maxResults, String pageToken) {
+  /** One page of {@code tables}. */
+  private static ListResponse<TableResponse> page(
+      List<TableResponse> tables, Integer maxResults, String pageToken) {
     return Pagination.protocolPage(
         maxResults,
         pageToken,
         (offset, limit) -> {
-          int fromIndex = Math.min(offset, listedTables.size());
-          int toIndex = fromIndex + Math.min(limit, listedTables.size() - fromIndex);
-          return listedTables.subList(fromIndex, toIndex);
+          int fromIndex = Math.min(offset, tables.size());
+          return tables.subList(fromIndex, fromIndex + Math.min(limit, tables.size() - fromIndex));
         },
-        listedTable -> response(share, listedTable));
+        Function.identity());
   }
 
   /** Every table the catalog lists under the included {@code sharedSchema}, across all pages. */
@@ -244,23 +239,6 @@ public class ProtocolTables {
       catalogPageToken = catalogPage.nextPageToken();
     } while (catalogPageToken != null);
     return catalogTables;
-  }
-
-  /** The listed table with the storage locations and access modes of its catalog table. */
-  private static TableResponse response(ShareEntity share, ListedTable listedTable) {
-    ResolvedAsset catalogTable = listedTable.catalogTable();
-    AssetLocation location = catalogTable.location();
-    return new TableResponse(
-        listedTable.tableAlias(),
-        listedTable.schemaAlias(),
-        share.getName(),
-        share.getId(),
-        listedTable.tableId(),
-        location == null ? null : location.storageLocation(),
-        location == null || location.auxiliaryLocations().isEmpty()
-            ? null
-            : location.auxiliaryLocations(),
-        TableAccessModes.forTable(catalogTable));
   }
 
   /** The table's format by its protocol name, or null when the catalog reports none. */
