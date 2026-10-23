@@ -31,6 +31,8 @@ import java.util.function.Supplier;
  *
  * <p>Every catalog call is made as the share's owner, so the catalog decides whether the owner may
  * still read each table.
+ *
+ * <p>Callers pass the share name, schema alias and table alias normalized.
  */
 public class ProtocolTables {
 
@@ -47,29 +49,29 @@ public class ProtocolTables {
     this.objects = objects;
   }
 
-  /** Lists one page of the tables in one schema of the share, by name. */
+  /** Lists one page of the tables under one schema alias of the share, by table alias. */
   public ListResponse<TableResponse> list(
       RecipientPrincipal recipient,
       String share,
-      String schema,
+      String schemaAlias,
       Integer maxResults,
       String pageToken) {
     ShareEntity granted = shares.requireGranted(recipient, share);
-    return page(granted, listed(granted, inSchema(granted, schema)), maxResults, pageToken);
+    return page(granted, listed(granted, inSchema(granted, schemaAlias)), maxResults, pageToken);
   }
 
-  /** Lists one page of all the tables in the share, by schema and then name. */
+  /** Lists one page of all the tables in the share, by schema alias and then table alias. */
   public ListResponse<TableResponse> listAll(
       RecipientPrincipal recipient, String share, Integer maxResults, String pageToken) {
     ShareEntity granted = shares.requireGranted(recipient, share);
     return page(granted, listed(granted, objects.list(granted)), maxResults, pageToken);
   }
 
-  /** Gets one table in one schema of the share. */
+  /** Gets one table of the share by its schema alias and table alias. */
   public GetTableResponse get(
-      RecipientPrincipal recipient, String share, String schema, String table) {
+      RecipientPrincipal recipient, String share, String schemaAlias, String tableAlias) {
     ShareEntity granted = shares.requireGranted(recipient, share);
-    Listed found = find(granted, schema, table);
+    Listed found = find(granted, schemaAlias, tableAlias);
     return new GetTableResponse(
         found.name(),
         found.schema(),
@@ -79,31 +81,28 @@ public class ProtocolTables {
         format(found.resolved().get()));
   }
 
-  /** The objects the share includes under the schema alias {@code schema}, in any case. */
-  private List<SharedDataObjectEntity> inSchema(ShareEntity share, String schema) {
-    List<SharedDataObjectEntity> included =
-        objects.listInSchema(share, ObjectNames.normalize(schema));
+  /** The objects the share includes under {@code schemaAlias}. */
+  private List<SharedDataObjectEntity> inSchema(ShareEntity share, String schemaAlias) {
+    List<SharedDataObjectEntity> included = objects.listInSchema(share, schemaAlias);
     if (included.isEmpty()) {
       throw ApiException.notFound(
-          "schema '" + schema + "' does not exist in share '" + share.getName() + "'");
+          "schema '" + schemaAlias + "' does not exist in share '" + share.getName() + "'");
     }
     return included;
   }
 
   /**
-   * The table {@code table} under the schema alias {@code schema}: an included table, matched in
-   * any case, or a table the catalog holds directly in an included schema, resolved without listing
-   * the schema. A name with a dot is never on the listing.
+   * The table under {@code schemaAlias} and {@code tableAlias}: an included table, or a table the
+   * catalog holds directly in an included schema, resolved without listing the schema. A name with
+   * a dot is never on the listing.
    */
-  private Listed find(ShareEntity share, String schema, String table) {
-    String name = ObjectNames.normalize(table);
-    for (SharedDataObjectEntity object : inSchema(share, schema)) {
-      if (object.getType() == AssetType.TABLE
-          && name.equals(ObjectNames.normalize(object.getSharedAsTable()))) {
+  private Listed find(ShareEntity share, String schemaAlias, String tableAlias) {
+    for (SharedDataObjectEntity object : inSchema(share, schemaAlias)) {
+      if (object.getType() == AssetType.TABLE && tableAlias.equals(object.getSharedAsTable())) {
         return included(share, object);
       }
-      if (object.getType() == AssetType.SCHEMA && !table.contains(".")) {
-        Asset asset = new Asset(AssetType.TABLE, object.getName() + "." + table);
+      if (object.getType() == AssetType.SCHEMA && !tableAlias.contains(".")) {
+        Asset asset = new Asset(AssetType.TABLE, object.getName() + "." + tableAlias);
         try {
           ResolvedAsset child = catalog.resolveAsset(asset, owner(share));
           return new Listed(
@@ -115,7 +114,13 @@ public class ProtocolTables {
     }
     // Recipients see aliases only, so the catalog's own not-found message must not reach them.
     throw ApiException.notFound(
-        "table '" + schema + "." + table + "' does not exist in share '" + share.getName() + "'");
+        "table '"
+            + schemaAlias
+            + "."
+            + tableAlias
+            + "' does not exist in share '"
+            + share.getName()
+            + "'");
   }
 
   /**

@@ -6,6 +6,7 @@ import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Param;
 import com.linecorp.armeria.server.annotation.ProducesJson;
+import io.opensharing.ObjectNames;
 import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.schema.SchemaResponse;
 import io.opensharing.asset.share.GetShareResponse;
@@ -69,7 +70,11 @@ public final class OpenSharingProtocolService {
       @Param @Nullable Integer maxResults,
       @Param @Nullable String pageToken) {
     return tables.list(
-        RecipientTokenDecorator.recipient(ctx), share, schema, maxResults, pageToken);
+        RecipientTokenDecorator.recipient(ctx),
+        ObjectNames.normalize(share),
+        ObjectNames.normalize(schema),
+        maxResults,
+        pageToken);
   }
 
   /** {@code GET /shares/{share}/all-tables}: lists one page of all the tables in a share. */
@@ -79,13 +84,21 @@ public final class OpenSharingProtocolService {
       @Param String share,
       @Param @Nullable Integer maxResults,
       @Param @Nullable String pageToken) {
-    return tables.listAll(RecipientTokenDecorator.recipient(ctx), share, maxResults, pageToken);
+    return tables.listAll(
+        RecipientTokenDecorator.recipient(ctx),
+        ObjectNames.normalize(share),
+        maxResults,
+        pageToken);
   }
 
   /** {@code GET /shares/{share}/schemas/{schema}/tables/{table}}: gets a table in a schema. */
   @Get("/shares/{share}/schemas/{schema}/tables/{table}")
   public GetTableResponse getTable(
       ServiceRequestContext ctx, @Param String share, @Param String schema, @Param String table) {
-    return tables.get(RecipientTokenDecorator.recipient(ctx), share, schema, table);
+    return tables.get(
+        RecipientTokenDecorator.recipient(ctx),
+        ObjectNames.normalize(share),
+        ObjectNames.normalize(schema),
+        ObjectNames.normalize(table));
   }
 }
