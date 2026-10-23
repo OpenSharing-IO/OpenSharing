@@ -35,7 +35,7 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
   }
 
   @Test
-  void hidesTheTablesOfASchemaTheCatalogReplacedOrDropped() {
+  void listsTheCatalogsCurrentTablesUnderASharedSchema() {
     createShare("stale-schemas");
     addObject("stale-schemas", "SCHEMA", "main.hr", "hr");
     addObject("stale-schemas", "SCHEMA", "main.legal", "legal");
@@ -48,15 +48,12 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     // Another schema now has the name of one shared schema, and another is gone from the catalog.
     editIncluded("stale-schemas", "main.hr", o -> o.setSourceAssetId("other-id"));
     editIncluded("stale-schemas", "main.legal", o -> o.setFullName("main.dropped"));
-    for (String schema : new String[] {"hr", "legal"}) {
-      Response hidden =
-          server.get(PROTOCOL + "/shares/stale-schemas/schemas/" + schema + "/tables", bearer);
-      assertEquals(200, hidden.status());
-      assertEquals(0, hidden.body().path("items").size());
-    }
-    JsonNode items = server.get(all, bearer).body().path("items");
-    assertEquals(1, items.size());
-    assertEquals("orders", items.path(0).path("name").asText());
+    String schemas = PROTOCOL + "/shares/stale-schemas/schemas/";
+    assertEquals(2, server.get(schemas + "hr/tables", bearer).body().path("items").size());
+    Response dropped = server.get(schemas + "legal/tables", bearer);
+    assertEquals(200, dropped.status());
+    assertEquals(0, dropped.body().path("items").size());
+    assertEquals(3, server.get(all, bearer).body().path("items").size());
   }
 
   @Test

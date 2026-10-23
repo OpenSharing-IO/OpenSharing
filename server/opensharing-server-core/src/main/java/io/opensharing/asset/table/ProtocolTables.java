@@ -162,9 +162,6 @@ public class ProtocolTables {
       String schemaAlias = sharedObject.getSharedAsSchema();
       if (sharedObject.getType() == AssetType.SCHEMA) {
         // The share records no tables under a shared schema, so only the catalog can list them.
-        if (resolveIncluded(share, sharedObject) == null) {
-          continue;
-        }
         for (ResolvedAsset catalogTable : catalogTablesIn(share, sharedObject)) {
           AssetLocation location = catalogTable.location();
           tables.add(
@@ -232,15 +229,28 @@ public class ProtocolTables {
         Function.identity());
   }
 
-  /** Every table the catalog lists under the included {@code sharedSchema}, across all pages. */
+  /**
+   * Every table the catalog lists under the included {@code sharedSchema}, across all pages, or
+   * none once the catalog has dropped the schema.
+   */
   private List<ResolvedAsset> catalogTablesIn(
       ShareEntity share, SharedDataObjectEntity sharedSchema) {
     Asset catalogSchema = new Asset(AssetType.SCHEMA, sharedSchema.getFullName());
     List<ResolvedAsset> catalogTables = new ArrayList<>();
     String catalogPageToken = null;
     do {
-      AssetPage catalogPage =
-          catalog.listChildren(catalogSchema, CATALOG_PAGE_SIZE, catalogPageToken, owner(share));
+      AssetPage catalogPage;
+      try {
+        catalogPage =
+            catalog.listChildren(catalogSchema, CATALOG_PAGE_SIZE, catalogPageToken, owner(share));
+      } catch (AssetNotFoundException dropped) {
+        log.error(
+            "Hiding the tables of schema '{}' in share '{}': catalog schema '{}' was dropped",
+            sharedSchema.getSharedAs(),
+            share.getName(),
+            sharedSchema.getFullName());
+        return List.of();
+      }
       catalogPage.assets().stream()
           .filter(child -> child.type() == AssetType.TABLE)
           .forEach(catalogTables::add);
