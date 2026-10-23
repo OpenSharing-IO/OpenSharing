@@ -48,7 +48,7 @@ public final class OpenSharingProtocolService {
   /** {@code GET /shares/{share}}: gets a share the recipient holds SELECT on. */
   @Get("/shares/{share}")
   public GetShareResponse getShare(ServiceRequestContext ctx, @Param String share) {
-    return shares.get(RecipientTokenDecorator.recipient(ctx), share);
+    return shares.get(RecipientTokenDecorator.recipient(ctx), ObjectNames.normalize(share));
   }
 
   /** {@code GET /shares/{share}/schemas}: lists one page of the schemas in a granted share. */
@@ -58,7 +58,11 @@ public final class OpenSharingProtocolService {
       @Param String share,
       @Param @Nullable Integer maxResults,
       @Param @Nullable String pageToken) {
-    return schemas.list(RecipientTokenDecorator.recipient(ctx), share, maxResults, pageToken);
+    return schemas.list(
+        RecipientTokenDecorator.recipient(ctx),
+        ObjectNames.normalize(share),
+        maxResults,
+        pageToken);
   }
 
   /** {@code GET /shares/{share}/schemas/{schema}/tables}: lists one page of a schema's tables. */

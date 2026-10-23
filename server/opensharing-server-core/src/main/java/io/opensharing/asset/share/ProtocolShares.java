@@ -12,39 +12,39 @@ import io.opensharing.share.ShareStore;
 /**
  * The shares a recipient sees through the sharing protocol: those it holds SELECT on. Any other
  * share is reported as missing, so recipients cannot learn which shares exist.
+ *
+ * <p>Callers pass the share name normalized.
  */
 public class ProtocolShares {
 
-  private final ShareStore shares;
-  private final SharePermissionStore permissions;
+  private final ShareStore shareStore;
+  private final SharePermissionStore sharePermissions;
 
-  public ProtocolShares(ShareStore shares, SharePermissionStore permissions) {
-    this.shares = shares;
-    this.permissions = permissions;
+  public ProtocolShares(ShareStore shareStore, SharePermissionStore sharePermissions) {
+    this.shareStore = shareStore;
+    this.sharePermissions = sharePermissions;
   }
 
-  /** Lists one page of the recipient's shares by name. */
+  /** Lists one page of the recipient's shares by share name. */
   public ListResponse<ShareResponse> list(
       RecipientPrincipal recipient, Integer maxResults, String pageToken) {
     return Pagination.protocolPage(
         maxResults,
         pageToken,
-        (offset, limit) -> permissions.listSharesFor(recipient.recipientId(), offset, limit),
+        (offset, limit) -> sharePermissions.listSharesFor(recipient.recipientId(), offset, limit),
         ShareResponse::from);
   }
 
-  /** Gets one of the recipient's shares by name in any case. */
-  public GetShareResponse get(RecipientPrincipal recipient, String share) {
-    return new GetShareResponse(ShareResponse.from(requireGranted(recipient, share)));
+  /** Gets one of the recipient's shares by share name. */
+  public GetShareResponse get(RecipientPrincipal recipient, String shareName) {
+    return new GetShareResponse(ShareResponse.from(requireGranted(recipient, shareName)));
   }
 
-  /**
-   * Looks up a share by name in any case. Fails with not-found unless the recipient holds SELECT.
-   */
-  public ShareEntity requireGranted(RecipientPrincipal recipient, String share) {
-    return shares
-        .find(share)
-        .filter(candidate -> permissions.hasSelect(candidate, recipient.recipientId()))
-        .orElseThrow(() -> ApiException.notFound("share '" + share + "' does not exist"));
+  /** Looks up a share by share name. Fails with not-found unless the recipient holds SELECT. */
+  public ShareEntity requireGranted(RecipientPrincipal recipient, String shareName) {
+    return shareStore
+        .find(shareName)
+        .filter(share -> sharePermissions.hasSelect(share, recipient.recipientId()))
+        .orElseThrow(() -> ApiException.notFound("share '" + shareName + "' does not exist"));
   }
 }
