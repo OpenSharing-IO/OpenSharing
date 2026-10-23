@@ -163,6 +163,20 @@ public class RecipientStore {
         });
   }
 
+  /** The token with {@code tokenHash}, when it is activated and unexpired at {@code now}. */
+  public Optional<RecipientTokenEntity> findUsableToken(String tokenHash, Instant now) {
+    return tx.inTransaction(
+        true,
+        em ->
+            em.createQuery(
+                    "select t from RecipientTokenEntity t where t.tokenHash = :hash",
+                    RecipientTokenEntity.class)
+                .setParameter("hash", tokenHash)
+                .getResultStream()
+                .findFirst()
+                .filter(token -> token.isActivated() && token.getExpiresAt().isAfter(now)));
+  }
+
   /**
    * Supersedes live credentials of the recipient and persists a pending replacement. An
    * unactivated credential or a zero grace window expires immediately because no recipient should

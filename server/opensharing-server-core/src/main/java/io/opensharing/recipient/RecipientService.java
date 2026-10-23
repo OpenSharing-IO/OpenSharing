@@ -24,7 +24,8 @@ import java.util.UUID;
  * recipient needs CREATE_RECIPIENT from the catalog, and only the owner may change it. The owner
  * and callers with USE_RECIPIENT from the catalog may read a recipient; listing without
  * USE_RECIPIENT returns only the caller's own recipients. {@link #activate} is public: the
- * activation code itself is the credential.
+ * activation code itself is the credential. {@link #authenticate} checks the bearer tokens
+ * recipients then present.
  *
  * <p>{@code activationBaseUrl} is the absolute URL recipient activation links are built under, such
  * as {@code https://host/api/1.0/opensharing/activations}; the host knows its own address.
@@ -140,6 +141,17 @@ public class RecipientService {
         recipients.activate(code, TokenHashes.sha256(bearer), Instant.now());
     return new ProfileFile(
         SHARE_CREDENTIALS_VERSION, bearer, endpoint, EXPIRATION_TIME.format(token.getExpiresAt()));
+  }
+
+  /**
+   * Resolves a sharing protocol bearer token to its recipient. Fails with unauthenticated unless
+   * the token is activated and unexpired.
+   */
+  public RecipientPrincipal authenticate(String bearer) {
+    return recipients
+        .findUsableToken(TokenHashes.sha256(bearer), Instant.now())
+        .map(token -> new RecipientPrincipal(token.getRecipient().getId()))
+        .orElseThrow(() -> ApiException.unauthenticated("bearer token is invalid or expired"));
   }
 
   private static Instant expiresAt(Long days, Instant now) {

@@ -35,6 +35,19 @@ public final class Pagination {
     return new ListResponse<>(items, rows.size() > size ? encode(offset + size) : null);
   }
 
+  /**
+   * Like {@link #page}, but a {@code maxResults} of 0 returns no items, with a next page token when
+   * any remain, as the sharing protocol specifies.
+   */
+  public static <E, T> ListResponse<T> protocolPage(
+      Integer maxResults, String pageToken, Slice<E> slice, Function<E, T> mapper) {
+    if (maxResults == null || maxResults != 0) {
+      return page(maxResults, pageToken, slice, mapper);
+    }
+    int offset = offsetOf(pageToken);
+    return new ListResponse<>(List.of(), slice.fetch(offset, 1).isEmpty() ? null : encode(offset));
+  }
+
   private static int pageSize(Integer maxResults) {
     if (maxResults == null || maxResults == 0) {
       return MAX_RESULTS;

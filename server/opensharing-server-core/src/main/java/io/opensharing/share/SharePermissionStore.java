@@ -70,6 +70,43 @@ public class SharePermissionStore {
                 .getResultList());
   }
 
+  /**
+   * Shares the recipient holds SELECT on, ordered by name. Share names are unique, so the order
+   * is total.
+   */
+  public List<ShareEntity> listSharesFor(String recipientId, int offset, int limit) {
+    return tx.inTransaction(
+        true,
+        em ->
+            em.createQuery(
+                    "select s from SharePermissionEntity p join p.share s"
+                        + " where p.recipient.id = :recipientId and p.privilege = :privilege"
+                        + " order by s.name",
+                    ShareEntity.class)
+                .setParameter("recipientId", recipientId)
+                .setParameter("privilege", SharePrivilege.SELECT)
+                .setFirstResult(offset)
+                .setMaxResults(limit)
+                .getResultList());
+  }
+
+  /** Whether the recipient holds SELECT on {@code share}. */
+  public boolean hasSelect(ShareEntity share, String recipientId) {
+    return tx.inTransaction(
+        true,
+        em ->
+            !em.createQuery(
+                    "select p.id from SharePermissionEntity p where p.share.id = :shareId"
+                        + " and p.recipient.id = :recipientId and p.privilege = :privilege",
+                    String.class)
+                .setParameter("shareId", share.getId())
+                .setParameter("recipientId", recipientId)
+                .setParameter("privilege", SharePrivilege.SELECT)
+                .setMaxResults(1)
+                .getResultList()
+                .isEmpty());
+  }
+
   private static Optional<SharePermissionEntity> find(
       EntityManager em, ShareEntity share, RecipientEntity recipient, SharePrivilege privilege) {
     return em.createQuery(
