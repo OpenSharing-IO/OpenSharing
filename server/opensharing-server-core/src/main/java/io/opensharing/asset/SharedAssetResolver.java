@@ -8,9 +8,9 @@ import io.opensharing.exception.AssetNotFoundException;
 import java.util.Optional;
 
 /** Resolves the objects a share includes, as long as the catalog still has what was shared. */
-public final class IncludedAssets {
+public final class SharedAssetResolver {
 
-  private IncludedAssets() {}
+  private SharedAssetResolver() {}
 
   /**
    * The catalog asset behind {@code sharedObject}, resolved as {@code auth}, or empty once the

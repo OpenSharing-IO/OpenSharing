@@ -2,7 +2,7 @@ package io.opensharing.share;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.Transactions;
-import io.opensharing.asset.IncludedAssets;
+import io.opensharing.asset.SharedAssetResolver;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.auth.AuthContext;
@@ -216,7 +216,7 @@ public class ShareService {
   // Resolves an included object as the share's owner, whom recipients read it as.
   private void requireStillShared(ShareEntity share, SharedDataObjectEntity sharedObject) {
     AuthContext owner = AuthContext.of(UserContext.fromUserIdAndName(share.getOwnerId(), null));
-    if (IncludedAssets.resolve(catalog, sharedObject, owner).isEmpty()) {
+    if (SharedAssetResolver.resolve(catalog, sharedObject, owner).isEmpty()) {
       throw ApiException.conflict(
           sharedObject.getType().name().toLowerCase(Locale.ROOT)
               + " '"

@@ -1,7 +1,7 @@
 package io.opensharing.asset.table;
 
 import io.opensharing.ObjectNames;
-import io.opensharing.asset.IncludedAssets;
+import io.opensharing.asset.SharedAssetResolver;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
@@ -207,7 +207,7 @@ public class ProtocolTables {
    */
   private ResolvedAsset resolveIncluded(ShareEntity share, SharedDataObjectEntity sharedObject) {
     Optional<ResolvedAsset> catalogAsset =
-        IncludedAssets.resolve(catalog, sharedObject, owner(share));
+        SharedAssetResolver.resolve(catalog, sharedObject, owner(share));
     if (catalogAsset.isEmpty()) {
       String type = sharedObject.getType().name().toLowerCase(Locale.ROOT);
       log.error(
