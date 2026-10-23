@@ -20,6 +20,7 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     // Another table now has the name of one shared table, and another is gone from the catalog.
     editIncluded("stale-tables", "main.sales.orders", o -> o.setSourceAssetId("other-id"));
     editIncluded("stale-tables", "main.sales.customers", o -> o.setFullName("main.sales.dropped"));
+    // Listing serves both from what the share recorded, without asking the catalog.
     Response list = server.get(PROTOCOL + "/shares/stale-tables/schemas/sales/tables", bearer);
     assertEquals(200, list.status());
     JsonNode items = list.body().path("items");
@@ -48,6 +49,7 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     // Another schema now has the name of one shared schema, and another is gone from the catalog.
     editIncluded("stale-schemas", "main.hr", o -> o.setSourceAssetId("other-id"));
     editIncluded("stale-schemas", "main.legal", o -> o.setFullName("main.dropped"));
+    // The catalog lists the replacing schema's tables, and none for the dropped one.
     String schemas = PROTOCOL + "/shares/stale-schemas/schemas/";
     assertEquals(2, server.get(schemas + "hr/tables", bearer).body().path("items").size());
     Response dropped = server.get(schemas + "legal/tables", bearer);
@@ -66,8 +68,10 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     String tables = PROTOCOL + "/shares/get-stale/schemas/sales/tables/";
     assertEquals(200, server.get(tables + "orders", bearer).status());
 
+    // Another table now has the name of one shared table, and another is gone from the catalog.
     editIncluded("get-stale", "main.sales.orders", o -> o.setSourceAssetId("other-id"));
     editIncluded("get-stale", "main.sales.customers", o -> o.setFullName("main.sales.dropped"));
+    // Get Table resolves each in the catalog and reports both as missing, by alias.
     assertNotFound(
         server.get(tables + "orders", bearer),
         "table 'sales.orders' does not exist in share 'get-stale'");
@@ -86,8 +90,10 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     String schemas = PROTOCOL + "/shares/get-stale-schemas/schemas/";
     assertEquals(200, server.get(schemas + "hr/tables/salaries", bearer).status());
 
+    // Another schema now has the name of one shared schema, and another is gone from the catalog.
     editIncluded("get-stale-schemas", "main.hr", o -> o.setSourceAssetId("other-id"));
     editIncluded("get-stale-schemas", "main.legal", o -> o.setFullName("main.dropped"));
+    // Get Table checks the schema before looking up its table, so both tables are missing.
     assertNotFound(
         server.get(schemas + "hr/tables/salaries", bearer),
         "table 'hr.salaries' does not exist in share 'get-stale-schemas'");

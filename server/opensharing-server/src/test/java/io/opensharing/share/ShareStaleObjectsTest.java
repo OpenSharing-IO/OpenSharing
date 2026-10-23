@@ -55,6 +55,7 @@ class ShareStaleObjectsTest extends ProtocolApiSupport {
     String share = PROVIDER + "/shares/stale-schema?include_shared_data=true";
     assertEquals(200, server.get(share, ALICE).status());
 
+    // Another schema now has the shared schema's name.
     editIncluded("stale-schema", "main.hr", o -> o.setSourceAssetId("other-id"));
     Response replaced = server.get(share, ALICE);
     assertEquals(409, replaced.status());
@@ -64,6 +65,7 @@ class ShareStaleObjectsTest extends ProtocolApiSupport {
             + " remove it from the share",
         replaced.body().path("message").asText());
 
+    // The shared schema is gone from the catalog.
     editIncluded("stale-dropped-schema", "main.legal", o -> o.setFullName("main.dropped"));
     Response dropped =
         server.get(PROVIDER + "/shares/stale-dropped-schema?include_shared_data=true", ALICE);
