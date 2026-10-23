@@ -51,13 +51,17 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     // Another schema now has the name of one shared schema, and another is gone from the catalog.
     replaceInCatalog("listed-schemas", "main.hr");
     dropFromCatalog("listed-schemas", "main.legal");
-    // The catalog lists the replacing schema's tables, and none for the dropped one.
     String schemasPath = PROTOCOL + "/shares/listed-schemas/schemas/";
+    // The replaced schema lists the catalog's tables under its name.
     Response hrTables = server.get(schemasPath + "hr/tables", recipientToken);
     assertEquals(2, hrTables.body().path("items").size());
+
+    // The dropped schema lists no tables.
     Response legalTables = server.get(schemasPath + "legal/tables", recipientToken);
     assertEquals(200, legalTables.status());
     assertEquals(0, legalTables.body().path("items").size());
+
+    // All Tables lists the replaced schema's tables and the shared table, but not the dropped one.
     assertEquals(3, server.get(allTablesPath, recipientToken).body().path("items").size());
   }
 
