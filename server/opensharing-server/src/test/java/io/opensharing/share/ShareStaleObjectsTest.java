@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class ShareStaleObjectsTest extends ProtocolApiSupport {
 
   @Test
-  void asksTheProviderToReshareATableTheCatalogReplacedOrDropped() {
+  void asksTheProviderToRemoveATableTheCatalogReplacedOrDropped() {
     createShare("stale-replaced");
     addObject("stale-replaced", "TABLE", "main.sales.orders", "sales.orders");
     createShare("stale-dropped");
@@ -37,20 +37,21 @@ class ShareStaleObjectsTest extends ProtocolApiSupport {
     assertEquals(409, dropped.status());
     assertEquals(ErrorCodes.RESOURCE_CONFLICT, dropped.errorCode());
 
-    // Sharing the table again picks up the catalog's current table.
+    // Once the provider removes the table, the share reads again with its objects.
     String remove =
         "{\"updates\":[{\"action\":\"REMOVE\","
             + "\"dataObject\":{\"type\":\"TABLE\",\"sharedAs\":\"sales.orders\"}}]}";
     assertEquals(
         200, server.patch(PROVIDER + "/shares/stale-replaced", ALICE, remove).status());
-    addObject("stale-replaced", "TABLE", "main.sales.orders", "sales.orders");
     assertEquals(200, server.get(replacedShare, ALICE).status());
   }
 
   @Test
-  void asksTheProviderToReshareASchemaTheCatalogReplaced() {
+  void asksTheProviderToRemoveASchemaTheCatalogReplacedOrDropped() {
     createShare("stale-schema");
     addObject("stale-schema", "SCHEMA", "main.hr", "hr");
+    createShare("stale-dropped-schema");
+    addObject("stale-dropped-schema", "SCHEMA", "main.legal", "legal");
     String share = PROVIDER + "/shares/stale-schema?include_shared_data=true";
     assertEquals(200, server.get(share, ALICE).status());
 
@@ -62,5 +63,11 @@ class ShareStaleObjectsTest extends ProtocolApiSupport {
         "schema 'hr' in share 'stale-schema' was dropped or replaced in the catalog;"
             + " remove it from the share",
         replaced.body().path("message").asText());
+
+    editIncluded("stale-dropped-schema", "main.legal", o -> o.setFullName("main.dropped"));
+    Response dropped =
+        server.get(PROVIDER + "/shares/stale-dropped-schema?include_shared_data=true", ALICE);
+    assertEquals(409, dropped.status());
+    assertEquals(ErrorCodes.RESOURCE_CONFLICT, dropped.errorCode());
   }
 }
