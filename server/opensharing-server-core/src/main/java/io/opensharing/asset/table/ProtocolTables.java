@@ -111,7 +111,7 @@ public class ProtocolTables {
     for (SharedDataObjectEntity sharedObject : objectsInSchema(share, schemaAlias)) {
       if (sharedObject.getType() == AssetType.TABLE
           && tableAlias.equals(sharedObject.getSharedAsTable())) {
-        ResolvedAsset catalogTable = resolveIncluded(share, sharedObject);
+        ResolvedAsset catalogTable = resolveSharedAsset(share, sharedObject);
         if (catalogTable == null) {
           break;
         }
@@ -122,7 +122,7 @@ public class ProtocolTables {
             catalogTable);
       }
       if (sharedObject.getType() == AssetType.SCHEMA && !tableAlias.contains(".")) {
-        if (resolveIncluded(share, sharedObject) == null) {
+        if (resolveSharedAsset(share, sharedObject) == null) {
           break;
         }
         Asset childTable =
@@ -195,11 +195,10 @@ public class ProtocolTables {
   }
 
   /**
-   * The catalog table or schema behind the included {@code sharedObject}, or null once the catalog
-   * has dropped it or replaced it with another of the same name. That hides it, and every table
-   * under a hidden schema, from recipients.
+   * Resolves {@code sharedObject} in the catalog, or logs an error and returns null once the
+   * catalog dropped or replaced it.
    */
-  private ResolvedAsset resolveIncluded(ShareEntity share, SharedDataObjectEntity sharedObject) {
+  private ResolvedAsset resolveSharedAsset(ShareEntity share, SharedDataObjectEntity sharedObject) {
     Optional<ResolvedAsset> catalogAsset =
         SharedAssetResolver.resolve(catalog, sharedObject, owner(share));
     if (catalogAsset.isEmpty()) {
