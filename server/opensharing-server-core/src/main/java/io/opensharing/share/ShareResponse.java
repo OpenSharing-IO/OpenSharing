@@ -50,7 +50,8 @@ public record ShareResponse(
   public record SharedDataObjectResponse(String name, AssetType type, String sharedAs) {
 
     static SharedDataObjectResponse from(SharedDataObjectEntity object) {
-      return new SharedDataObjectResponse(object.getName(), object.getType(), object.getSharedAs());
+      return new SharedDataObjectResponse(
+          object.getFullName(), object.getType(), object.getSharedAs());
     }
   }
 }

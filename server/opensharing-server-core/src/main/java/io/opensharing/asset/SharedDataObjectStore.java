@@ -32,7 +32,7 @@ public class SharedDataObjectStore {
   public SharedDataObjectEntity add(
       EntityManager em,
       ShareEntity share,
-      String name,
+      String fullName,
       AssetType type,
       ResolvedAsset resolved,
       String sharedAsSchema,
@@ -43,9 +43,9 @@ public class SharedDataObjectStore {
       throw ApiException.alreadyExists(
           "alias '" + alias + "' already exists in share '" + share.getName() + "'");
     }
-    if (findByName(em, share, name).isPresent()) {
+    if (findByFullName(em, share, fullName).isPresent()) {
       throw ApiException.alreadyExists(
-          "'" + name + "' is already included in share '" + share.getName() + "'");
+          "'" + fullName + "' is already included in share '" + share.getName() + "'");
     }
     if (!sharedAsTable.isEmpty() && schemaIncluded(em, share, sharedAsSchema)) {
       throw ApiException.conflict(
@@ -63,7 +63,7 @@ public class SharedDataObjectStore {
     SharedDataObjectEntity object = new SharedDataObjectEntity();
     object.setShare(em.getReference(ShareEntity.class, share.getId()));
     object.setSourceAssetId(resolved.catalogAssetId());
-    object.setName(name);
+    object.setFullName(fullName);
     object.setType(type);
     if (resolved.additionalProperties() instanceof TableProperties table) {
       object.setSourceFormat(table.dataSourceFormat());
@@ -131,21 +131,23 @@ public class SharedDataObjectStore {
     em.remove(object);
   }
 
-  /** Removes the object by catalog name. Fails unless it exists with the given type. */
-  public void removeByName(EntityManager em, ShareEntity share, AssetType type, String name) {
+  /** Removes the object by full catalog name. Fails unless it exists with the given type. */
+  public void removeByFullName(
+      EntityManager em, ShareEntity share, AssetType type, String fullName) {
     SharedDataObjectEntity object =
-        findByName(em, share, name).orElseThrow(() -> notIncluded(share, name));
+        findByFullName(em, share, fullName).orElseThrow(() -> notIncluded(share, fullName));
     requireType(object, type, share);
     em.remove(object);
   }
 
-  private static Optional<SharedDataObjectEntity> findByName(
-      EntityManager em, ShareEntity share, String name) {
+  private static Optional<SharedDataObjectEntity> findByFullName(
+      EntityManager em, ShareEntity share, String fullName) {
     return em.createQuery(
-            "select o from SharedDataObjectEntity o where o.share.id = :shareId and o.name = :name",
+            "select o from SharedDataObjectEntity o where o.share.id = :shareId"
+                + " and o.fullName = :fullName",
             SharedDataObjectEntity.class)
         .setParameter("shareId", share.getId())
-        .setParameter("name", name)
+        .setParameter("fullName", fullName)
         .getResultStream()
         .findFirst();
   }
