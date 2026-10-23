@@ -90,9 +90,9 @@ public class ShareService {
     if (!includeSharedData) {
       return ShareResponse.from(entity);
     }
-    List<SharedDataObjectEntity> includedObjects = objects.list(entity);
-    includedObjects.forEach(sharedObject -> requireStillShared(entity, sharedObject));
-    return ShareResponse.from(entity, includedObjects);
+    List<SharedDataObjectEntity> sharedObjects = objects.list(entity);
+    sharedObjects.forEach(sharedObject -> requireStillShared(entity, sharedObject));
+    return ShareResponse.from(entity, sharedObjects);
   }
 
   /**

@@ -105,6 +105,12 @@ public class SharedDataObjectStore {
                 .getResultList());
   }
 
+  /** The object {@code share} shares under the alias; an empty table alias finds a schema. */
+  public Optional<SharedDataObjectEntity> findByAlias(
+      ShareEntity share, String sharedAsSchema, String sharedAsTable) {
+    return tx.inTransaction(true, em -> findByAlias(em, share, sharedAsSchema, sharedAsTable));
+  }
+
   /** One page of the schemas recipients see in {@code share}, ordered by name. */
   public List<String> listSchemas(ShareEntity share, int offset, int limit) {
     return tx.inTransaction(
