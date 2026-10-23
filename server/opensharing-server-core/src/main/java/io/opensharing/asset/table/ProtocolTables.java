@@ -1,6 +1,7 @@
 package io.opensharing.asset.table;
 
 import io.opensharing.ObjectNames;
+import io.opensharing.asset.IncludedAssets;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
@@ -22,7 +23,12 @@ import io.opensharing.share.ShareEntity;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The tables a recipient sees through the sharing protocol in a share it holds SELECT on: the
@@ -36,6 +42,7 @@ import java.util.function.Supplier;
  */
 public class ProtocolTables {
 
+  private static final Logger log = LoggerFactory.getLogger(ProtocolTables.class);
   private static final int CATALOG_PAGE_SIZE = 1000;
 
   private final CatalogConnector catalog;
@@ -98,15 +105,27 @@ public class ProtocolTables {
   /**
    * The table under {@code schemaAlias} and {@code tableAlias}: an included table, or a table the
    * catalog holds directly in an included schema, resolved without listing the schema. A name with
-   * a dot is never on the listing.
+   * a dot is never on the listing, and a hidden table, or any table under a hidden schema, is
+   * missing.
    */
   private ListedTable findTable(ShareEntity share, String schemaAlias, String tableAlias) {
     for (SharedDataObjectEntity sharedObject : objectsInSchema(share, schemaAlias)) {
       if (sharedObject.getType() == AssetType.TABLE
           && tableAlias.equals(sharedObject.getSharedAsTable())) {
-        return includedTable(share, sharedObject);
+        ResolvedAsset catalogTable = resolveIncluded(share, sharedObject);
+        if (catalogTable == null) {
+          break;
+        }
+        return new ListedTable(
+            sharedObject.getSharedAsSchema(),
+            sharedObject.getSharedAsTable(),
+            sharedObject.getSourceAssetId(),
+            () -> catalogTable);
       }
       if (sharedObject.getType() == AssetType.SCHEMA && !tableAlias.contains(".")) {
+        if (resolveIncluded(share, sharedObject) == null) {
+          break;
+        }
         Asset childTable =
             new Asset(AssetType.TABLE, sharedObject.getFullName() + "." + tableAlias);
         try {
@@ -134,7 +153,7 @@ public class ProtocolTables {
 
   /**
    * A table on the listing. Included tables are resolved only when they land on the requested
-   * page; catalog children arrive resolved.
+   * page, to null when hidden; catalog children arrive resolved.
    */
   private record ListedTable(
       String schemaAlias,
@@ -152,6 +171,9 @@ public class ProtocolTables {
     for (SharedDataObjectEntity sharedObject : includedObjects) {
       String schemaAlias = sharedObject.getSharedAsSchema();
       if (sharedObject.getType() == AssetType.SCHEMA) {
+        if (resolveIncluded(share, sharedObject) == null) {
+          continue;
+        }
         for (ResolvedAsset catalogTable : catalogTablesIn(share, sharedObject)) {
           listedTables.add(
               new ListedTable(
@@ -171,26 +193,52 @@ public class ProtocolTables {
 
   /** The included {@code sharedTable}, resolved only when read. */
   private ListedTable includedTable(ShareEntity share, SharedDataObjectEntity sharedTable) {
-    Asset catalogTable = new Asset(AssetType.TABLE, sharedTable.getFullName());
     return new ListedTable(
         sharedTable.getSharedAsSchema(),
         sharedTable.getSharedAsTable(),
         sharedTable.getSourceAssetId(),
-        () -> catalog.resolveAsset(catalogTable, owner(share)));
+        () -> resolveIncluded(share, sharedTable));
   }
 
-  /** One page of {@code listedTables}, resolving only the tables on it. */
+  /**
+   * The catalog table or schema behind the included {@code sharedObject}, or null once the catalog
+   * has dropped it or replaced it with another of the same name. That hides it, and every table
+   * under a hidden schema, from recipients until the provider shares it again.
+   */
+  private ResolvedAsset resolveIncluded(ShareEntity share, SharedDataObjectEntity sharedObject) {
+    Optional<ResolvedAsset> catalogAsset =
+        IncludedAssets.resolve(catalog, sharedObject, owner(share));
+    if (catalogAsset.isEmpty()) {
+      String type = sharedObject.getType().name().toLowerCase(Locale.ROOT);
+      log.error(
+          "Hiding {} '{}' in share '{}': catalog {} '{}' was dropped or replaced since it was"
+              + " shared",
+          type,
+          sharedObject.getSharedAs(),
+          share.getName(),
+          type,
+          sharedObject.getFullName());
+    }
+    return catalogAsset.orElse(null);
+  }
+
+  /**
+   * One page of {@code listedTables}, resolving only the tables on it and leaving out hidden ones.
+   */
   private ListResponse<TableResponse> page(
       ShareEntity share, List<ListedTable> listedTables, Integer maxResults, String pageToken) {
-    return Pagination.protocolPage(
-        maxResults,
-        pageToken,
-        (offset, limit) -> {
-          int fromIndex = Math.min(offset, listedTables.size());
-          int toIndex = fromIndex + Math.min(limit, listedTables.size() - fromIndex);
-          return listedTables.subList(fromIndex, toIndex);
-        },
-        listedTable -> response(share, listedTable));
+    ListResponse<TableResponse> tablePage =
+        Pagination.protocolPage(
+            maxResults,
+            pageToken,
+            (offset, limit) -> {
+              int fromIndex = Math.min(offset, listedTables.size());
+              int toIndex = fromIndex + Math.min(limit, listedTables.size() - fromIndex);
+              return listedTables.subList(fromIndex, toIndex);
+            },
+            listedTable -> response(share, listedTable));
+    return new ListResponse<>(
+        tablePage.items().stream().filter(Objects::nonNull).toList(), tablePage.nextPageToken());
   }
 
   /** Every table the catalog lists under the included {@code sharedSchema}, across all pages. */
@@ -210,9 +258,15 @@ public class ProtocolTables {
     return catalogTables;
   }
 
-  /** The listed table with the storage locations and access modes of its catalog table. */
+  /**
+   * The listed table with the storage locations and access modes of its catalog table, or null when
+   * it is hidden.
+   */
   private static TableResponse response(ShareEntity share, ListedTable listedTable) {
     ResolvedAsset catalogTable = listedTable.catalogTable().get();
+    if (catalogTable == null) {
+      return null;
+    }
     AssetLocation location = catalogTable.location();
     return new TableResponse(
         listedTable.tableAlias(),

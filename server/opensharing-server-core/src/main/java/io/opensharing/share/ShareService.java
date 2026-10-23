@@ -2,6 +2,8 @@ package io.opensharing.share;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.Transactions;
+import io.opensharing.asset.IncludedAssets;
+import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.Ownership;
@@ -21,6 +23,7 @@ import io.opensharing.recipient.RecipientStore;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -84,9 +87,12 @@ public class ShareService {
    */
   public ShareResponse get(UserContext user, String share, boolean includeSharedData) {
     ShareEntity entity = requireReadable(user, share);
-    return includeSharedData
-        ? ShareResponse.from(entity, objects.list(entity))
-        : ShareResponse.from(entity);
+    if (!includeSharedData) {
+      return ShareResponse.from(entity);
+    }
+    List<SharedDataObjectEntity> includedObjects = objects.list(entity);
+    includedObjects.forEach(sharedObject -> requireStillShared(entity, sharedObject));
+    return ShareResponse.from(entity, includedObjects);
   }
 
   /**
@@ -205,6 +211,21 @@ public class ShareService {
       catalog.authorize(AuthContext.of(user), Privilege.USE_SHARE);
     }
     return entity;
+  }
+
+  // Resolves an included object as the share's owner, whom recipients read it as.
+  private void requireStillShared(ShareEntity share, SharedDataObjectEntity sharedObject) {
+    AuthContext owner = AuthContext.of(UserContext.fromUserIdAndName(share.getOwnerId(), null));
+    if (IncludedAssets.resolve(catalog, sharedObject, owner).isEmpty()) {
+      throw ApiException.conflict(
+          sharedObject.getType().name().toLowerCase(Locale.ROOT)
+              + " '"
+              + sharedObject.getSharedAs()
+              + "' in share '"
+              + share.getName()
+              + "' was dropped or replaced in the catalog; remove it from the share and add it"
+              + " again");
+    }
   }
 
   private boolean holds(UserContext user, Privilege privilege) {
