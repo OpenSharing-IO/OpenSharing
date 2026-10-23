@@ -223,8 +223,7 @@ public class ShareService {
               + sharedObject.getSharedAs()
               + "' in share '"
               + share.getName()
-              + "' was dropped or replaced in the catalog; remove it from the share and add it"
-              + " again");
+              + "' was dropped or replaced in the catalog; remove it from the share");
     }
   }
 

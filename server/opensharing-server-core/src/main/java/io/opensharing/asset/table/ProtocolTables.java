@@ -199,7 +199,7 @@ public class ProtocolTables {
   /**
    * The catalog table or schema behind the included {@code sharedObject}, or null once the catalog
    * has dropped it or replaced it with another of the same name. That hides it, and every table
-   * under a hidden schema, from recipients until the provider shares it again.
+   * under a hidden schema, from recipients.
    */
   private ResolvedAsset resolveIncluded(ShareEntity share, SharedDataObjectEntity sharedObject) {
     Optional<ResolvedAsset> catalogAsset =

@@ -25,7 +25,7 @@ class ShareStaleObjectsTest extends ProtocolApiSupport {
     assertEquals(ErrorCodes.RESOURCE_CONFLICT, replaced.errorCode());
     assertEquals(
         "table 'sales.orders' in share 'stale-replaced' was dropped or replaced in the catalog;"
-            + " remove it from the share and add it again",
+            + " remove it from the share",
         replaced.body().path("message").asText());
     // The share itself is still readable without its objects.
     assertEquals(200, server.get(PROVIDER + "/shares/stale-replaced", ALICE).status());
@@ -60,7 +60,7 @@ class ShareStaleObjectsTest extends ProtocolApiSupport {
     assertEquals(ErrorCodes.RESOURCE_CONFLICT, replaced.errorCode());
     assertEquals(
         "schema 'hr' in share 'stale-schema' was dropped or replaced in the catalog;"
-            + " remove it from the share and add it again",
+            + " remove it from the share",
         replaced.body().path("message").asText());
   }
 }
