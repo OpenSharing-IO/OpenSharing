@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
+import io.opensharing.asset.SharedDataObjectEntity;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 
@@ -78,6 +80,45 @@ public abstract class ProtocolApiSupport {
         server.patch(
             PROVIDER + "/shares/" + share + "/permissions", ALICE, body.formatted(recipient));
     assertEquals(200, granted.status());
+  }
+
+  /**
+   * Stands in for the catalog replacing the shared object {@code fullName} with another of the same
+   * name, by changing the catalog id the share recorded for it.
+   */
+  protected static void replaceInCatalog(String shareName, String fullName) {
+    editSharedObject(
+        shareName, fullName, sharedObject -> sharedObject.setSourceAssetId("replaced-id"));
+  }
+
+  /**
+   * Stands in for the catalog dropping the shared object {@code fullName}, by pointing the share at
+   * a name the catalog doesn't have.
+   */
+  protected static void dropFromCatalog(String shareName, String fullName) {
+    editSharedObject(
+        shareName, fullName, sharedObject -> sharedObject.setFullName(fullName + "_dropped"));
+  }
+
+  /** Applies {@code edit} to what {@code shareName} recorded about its object {@code fullName}. */
+  private static void editSharedObject(
+      String shareName, String fullName, Consumer<SharedDataObjectEntity> edit) {
+    server
+        .server()
+        .transactions()
+        .inTransaction(
+            false,
+            em -> {
+              edit.accept(
+                  em.createQuery(
+                          "select o from SharedDataObjectEntity o"
+                              + " where o.share.name = :shareName and o.fullName = :fullName",
+                          SharedDataObjectEntity.class)
+                      .setParameter("shareName", shareName)
+                      .setParameter("fullName", fullName)
+                      .getSingleResult());
+              return null;
+            });
   }
 
   /** {@code path} with a {@code maxResults} and, unless null, a {@code pageToken} parameter. */

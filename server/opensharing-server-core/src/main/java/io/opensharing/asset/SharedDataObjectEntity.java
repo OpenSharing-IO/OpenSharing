@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.util.List;
 
 /**
  * A catalog object included in a share under a recipient-visible alias. A share may include each
@@ -53,6 +54,14 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Enumerated(EnumType.STRING)
   @Column(name = "source_format", length = 32)
   private DataSourceFormat sourceFormat;
+
+  /** Storage location of a table as the catalog reported it when shared; null for schemas. */
+  @Column(name = "storage_location", length = 2048)
+  private String storageLocation;
+
+  /** Other storage locations of a table as the catalog reported them when shared, one per line. */
+  @Column(name = "auxiliary_locations", length = 8192)
+  private String auxiliaryLocations;
 
   /** Lowercase schema name recipients see. */
   @Column(name = "shared_as_schema", nullable = false, length = 255)
@@ -100,6 +109,23 @@ public class SharedDataObjectEntity extends BaseEntity {
 
   public void setSourceFormat(DataSourceFormat sourceFormat) {
     this.sourceFormat = sourceFormat;
+  }
+
+  public String getStorageLocation() {
+    return storageLocation;
+  }
+
+  public void setStorageLocation(String storageLocation) {
+    this.storageLocation = storageLocation;
+  }
+
+  public List<String> getAuxiliaryLocations() {
+    return auxiliaryLocations == null ? List.of() : List.of(auxiliaryLocations.split("\n"));
+  }
+
+  public void setAuxiliaryLocations(List<String> auxiliaryLocations) {
+    this.auxiliaryLocations =
+        auxiliaryLocations.isEmpty() ? null : String.join("\n", auxiliaryLocations);
   }
 
   public String getSharedAsSchema() {

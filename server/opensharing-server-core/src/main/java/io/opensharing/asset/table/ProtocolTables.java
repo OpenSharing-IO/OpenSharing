@@ -1,6 +1,7 @@
 package io.opensharing.asset.table;
 
 import io.opensharing.ObjectNames;
+import io.opensharing.asset.SharedAssetResolver;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
@@ -11,6 +12,7 @@ import io.opensharing.catalog.AssetLocation;
 import io.opensharing.catalog.AssetPage;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.TableProperties;
 import io.opensharing.exception.AssetNotFoundException;
@@ -22,12 +24,17 @@ import io.opensharing.share.ShareEntity;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The tables a recipient sees through the sharing protocol in a share it holds SELECT on: the
  * tables the share includes one by one, plus the tables the catalog currently lists under each
- * schema the share includes as a whole.
+ * schema the share includes as a whole. Listing serves included tables as the share recorded them;
+ * only Get Table resolves them in the catalog.
  *
  * <p>Every catalog call is made as the share's owner, so the catalog decides whether the owner may
  * still read each table.
@@ -36,6 +43,7 @@ import java.util.function.Supplier;
  */
 public class ProtocolTables {
 
+  private static final Logger log = LoggerFactory.getLogger(ProtocolTables.class);
   private static final int CATALOG_PAGE_SIZE = 1000;
 
   private final CatalogConnector catalog;
@@ -59,65 +67,63 @@ public class ProtocolTables {
       Integer maxResults,
       String pageToken) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    List<ListedTable> listedTables = listTables(share, objectsInSchema(share, schemaAlias));
-    return page(share, listedTables, maxResults, pageToken);
+    List<SharedDataObjectEntity> schemaObjects = sharedObjects.listInSchema(share, schemaAlias);
+    if (schemaObjects.isEmpty()) {
+      throw ApiException.notFound(
+          "schema '" + schemaAlias + "' does not exist in share '" + share.getName() + "'");
+    }
+    return page(listTables(share, schemaObjects), maxResults, pageToken);
   }
 
   /** Lists one page of all the tables in the share, by schema alias and then table alias. */
   public ListResponse<TableResponse> listAll(
       RecipientPrincipal recipient, String shareName, Integer maxResults, String pageToken) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    List<ListedTable> listedTables = listTables(share, sharedObjects.list(share));
-    return page(share, listedTables, maxResults, pageToken);
+    return page(listTables(share, sharedObjects.list(share)), maxResults, pageToken);
   }
 
   /** Gets one table of the share by its schema alias and table alias. */
   public GetTableResponse get(
       RecipientPrincipal recipient, String shareName, String schemaAlias, String tableAlias) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    ListedTable table = findTable(share, schemaAlias, tableAlias);
+    SharedTable table = findTable(share, schemaAlias, tableAlias);
+    DataSourceFormat format = dataSourceFormat(table.catalogTable());
     return new GetTableResponse(
         table.tableAlias(),
         table.schemaAlias(),
         share.getName(),
         share.getId(),
         table.tableId(),
-        format(table.catalogTable().get()));
-  }
-
-  /** The objects the share includes under {@code schemaAlias}. */
-  private List<SharedDataObjectEntity> objectsInSchema(ShareEntity share, String schemaAlias) {
-    List<SharedDataObjectEntity> schemaObjects = sharedObjects.listInSchema(share, schemaAlias);
-    if (schemaObjects.isEmpty()) {
-      throw ApiException.notFound(
-          "schema '" + schemaAlias + "' does not exist in share '" + share.getName() + "'");
-    }
-    return schemaObjects;
+        format == null ? null : format.wireName());
   }
 
   /**
-   * The table under {@code schemaAlias} and {@code tableAlias}: an included table, or a table the
-   * catalog holds directly in an included schema, resolved without listing the schema. A name with
-   * a dot is never on the listing.
+   * The shared table, or the catalog table in a shared schema, under {@code schemaAlias} and
+   * {@code tableAlias}.
    */
-  private ListedTable findTable(ShareEntity share, String schemaAlias, String tableAlias) {
-    for (SharedDataObjectEntity sharedObject : objectsInSchema(share, schemaAlias)) {
-      if (sharedObject.getType() == AssetType.TABLE
-          && tableAlias.equals(sharedObject.getSharedAsTable())) {
-        return includedTable(share, sharedObject);
+  private SharedTable findTable(ShareEntity share, String schemaAlias, String tableAlias) {
+    Optional<SharedDataObjectEntity> sharedTable =
+        sharedObjects.findByAlias(share, schemaAlias, tableAlias);
+    if (sharedTable.isPresent()) {
+      ResolvedAsset catalogTable = resolveSharedAsset(share, sharedTable.get());
+      if (catalogTable != null) {
+        return new SharedTable(
+            schemaAlias, tableAlias, sharedTable.get().getSourceAssetId(), catalogTable);
       }
-      if (sharedObject.getType() == AssetType.SCHEMA && !tableAlias.contains(".")) {
+    } else {
+      Optional<SharedDataObjectEntity> sharedSchema =
+          sharedObjects.findByAlias(share, schemaAlias, "");
+      if (sharedSchema.isPresent()
+          && !tableAlias.contains(".")
+          && resolveSharedAsset(share, sharedSchema.get()) != null) {
         Asset childTable =
-            new Asset(AssetType.TABLE, sharedObject.getFullName() + "." + tableAlias);
+            new Asset(AssetType.TABLE, sharedSchema.get().getFullName() + "." + tableAlias);
         try {
           ResolvedAsset catalogTable = catalog.resolveAsset(childTable, owner(share));
-          return new ListedTable(
-              sharedObject.getSharedAsSchema(),
-              alias(catalogTable),
-              catalogTable.catalogAssetId(),
-              () -> catalogTable);
+          return new SharedTable(
+              schemaAlias, alias(catalogTable), catalogTable.catalogAssetId(), catalogTable);
         } catch (AssetNotFoundException notInCatalog) {
-          break;
+          // Falls through to the alias-only not-found below.
         }
       }
     }
@@ -132,76 +138,110 @@ public class ProtocolTables {
             + "'");
   }
 
-  /**
-   * A table on the listing. Included tables are resolved only when they land on the requested
-   * page; catalog children arrive resolved.
-   */
-  private record ListedTable(
-      String schemaAlias,
-      String tableAlias,
-      String tableId,
-      Supplier<ResolvedAsset> catalogTable) {}
+  /** A table of the share, with the catalog table it resolved to. */
+  private record SharedTable(
+      String schemaAlias, String tableAlias, String tableId, ResolvedAsset catalogTable) {}
 
-  /**
-   * The tables {@code includedObjects} puts on the listing, by schema alias and then table alias:
-   * each included table, plus the catalog's current tables under each included schema.
-   */
-  private List<ListedTable> listTables(
-      ShareEntity share, List<SharedDataObjectEntity> includedObjects) {
-    List<ListedTable> listedTables = new ArrayList<>();
-    for (SharedDataObjectEntity sharedObject : includedObjects) {
+  /** The tables {@code sharedObjects} puts on the listing, by schema alias and table alias. */
+  private List<TableResponse> listTables(
+      ShareEntity share, List<SharedDataObjectEntity> sharedObjects) {
+    List<TableResponse> tables = new ArrayList<>();
+    for (SharedDataObjectEntity sharedObject : sharedObjects) {
       String schemaAlias = sharedObject.getSharedAsSchema();
       if (sharedObject.getType() == AssetType.SCHEMA) {
+        // The share records no tables under a shared schema, so only the catalog can list them.
         for (ResolvedAsset catalogTable : catalogTablesIn(share, sharedObject)) {
-          listedTables.add(
-              new ListedTable(
-                  schemaAlias,
+          AssetLocation location = catalogTable.location();
+          tables.add(
+              new TableResponse(
                   alias(catalogTable),
+                  schemaAlias,
+                  share.getName(),
+                  share.getId(),
                   catalogTable.catalogAssetId(),
-                  () -> catalogTable));
+                  location == null ? null : location.storageLocation(),
+                  location == null || location.auxiliaryLocations().isEmpty()
+                      ? null
+                      : location.auxiliaryLocations(),
+                  TableAccessModes.forFormat(dataSourceFormat(catalogTable))));
         }
       } else if (sharedObject.getType() == AssetType.TABLE) {
-        listedTables.add(includedTable(share, sharedObject));
+        // The share recorded everything listed about an included table, so the catalog isn't
+        // called; Get Table resolves it.
+        tables.add(
+            new TableResponse(
+                sharedObject.getSharedAsTable(),
+                schemaAlias,
+                share.getName(),
+                share.getId(),
+                sharedObject.getSourceAssetId(),
+                sharedObject.getStorageLocation(),
+                sharedObject.getAuxiliaryLocations().isEmpty()
+                    ? null
+                    : sharedObject.getAuxiliaryLocations(),
+                TableAccessModes.forFormat(sharedObject.getSourceFormat())));
       }
     }
-    listedTables.sort(
-        Comparator.comparing(ListedTable::schemaAlias).thenComparing(ListedTable::tableAlias));
-    return listedTables;
+    tables.sort(Comparator.comparing(TableResponse::schema).thenComparing(TableResponse::name));
+    return tables;
   }
 
-  /** The included {@code sharedTable}, resolved only when read. */
-  private ListedTable includedTable(ShareEntity share, SharedDataObjectEntity sharedTable) {
-    Asset catalogTable = new Asset(AssetType.TABLE, sharedTable.getFullName());
-    return new ListedTable(
-        sharedTable.getSharedAsSchema(),
-        sharedTable.getSharedAsTable(),
-        sharedTable.getSourceAssetId(),
-        () -> catalog.resolveAsset(catalogTable, owner(share)));
+  /**
+   * Resolves {@code sharedObject} in the catalog, or logs an error and returns null once the
+   * catalog dropped or replaced it.
+   */
+  private ResolvedAsset resolveSharedAsset(ShareEntity share, SharedDataObjectEntity sharedObject) {
+    Optional<ResolvedAsset> catalogAsset =
+        SharedAssetResolver.resolve(catalog, sharedObject, owner(share));
+    if (catalogAsset.isEmpty()) {
+      String type = sharedObject.getType().name().toLowerCase(Locale.ROOT);
+      log.error(
+          "Hiding {} '{}' in share '{}': catalog {} '{}' was dropped or replaced since it was"
+              + " shared",
+          type,
+          sharedObject.getSharedAs(),
+          share.getName(),
+          type,
+          sharedObject.getFullName());
+    }
+    return catalogAsset.orElse(null);
   }
 
-  /** One page of {@code listedTables}, resolving only the tables on it. */
-  private ListResponse<TableResponse> page(
-      ShareEntity share, List<ListedTable> listedTables, Integer maxResults, String pageToken) {
+  /** One page of {@code tables}. */
+  private static ListResponse<TableResponse> page(
+      List<TableResponse> tables, Integer maxResults, String pageToken) {
     return Pagination.protocolPage(
         maxResults,
         pageToken,
         (offset, limit) -> {
-          int fromIndex = Math.min(offset, listedTables.size());
-          int toIndex = fromIndex + Math.min(limit, listedTables.size() - fromIndex);
-          return listedTables.subList(fromIndex, toIndex);
+          int fromIndex = Math.min(offset, tables.size());
+          return tables.subList(fromIndex, fromIndex + Math.min(limit, tables.size() - fromIndex));
         },
-        listedTable -> response(share, listedTable));
+        Function.identity());
   }
 
-  /** Every table the catalog lists under the included {@code sharedSchema}, across all pages. */
+  /**
+   * Every table the catalog lists under the included {@code sharedSchema}, across all pages, or
+   * none once the catalog has dropped the schema.
+   */
   private List<ResolvedAsset> catalogTablesIn(
       ShareEntity share, SharedDataObjectEntity sharedSchema) {
     Asset catalogSchema = new Asset(AssetType.SCHEMA, sharedSchema.getFullName());
     List<ResolvedAsset> catalogTables = new ArrayList<>();
     String catalogPageToken = null;
     do {
-      AssetPage catalogPage =
-          catalog.listChildren(catalogSchema, CATALOG_PAGE_SIZE, catalogPageToken, owner(share));
+      AssetPage catalogPage;
+      try {
+        catalogPage =
+            catalog.listChildren(catalogSchema, CATALOG_PAGE_SIZE, catalogPageToken, owner(share));
+      } catch (AssetNotFoundException dropped) {
+        log.error(
+            "Hiding the tables of schema '{}' in share '{}': catalog schema '{}' was dropped",
+            sharedSchema.getSharedAs(),
+            share.getName(),
+            sharedSchema.getFullName());
+        return List.of();
+      }
       catalogPage.assets().stream()
           .filter(child -> child.type() == AssetType.TABLE)
           .forEach(catalogTables::add);
@@ -210,28 +250,10 @@ public class ProtocolTables {
     return catalogTables;
   }
 
-  /** The listed table with the storage locations and access modes of its catalog table. */
-  private static TableResponse response(ShareEntity share, ListedTable listedTable) {
-    ResolvedAsset catalogTable = listedTable.catalogTable().get();
-    AssetLocation location = catalogTable.location();
-    return new TableResponse(
-        listedTable.tableAlias(),
-        listedTable.schemaAlias(),
-        share.getName(),
-        share.getId(),
-        listedTable.tableId(),
-        location == null ? null : location.storageLocation(),
-        location == null || location.auxiliaryLocations().isEmpty()
-            ? null
-            : location.auxiliaryLocations(),
-        TableAccessModes.forTable(catalogTable));
-  }
-
-  /** The table's format by its protocol name, or null when the catalog reports none. */
-  private static String format(ResolvedAsset catalogTable) {
+  /** The table's format, or null when the catalog reports none. */
+  private static DataSourceFormat dataSourceFormat(ResolvedAsset catalogTable) {
     return catalogTable.additionalProperties() instanceof TableProperties tableProperties
-            && tableProperties.dataSourceFormat() != null
-        ? tableProperties.dataSourceFormat().wireName()
+        ? tableProperties.dataSourceFormat()
         : null;
   }
 

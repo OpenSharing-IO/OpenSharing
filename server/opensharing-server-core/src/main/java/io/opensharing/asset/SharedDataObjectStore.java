@@ -68,6 +68,10 @@ public class SharedDataObjectStore {
     if (resolved.additionalProperties() instanceof TableProperties table) {
       object.setSourceFormat(table.dataSourceFormat());
     }
+    if (type == AssetType.TABLE && resolved.location() != null) {
+      object.setStorageLocation(resolved.location().storageLocation());
+      object.setAuxiliaryLocations(resolved.location().auxiliaryLocations());
+    }
     object.setSharedAsSchema(sharedAsSchema);
     object.setSharedAsTable(sharedAsTable);
     em.persist(object);
@@ -99,6 +103,12 @@ public class SharedDataObjectStore {
                 .setParameter("shareId", share.getId())
                 .setParameter("schema", schema)
                 .getResultList());
+  }
+
+  /** The object {@code share} shares under the alias; an empty table alias finds a schema. */
+  public Optional<SharedDataObjectEntity> findByAlias(
+      ShareEntity share, String sharedAsSchema, String sharedAsTable) {
+    return tx.inTransaction(true, em -> findByAlias(em, share, sharedAsSchema, sharedAsTable));
   }
 
   /** One page of the schemas recipients see in {@code share}, ordered by name. */
