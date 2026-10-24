@@ -148,19 +148,19 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
   }
 
   private static void assertParquetQuery(String ndjson) {
-    assertTrue(ndjson.contains("\"protocol\""), ndjson);
-    assertTrue(ndjson.contains("\"metaData\""), ndjson);
-    assertTrue(ndjson.contains("\"schemaString\""), ndjson);
-    assertTrue(ndjson.contains("\"file\""), ndjson);
-    assertTrue(ndjson.contains("\"url\""), ndjson);
-    assertFalse(ndjson.contains("\"deltaProtocol\""), ndjson);
-    assertFalse(ndjson.contains("\"deltaSingleAction\""), ndjson);
+    assertTrue(ndjson.contains("\"protocol\""));
+    assertTrue(ndjson.contains("\"metaData\""));
+    assertTrue(ndjson.contains("\"schemaString\""));
+    assertTrue(ndjson.contains("\"file\""));
+    assertTrue(ndjson.contains("\"url\""));
+    assertFalse(ndjson.contains("\"deltaProtocol\""));
+    assertFalse(ndjson.contains("\"deltaSingleAction\""));
   }
 
   private static void assertDeltaQuery(String ndjson) {
-    assertTrue(ndjson.contains("\"deltaProtocol\""), ndjson);
-    assertTrue(ndjson.contains("\"deltaMetadata\""), ndjson);
-    assertTrue(ndjson.contains("\"deltaSingleAction\""), ndjson);
+    assertTrue(ndjson.contains("\"deltaProtocol\""));
+    assertTrue(ndjson.contains("\"deltaMetadata\""));
+    assertTrue(ndjson.contains("\"deltaSingleAction\""));
   }
 
   /** Lines whose single key is {@code action}, such as file. */

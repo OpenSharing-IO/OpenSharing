@@ -73,14 +73,12 @@ public class DeltaTableQueryReader {
         ResponseWriter out = new ResponseWriter(session, table, options)) {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
-      // Fails before any file is read when the client cannot read the table in this format.
       out.requireReaderFeatures(impl.getProtocol());
       Long fileVersion = historical ? snapshot.getVersion() : null;
       Long fileTimestamp = historical ? snapshot.getTimestamp(session.engine()) : null;
       out.protocol(impl.getProtocol(), null);
       out.metadata(impl.getMetadata(), fileVersion, crcFor(impl, snapshot.getVersion()));
 
-      // Scan files are the add actions that are live in the snapshot after log replay.
       Scan scan = snapshot.getScanBuilder().build();
       try (CloseableIterator<FilteredColumnarBatch> batches = scan.getScanFiles(session.engine())) {
         while (batches.hasNext()) {
@@ -172,7 +170,6 @@ public class DeltaTableQueryReader {
       SignedFile signed = sign(status.getPath(), add.getPath(), add.getDeletionVector());
       String stats = add.getStatsJson().orElse(null);
       if (format == ResponseFormat.DELTA) {
-        // The delta format nests the add action, with its paths replaced by presigned URLs.
         ndjson.append(
             TableActions.deltaFile(
                 signed.id(),
