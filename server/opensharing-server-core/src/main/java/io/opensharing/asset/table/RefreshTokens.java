@@ -7,7 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 
-/** Encodes snapshot refresh tokens so a later query can resign URLs for the same version. */
+/** Encodes snapshot refresh tokens so a later query can re-sign URLs for the same version. */
 public final class RefreshTokens {
 
   private static final String PREFIX = "os1rt:";
@@ -15,13 +15,17 @@ public final class RefreshTokens {
 
   private RefreshTokens() {}
 
-  public record RefreshToken(String id, long version, long expirationTimestamp) {}
+  /**
+   * Tokens are not signed, so they hold nothing a recipient may not see: {@code tableId} is the
+   * catalog's id for the table, which table responses already return.
+   */
+  public record RefreshToken(String tableId, long version, long expirationTimestamp) {}
 
   public static String encode(String tableId, long version, Instant expiration) {
     return encode(new RefreshToken(tableId, version, expiration.toEpochMilli()));
   }
 
-  public static String encode(RefreshToken token) {
+  static String encode(RefreshToken token) {
     try {
       return Base64.getUrlEncoder()
           .withoutPadding()
@@ -51,7 +55,7 @@ public final class RefreshTokens {
       throw ApiException.invalidParameter(
           "The refresh token has expired. Please restart the query.");
     }
-    if (!tableId.equals(decoded.id())) {
+    if (!tableId.equals(decoded.tableId())) {
       throw ApiException.invalidParameter(
           "The table specified in the refresh token does not match the table being queried.");
     }

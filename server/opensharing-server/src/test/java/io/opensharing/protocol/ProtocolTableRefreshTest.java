@@ -37,7 +37,9 @@ class ProtocolTableRefreshTest extends LocalDeltaTableSupport {
     String token = lines.get(2).path("endStreamAction").path("refreshToken").asText();
     assertFalse(token.isEmpty());
 
-    // The token re-reads the version it was issued for, as a latest-snapshot query.
+    // After a later commit, the token still reads the version it was issued for.
+    appendCommit("events", 2);
+    assertEquals("2", query(events, bearer, "{}", null).headers().get("Delta-Table-Version"));
     Response refreshed = query(events, bearer, refreshBody(token), null);
     assertEquals(200, refreshed.status());
     assertEquals("1", refreshed.headers().get("Delta-Table-Version"));

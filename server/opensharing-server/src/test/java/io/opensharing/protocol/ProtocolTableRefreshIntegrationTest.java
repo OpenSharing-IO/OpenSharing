@@ -64,16 +64,16 @@ class ProtocolTableRefreshIntegrationTest extends ProtocolApiSupport {
     // includeRefreshToken ends the response with an endStreamAction that holds the token.
     Response first = query(endpoint, bearer, "{\"includeRefreshToken\":true}", null);
     assertVersion(latest, first);
-    assertEquals(1, count(first.text(), "endStreamAction"), first.text());
+    assertEquals(1, count(first.text(), "endStreamAction"));
     String[] lines = first.text().split("\n");
     JsonNode endStream = readTree(lines[lines.length - 1]).path("endStreamAction");
-    assertTrue(endStream.path("minUrlExpirationTimestamp").isNumber(), first.text());
+    assertTrue(endStream.path("minUrlExpirationTimestamp").isNumber());
     String token = endStream.path("refreshToken").asText();
 
     // The token re-reads the snapshot it was issued for.
     Response refreshed = query(endpoint, bearer, "{\"refreshToken\":\"" + token + "\"}", null);
     assertVersion(latest, refreshed);
-    assertEquals(count(first.text(), "file"), count(refreshed.text(), "file"), refreshed.text());
+    assertEquals(count(first.text(), "file"), count(refreshed.text(), "file"));
 
     // includeendstreamaction adds an endStreamAction without a token and is echoed back.
     Response withEndStream =
@@ -82,8 +82,8 @@ class ProtocolTableRefreshIntegrationTest extends ProtocolApiSupport {
     assertEquals(
         "responseformat=delta;includeendstreamaction=true",
         withEndStream.headers().get("delta-sharing-capabilities"));
-    assertEquals(1, count(withEndStream.text(), "endStreamAction"), withEndStream.text());
-    assertFalse(withEndStream.text().contains("\"refreshToken\""), withEndStream.text());
+    assertEquals(1, count(withEndStream.text(), "endStreamAction"));
+    assertFalse(withEndStream.text().contains("\"refreshToken\""));
   }
 
   private static JsonNode readTree(String line) {
