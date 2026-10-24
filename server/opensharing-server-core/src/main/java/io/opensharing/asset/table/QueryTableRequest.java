@@ -7,7 +7,6 @@ import java.util.List;
  * implemented.
  */
 public record QueryTableRequest(
-    // Deprecated by the protocol in favor of jsonPredicateHints; only logged, never used to filter.
     @Deprecated List<String> predicateHints,
     String jsonPredicateHints,
     Integer limitHint,
