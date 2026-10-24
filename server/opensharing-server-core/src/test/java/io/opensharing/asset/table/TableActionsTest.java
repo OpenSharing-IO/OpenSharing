@@ -120,6 +120,21 @@ class TableActionsTest {
   }
 
   @Test
+  void encodesEndStreamAction() {
+    assertEquals(
+        """
+        {"endStreamAction":{"refreshToken":"refresh-token",\
+        "minUrlExpirationTimestamp":1652140800000}}
+        """,
+        TableActions.endStreamAction("refresh-token", 1652140800000L));
+    assertEquals(
+        """
+        {"endStreamAction":{}}
+        """,
+        TableActions.endStreamAction(null, null));
+  }
+
+  @Test
   void encodesDeltaProtocolAndMetadataFromKernel() {
     Protocol protocol = protocol();
     Metadata metadata = metadata();

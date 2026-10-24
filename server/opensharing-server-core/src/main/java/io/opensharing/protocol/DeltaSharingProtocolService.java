@@ -144,7 +144,10 @@ public final class DeltaSharingProtocolService {
     QueryTableRequest query =
         body.isBlank() ? null : ApiJson.MAPPER.readValue(body, QueryTableRequest.class);
     DeltaTableQueryReader.ResponseOptions options =
-        new DeltaTableQueryReader.ResponseOptions(capabilities, FileIdHash.parse(fileIdHash));
+        new DeltaTableQueryReader.ResponseOptions(
+            capabilities,
+            FileIdHash.parse(fileIdHash),
+            DeltaSharingCapabilities.includeEndStreamAction(capabilities));
     DeltaTableQueryReader.Result result =
         tables.query(
             RecipientTokenDecorator.recipient(ctx),
@@ -157,7 +160,9 @@ public final class DeltaSharingProtocolService {
         ResponseHeaders.builder(HttpStatus.OK)
             .contentType(NDJSON)
             .add(DELTA_TABLE_VERSION, Long.toString(result.version()))
-            .add(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(capabilities));
+            .add(
+                DeltaSharingCapabilities.HEADER,
+                DeltaSharingCapabilities.responded(capabilities, options.includeEndStreamAction()));
     if (options.fileIdHash() != null) {
       headers.add(FileIdHash.HEADER, options.fileIdHash());
     }
