@@ -54,6 +54,7 @@ class DeltaSharingCapabilitiesTest {
   @Test
   void queryRequiresReaderFeaturesOnlyForDeltaAdvancedTables() {
     Protocol basic = new Protocol(1, 2);
+    Protocol columnMapping = new Protocol(2, 5);
     Protocol advanced =
         new Protocol(3, 7, Set.of("columnMapping", "deletionVectors"), Set.of("columnMapping"));
     assertDoesNotThrow(
@@ -67,14 +68,23 @@ class DeltaSharingCapabilitiesTest {
     assertDoesNotThrow(
         () ->
             DeltaSharingCapabilities.requireReaderFeatures(
-                "responseformat=delta;readerfeatures=columnmapping,deletionvectors",
+                "responseformat=delta;readerfeatures=columnmapping,deletionvectors,newfeature",
                 ResponseFormat.DELTA,
                 advanced));
+    assertDoesNotThrow(
+        () ->
+            DeltaSharingCapabilities.requireReaderFeatures(
+                "responseformat=delta", ResponseFormat.DELTA, columnMapping));
     assertThrows(
         ApiException.class,
         () ->
             DeltaSharingCapabilities.requireReaderFeatures(
                 "responseformat=parquet", ResponseFormat.PARQUET, advanced));
+    assertThrows(
+        ApiException.class,
+        () ->
+            DeltaSharingCapabilities.requireReaderFeatures(
+                "responseformat=parquet", ResponseFormat.PARQUET, columnMapping));
     assertThrows(
         ApiException.class,
         () ->

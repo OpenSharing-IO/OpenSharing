@@ -227,10 +227,26 @@ public final class TableActions {
 
   public record FormatBody(String provider) {}
 
+  /**
+   * One file line of a Query Table response:
+   *
+   * <pre>{@code
+   * {"file": {...}}
+   * }</pre>
+   */
   public record FileLine(FileBody file) {}
 
   public sealed interface FileBody permits ParquetFile, DeltaFile {}
 
+  /**
+   * A file in a parquet response:
+   *
+   * <pre>{@code
+   * {"url": "<presigned url>", "id": "<file id>", "partitionValues": {"<column>": "<value>"},
+   *  "size": 573, "stats": "<stats json>", "version": 1, "timestamp": 1652140800000,
+   *  "expirationTimestamp": 1652144400000}
+   * }</pre>
+   */
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record ParquetFile(
       String url,
@@ -243,6 +259,15 @@ public final class TableActions {
       Long expirationTimestamp)
       implements FileBody {}
 
+  /**
+   * A file in a delta response, carrying the log action with its path presigned:
+   *
+   * <pre>{@code
+   * {"id": "<file id>", "deletionVectorFileId": "<deletion vector id>", "version": 1,
+   *  "timestamp": 1652140800000, "expirationTimestamp": 1652144400000,
+   *  "deltaSingleAction": {"add": {"path": "<presigned url>", ...}}}
+   * }</pre>
+   */
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record DeltaFile(
       String id,
@@ -253,6 +278,13 @@ public final class TableActions {
       DeltaSingleAction deltaSingleAction)
       implements FileBody {}
 
+  /**
+   * A Delta log action as the log writes it:
+   *
+   * <pre>{@code
+   * {"add": {"path": "<presigned url>", "partitionValues": {...}, "size": 573, ...}}
+   * }</pre>
+   */
   public record DeltaSingleAction(
       @JsonSerialize(using = KernelActionSerializer.class) AddFile add) {}
 }

@@ -211,22 +211,12 @@ public class ProtocolTables {
     if (body.startingVersion() != null || body.endingVersion() != null) {
       throw ApiException.notImplemented("startingVersion queries are not supported");
     }
-    if (hasPushdownHint(body)) {
-      throw ApiException.notImplemented("predicate and limit pushdown is not supported");
-    }
     return queryReader.read(
         catalogTable,
         owner(share),
         options,
         body.version(),
         parseTimestamp("timestamp", body.timestamp()));
-  }
-
-  /** Whether the query asks for predicate or limit pushdown. */
-  private static boolean hasPushdownHint(QueryTableRequest body) {
-    return (body.predicateHints() != null && !body.predicateHints().isEmpty())
-        || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank())
-        || body.limitHint() != null;
   }
 
   /**
