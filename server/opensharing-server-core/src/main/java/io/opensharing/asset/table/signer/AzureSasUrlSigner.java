@@ -1,0 +1,108 @@
+package io.opensharing.asset.table.signer;
+
+import com.azure.storage.blob.sas.BlobSasPermission;
+import com.azure.storage.blob.sas.BlobServiceSasSignatureValues;
+import com.azure.storage.common.StorageSharedKeyCredential;
+import com.azure.storage.common.sas.SasProtocol;
+import io.opensharing.catalog.StorageCredentials;
+import io.opensharing.exception.CatalogException;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Locale;
+import java.util.Set;
+
+/**
+ * Azure blob URLs: append a catalog SAS when present, otherwise mint a read-only HTTPS blob SAS
+ * from an account key.
+ */
+final class AzureSasUrlSigner implements UrlSigner {
+
+  @Override
+  public Set<String> schemes() {
+    return Set.of("abfs", "abfss", "wasb", "wasbs");
+  }
+
+  // A SAS is computed locally per blob, so there is no client to share.
+  @Override
+  public SigningSession open(StorageCredentials credentials) {
+    return (path, ttl) -> sign(path, credentials, ttl);
+  }
+
+  private static SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
+    Instant expiration = Instant.now().plus(ttl);
+    String sas = credentials.credentials().get(StorageCredentials.SAS_TOKEN);
+    if (sas != null && !sas.isBlank()) {
+      // Catalog SAS is already minted; its lifetime is credentials.expiration(), not the sign TTL.
+      Instant sasExpiry = credentials.expiration() == null ? expiration : credentials.expiration();
+      return new SignedUrl(httpsUrl(path) + withQuery(sas), sasExpiry);
+    }
+    String accountKey = credentials.credentials().get(StorageCredentials.AZURE_ACCOUNT_KEY);
+    if (accountKey == null || accountKey.isBlank()) {
+      throw new CatalogException(
+          "the catalog returned Azure credentials with neither a SAS token nor an account key");
+    }
+    try {
+      String blobSas = blobSas(path, accountKey, expiration);
+      return new SignedUrl(httpsUrl(path) + withQuery(blobSas), expiration);
+    } catch (RuntimeException e) {
+      throw new CatalogException(
+          "the catalog returned an Azure account key that cannot sign a blob SAS", e);
+    }
+  }
+
+  private static String blobSas(String path, String accountKey, Instant expiration) {
+    StoragePaths.AzureBlob parsed = StoragePaths.azureBlob(path);
+    String account = parsed.host().split("\\.")[0];
+    return new BlobServiceSasSignatureValues(
+            OffsetDateTime.ofInstant(expiration, ZoneOffset.UTC),
+            new BlobSasPermission().setReadPermission(true))
+        .setProtocol(SasProtocol.HTTPS_ONLY)
+        .setContainerName(parsed.container())
+        .setBlobName(parsed.blob())
+        .generateSasQueryParameters(new StorageSharedKeyCredential(account, accountKey))
+        .encode();
+  }
+
+  private static String httpsUrl(String path) {
+    StoragePaths.AzureBlob parsed = StoragePaths.azureBlob(path);
+    return "https://"
+        + parsed.host().replace(".dfs.", ".blob.")
+        + "/"
+        + parsed.container()
+        + encodePath(parsed.blob());
+  }
+
+  static String encodePath(String blob) {
+    StringBuilder path = new StringBuilder();
+    for (String segment : blob.split("/", -1)) {
+      path.append('/').append(percentEncode(segment));
+    }
+    return path.toString();
+  }
+
+  private static String percentEncode(String value) {
+    StringBuilder encoded = new StringBuilder(value.length());
+    for (byte b : value.getBytes(StandardCharsets.UTF_8)) {
+      char c = (char) (b & 0xFF);
+      if ((c >= 'A' && c <= 'Z')
+          || (c >= 'a' && c <= 'z')
+          || (c >= '0' && c <= '9')
+          || c == '-'
+          || c == '.'
+          || c == '_'
+          || c == '~') {
+        encoded.append(c);
+      } else {
+        encoded.append('%').append(String.format(Locale.ROOT, "%02X", b & 0xFF));
+      }
+    }
+    return encoded.toString();
+  }
+
+  private static String withQuery(String sas) {
+    return sas.startsWith("?") ? sas : "?" + sas;
+  }
+}
