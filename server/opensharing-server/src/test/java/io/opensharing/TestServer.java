@@ -74,11 +74,18 @@ public final class TestServer implements AutoCloseable {
     return call(HttpMethod.DELETE, path, token, null);
   }
 
-  /** Calls {@code path} with {@code token} as the bearer token, unless it is null. */
-  public Response call(HttpMethod method, String path, String token, String json) {
+  /**
+   * Calls {@code path} with {@code token} as the bearer token, unless it is null, and with {@code
+   * extraHeaders} as name, value pairs.
+   */
+  public Response call(
+      HttpMethod method, String path, String token, String json, String... extraHeaders) {
     RequestHeadersBuilder headers = RequestHeaders.builder(method, path);
     if (token != null) {
       headers.add(HttpHeaderNames.AUTHORIZATION, "Bearer " + token);
+    }
+    for (int i = 0; i < extraHeaders.length; i += 2) {
+      headers.add(extraHeaders[i], extraHeaders[i + 1]);
     }
     HttpRequest request =
         json == null
@@ -93,13 +100,17 @@ public final class TestServer implements AutoCloseable {
     server.close();
   }
 
-  /** A response with its body parsed as JSON, or a missing node when it has none. */
-  public record Response(int status, ResponseHeaders headers, JsonNode body) {
+  /**
+   * A response with its raw {@code text}, and its body parsed as JSON, or a missing node when it
+   * has none.
+   */
+  public record Response(int status, ResponseHeaders headers, String text, JsonNode body) {
 
     static Response of(AggregatedHttpResponse response) {
+      String text = response.contentUtf8();
       try {
         return new Response(
-            response.status().code(), response.headers(), JSON.readTree(response.contentUtf8()));
+            response.status().code(), response.headers(), text, JSON.readTree(text));
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
