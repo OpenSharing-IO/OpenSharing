@@ -99,6 +99,40 @@ public final class TableActions {
                 expirationTimestamp)));
   }
 
+  /** Data change file kinds, keyed {@code add} or {@code remove}. */
+  public enum ChangeType {
+    ADD,
+    REMOVE
+  }
+
+  /** A data change file for a startingVersion query. */
+  public static String parquetChange(
+      ChangeType type,
+      String url,
+      String id,
+      Map<String, String> partitionValues,
+      long size,
+      String stats,
+      long version,
+      long timestamp,
+      Long expirationTimestamp) {
+    ParquetFile file =
+        new ParquetFile(
+            url,
+            id,
+            partitionValues == null ? Map.of() : partitionValues,
+            size,
+            stats,
+            version,
+            timestamp,
+            expirationTimestamp);
+    return line(
+        switch (type) {
+          case ADD -> new AddLine(file);
+          case REMOVE -> new RemoveLine(file);
+        });
+  }
+
   public static String deltaFile(
       String id,
       String deletionVectorFileId,
@@ -106,15 +140,47 @@ public final class TableActions {
       Long version,
       Long timestamp,
       AddFile add) {
+    return deltaFile(
+        id,
+        deletionVectorFileId,
+        expirationTimestamp,
+        version,
+        timestamp,
+        new DeltaSingleAction(add.toRow(), null));
+  }
+
+  /** {@code action} is the add or remove row; {@code type} picks its action key. */
+  public static String deltaChange(
+      String id,
+      String deletionVectorFileId,
+      Long expirationTimestamp,
+      long version,
+      long timestamp,
+      ChangeType type,
+      Row action) {
+    return deltaFile(
+        id,
+        deletionVectorFileId,
+        expirationTimestamp,
+        version,
+        timestamp,
+        switch (type) {
+          case ADD -> new DeltaSingleAction(action, null);
+          case REMOVE -> new DeltaSingleAction(null, action);
+        });
+  }
+
+  private static String deltaFile(
+      String id,
+      String deletionVectorFileId,
+      Long expirationTimestamp,
+      Long version,
+      Long timestamp,
+      DeltaSingleAction action) {
     return line(
         new FileLine(
             new DeltaFile(
-                id,
-                deletionVectorFileId,
-                version,
-                timestamp,
-                expirationTimestamp,
-                new DeltaSingleAction(add))));
+                id, deletionVectorFileId, version, timestamp, expirationTimestamp, action)));
   }
 
   public static String endStreamAction(String refreshToken, Long minUrlExpirationTimestamp) {
@@ -128,7 +194,11 @@ public final class TableActions {
    * on-disk deletion vector as a path-type descriptor so clients fetch the signed object.
    */
   public static AddFile withPath(AddFile add, String path, String deletionVectorUrl) {
-    Row row = add.toRow();
+    return new AddFile(withPath(add.toRow(), path, deletionVectorUrl));
+  }
+
+  /** {@link #withPath(AddFile, String, String)} for an add or remove action row. */
+  public static Row withPath(Row row, String path, String deletionVectorUrl) {
     Map<Integer, Object> overrides = new HashMap<>();
     overrides.put(row.getSchema().indexOf("path"), path);
     if (deletionVectorUrl != null) {
@@ -144,7 +214,7 @@ public final class TableActions {
                   dv.getSchema().indexOf("pathOrInlineDv"),
                   deletionVectorUrl)));
     }
-    return new AddFile(new DelegateRow(row, overrides));
+    return new DelegateRow(row, overrides);
   }
 
   private static String line(Object value) {
@@ -178,7 +248,7 @@ public final class TableActions {
           switch (value) {
             case Protocol protocol -> protocol.toRow();
             case Metadata metadata -> metadata.toRow();
-            case AddFile add -> add.toRow();
+            case Row action -> action;
             default ->
                 throw new IllegalArgumentException(
                     "unsupported Kernel action: " + value.getClass().getName());
@@ -285,14 +355,37 @@ public final class TableActions {
       implements FileBody {}
 
   /**
-   * A Delta log action as the log writes it:
+   * A Delta log action as the log writes it, with exactly one field set:
    *
    * <pre>{@code
    * {"add": {"path": "<presigned url>", "partitionValues": {...}, "size": 573, ...}}
+   * {"remove": {"path": "<presigned url>", "deletionTimestamp": 1652140800000, ...}}
    * }</pre>
    */
+  @JsonInclude(JsonInclude.Include.NON_NULL)
   public record DeltaSingleAction(
-      @JsonSerialize(using = KernelActionSerializer.class) AddFile add) {}
+      @JsonSerialize(using = KernelActionSerializer.class) Row add,
+      @JsonSerialize(using = KernelActionSerializer.class) Row remove) {}
+
+  /**
+   * A file a parquet change response adds:
+   *
+   * <pre>{@code
+   * {"add": {"url": "<presigned url>", "id": "<file id>", "partitionValues": {...},
+   *          "size": 573, "version": 2, "timestamp": 1652140800000, ...}}
+   * }</pre>
+   */
+  public record AddLine(ParquetFile add) {}
+
+  /**
+   * A file a parquet change response removes:
+   *
+   * <pre>{@code
+   * {"remove": {"url": "<presigned url>", "id": "<file id>", "partitionValues": {...},
+   *             "size": 573, "version": 3, "timestamp": 1652140800000, ...}}
+   * }</pre>
+   */
+  public record RemoveLine(ParquetFile remove) {}
 
   /**
    * The last line of a response that asks for it:
