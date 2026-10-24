@@ -129,6 +129,20 @@ class DeltaTableQueryReaderTest {
     assertEquals(3, files(null, 1000L).size());
   }
 
+  @Test
+  void limitHintCountsAFileWithADeletionVectorButNoStatsAsNoRecords() throws IOException {
+    // Commit 1 replaces file a with a copy that has a deletion vector of 4 rows and no stats.
+    Files.writeString(
+        dir.resolve("_delta_log/00000000000000000001.json"),
+        "{\"remove\":{\"path\":\"date=2021-01-01/a.parquet\",\"dataChange\":true}}\n"
+            + "{\"add\":{\"path\":\"date=2021-01-01/a.parquet\","
+            + "\"partitionValues\":{\"date\":\"2021-01-01\"},\"size\":1,"
+            + "\"modificationTime\":0,\"dataChange\":true,\"deletionVector\":{"
+            + "\"storageType\":\"i\",\"pathOrInlineDv\":\"wi5b=000010000siXQKl0rr91000f\","
+            + "\"sizeInBytes\":40,\"cardinality\":4}}}\n");
+    assertEquals(List.of("a", "b"), files(null, 10L));
+  }
+
   private String ndjson(String jsonPredicateHints, Long limitHint) {
     return reader
         .read(
