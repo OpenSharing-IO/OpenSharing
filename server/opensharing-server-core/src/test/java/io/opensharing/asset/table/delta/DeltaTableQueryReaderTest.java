@@ -234,6 +234,30 @@ class DeltaTableQueryReaderTest {
     assertThrows(ApiException.class, () -> changeDataFeed(5L, null, null, null, null, false));
   }
 
+  @Test
+  void changeDataFeedTagsOnlyAStartingVersionProtocol() throws IOException {
+    writeChangeDataFeed();
+    assertFalse(changeDataFeedProtocol(false).contains("\"version\""));
+    assertTrue(changeDataFeedProtocol(true).contains("\"version\":1"));
+  }
+
+  /** The protocol line of a delta Change Data Feed of versions 1 to 2 with historical protocols. */
+  private String changeDataFeedProtocol(boolean includeHistoricalMetadata) {
+    Lines lines = new Lines();
+    reader.readChangeDataFeed(
+        table,
+        null,
+        new DeltaTableQueryReader.ResponseOptions("responseformat=delta", null, false),
+        lines,
+        1L,
+        null,
+        2L,
+        null,
+        includeHistoricalMetadata,
+        true);
+    return lines.ndjson.toString().split("\n")[0];
+  }
+
   private List<String> changeDataFeed(
       Long startingVersion,
       Instant startingTimestamp,
@@ -241,20 +265,19 @@ class DeltaTableQueryReaderTest {
       Instant endingTimestamp,
       String capabilities,
       boolean includeHistoricalMetadata) {
-    return List.of(
-        reader
-            .readChangeDataFeed(
-                table,
-                null,
-                new DeltaTableQueryReader.ResponseOptions(capabilities, null, false),
-                startingVersion,
-                startingTimestamp,
-                endingVersion,
-                endingTimestamp,
-                includeHistoricalMetadata,
-                false)
-            .ndjson()
-            .split("\n"));
+    Lines lines = new Lines();
+    reader.readChangeDataFeed(
+        table,
+        null,
+        new DeltaTableQueryReader.ResponseOptions(capabilities, null, false),
+        lines,
+        startingVersion,
+        startingTimestamp,
+        endingVersion,
+        endingTimestamp,
+        includeHistoricalMetadata,
+        false);
+    return List.of(lines.ndjson.toString().split("\n"));
   }
 
   // 0: insert a, b. 1: update a to d with a cdc file. 2: delete b without cdc. 3: no-op MERGE.
