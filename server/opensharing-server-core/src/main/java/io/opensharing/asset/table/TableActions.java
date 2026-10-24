@@ -248,7 +248,6 @@ public final class TableActions {
           switch (value) {
             case Protocol protocol -> protocol.toRow();
             case Metadata metadata -> metadata.toRow();
-            case AddFile add -> add.toRow();
             case Row action -> action;
             default ->
                 throw new IllegalArgumentException(

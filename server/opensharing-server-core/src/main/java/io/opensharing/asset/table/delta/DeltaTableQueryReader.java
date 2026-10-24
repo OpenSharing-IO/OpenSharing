@@ -219,17 +219,25 @@ public class DeltaTableQueryReader {
       out.metadata(header.getMetadata(), header.getVersion(), crcFor(header, header.getVersion()));
 
       Path tablePath = new Path(session.table().getPath(session.engine()));
+      List<FileStatus> commitFiles;
       try {
-        for (FileStatus file :
+        commitFiles =
             DeltaLogActionUtils.getCommitFilesForVersionRange(
-                session.engine(), tablePath, range.start(), range.end())) {
+                session.engine(), tablePath, range.start(), range.end());
+      } catch (KernelException | IllegalArgumentException missing) {
+        // Kernel fails when a commit file in the range is missing, such as after log cleanup.
+        throw ApiException.invalidParameter(
+            "the table no longer has every commit from version "
+                + range.start()
+                + " to "
+                + range.end());
+      }
+      try {
+        for (FileStatus file : commitFiles) {
           write(out, range, readCommit(session, file));
         }
       } catch (IOException e) {
         throw new UncheckedIOException(e);
-      } catch (KernelException | IllegalArgumentException invalid) {
-        // Kernel fails when a commit file in the range is missing, such as after log cleanup.
-        throw ApiException.invalidParameter(invalid.getMessage());
       }
 
       if (options.includeEndStreamAction()) {
@@ -270,7 +278,6 @@ public class DeltaTableQueryReader {
     long version = commit.version;
     // The header already covers the starting version's protocol and metaData.
     boolean later = version > range.start();
-    // A commit has a protocol only when it creates the table or upgrades the protocol.
     for (Protocol protocol : commit.protocols) {
       // A later protocol can need reader features the client did not declare.
       out.requireReaderFeatures(protocol);
@@ -278,13 +285,11 @@ public class DeltaTableQueryReader {
         out.protocol(protocol, version);
       }
     }
-    // A commit has metaData only when it creates the table or changes its schema or properties.
     for (Metadata metadata : commit.metadata) {
       if (later) {
         out.metadata(metadata, version, null);
       }
     }
-    // A commit has add and remove files only when it writes or rewrites data.
     for (ChangeFile file : commit.files) {
       out.changeFile(file, version, commit.timestamp);
     }
@@ -420,7 +425,6 @@ public class DeltaTableQueryReader {
 
     /** Appends a data change file committed at {@code version}, unless it has no dataChange. */
     void changeFile(ChangeFile file, long version, long timestamp) {
-      // Add and remove files without dataChange, such as compaction rewrites, are skipped.
       if (!file.dataChange()) {
         return;
       }
