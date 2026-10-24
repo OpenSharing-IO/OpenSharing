@@ -79,7 +79,7 @@ public class DeltaKernel {
             auth);
     StorageCredentials rootCredentials =
         credentials.stream()
-            .filter(candidate -> covers(candidate.prefix(), location))
+            .filter(candidate -> candidate.covers(location))
             .findFirst()
             .orElseThrow(
                 () -> {
@@ -91,14 +91,6 @@ public class DeltaKernel {
         new SessionFileIO(HadoopStorageConfiguration.from(rootCredentials, location), path);
     Engine engine = DefaultEngine.create(files);
     return new Session(engine, Table.forPath(engine, path), files);
-  }
-
-  private static boolean covers(String prefix, String location) {
-    if (prefix == null || prefix.isBlank()) {
-      return false;
-    }
-    String normalized = prefix.endsWith("/") ? prefix : prefix + "/";
-    return location.equals(prefix) || location.startsWith(normalized);
   }
 
   /** A Kernel engine and table reading through files the session owns until it is closed. */
