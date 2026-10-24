@@ -274,7 +274,10 @@ public final class LocalCatalogConnector implements CatalogConnector {
     Map<String, String> values = new LinkedHashMap<>();
     values.put(StorageCredentials.ACCESS_KEY_ID, requireEnv("AWS_ACCESS_KEY_ID"));
     values.put(StorageCredentials.SECRET_ACCESS_KEY, requireEnv("AWS_SECRET_ACCESS_KEY"));
-    values.put(StorageCredentials.REGION, requireEnv("AWS_REGION", "AWS_DEFAULT_REGION"));
+    String region = firstEnv("AWS_REGION", "AWS_DEFAULT_REGION");
+    if (region != null) {
+      values.put(StorageCredentials.REGION, region);
+    }
     String session = firstEnv("AWS_SESSION_TOKEN");
     if (session != null) {
       values.put(StorageCredentials.SESSION_TOKEN, session);
@@ -392,13 +395,11 @@ public final class LocalCatalogConnector implements CatalogConnector {
     };
   }
 
-  private static String requireEnv(String... names) {
-    String value = firstEnv(names);
+  private static String requireEnv(String name) {
+    String value = firstEnv(name);
     if (value == null) {
       throw new CatalogException(
-          "local catalog credentials.mode is ENV but none of "
-              + String.join(", ", names)
-              + " is set");
+          "local catalog credentials.mode is ENV but environment variable '" + name + "' is unset");
     }
     return value;
   }
@@ -428,6 +429,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
     }
     if (provider == CloudProvider.AWS || provider == CloudProvider.R2) {
       copyIfPresent(values, StorageCredentials.SESSION_TOKEN);
+      copyIfPresent(values, StorageCredentials.REGION);
     }
     return values;
   }
@@ -448,7 +450,6 @@ public final class LocalCatalogConnector implements CatalogConnector {
             "ASIA" + randomString(16).toUpperCase(Locale.ROOT));
         values.put(StorageCredentials.SECRET_ACCESS_KEY, randomString(40));
         values.put(StorageCredentials.SESSION_TOKEN, "local-fake-session-" + randomString(48));
-        values.put(StorageCredentials.REGION, "us-west-2");
       }
       case AZURE ->
           values.put(
@@ -463,10 +464,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
   private static List<String> requiredKeys(CloudProvider provider) {
     return switch (provider) {
       case AWS, R2 ->
-          List.of(
-              StorageCredentials.ACCESS_KEY_ID,
-              StorageCredentials.SECRET_ACCESS_KEY,
-              StorageCredentials.REGION);
+          List.of(StorageCredentials.ACCESS_KEY_ID, StorageCredentials.SECRET_ACCESS_KEY);
       case AZURE -> List.of(StorageCredentials.SAS_TOKEN);
       case GCP -> List.of(StorageCredentials.OAUTH_TOKEN);
     };
