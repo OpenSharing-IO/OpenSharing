@@ -78,6 +78,7 @@
     <hadoop.version>3.4.3</hadoop.version>
     <aws-sdk.version>2.35.4</aws-sdk.version>
     <gcs-connector.version>hadoop3-2.2.30</gcs-connector.version>
+    <commons-lang3.version>3.17.0</commons-lang3.version>
   </properties>
 
   <dependencyManagement>
