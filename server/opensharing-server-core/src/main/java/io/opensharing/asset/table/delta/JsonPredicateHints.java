@@ -78,7 +78,7 @@ final class JsonPredicateHints {
     }
   }
 
-  /** Converts one op node. Throws on anything unsupported, so the whole hint is dropped. */
+  /** Converts one op node. Anything unsupported drops the whole hint. */
   private static Expression convert(JsonNode node, StructType schema) {
     String op = text(node, "op");
     return switch (op) {
@@ -172,8 +172,8 @@ final class JsonPredicateHints {
    * Kernel only filters on predicates, but a hint may put a bare bool column or literal where a
    * condition goes: at the root or as a child of {@code and}, {@code or} or {@code not}. A bool
    * column {@code c} becomes {@code c = true}, which also drops rows where {@code c} is null. A
-   * bool literal becomes {@code AlwaysTrue} or {@code AlwaysFalse}. Any other non-predicate fails,
-   * which drops the hint.
+   * bool literal becomes {@code AlwaysTrue} or {@code AlwaysFalse}. Any other non-predicate drops
+   * the hint.
    */
   private static Predicate asPredicate(Expression expression, StructType schema) {
     if (expression instanceof Predicate predicate) {

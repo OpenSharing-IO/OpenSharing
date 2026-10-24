@@ -277,8 +277,10 @@ public class DeltaTableQueryReader {
                 timestamp,
                 signed.expirationTimestamp()));
       }
-      return numRecords(stats)
-          - add.getDeletionVector().map(DeletionVectorDescriptor::getCardinality).orElse(0L);
+      return Math.max(
+          0,
+          numRecords(stats)
+              - add.getDeletionVector().map(DeletionVectorDescriptor::getCardinality).orElse(0L));
     }
 
     /** {@code refreshToken} may be null. */
