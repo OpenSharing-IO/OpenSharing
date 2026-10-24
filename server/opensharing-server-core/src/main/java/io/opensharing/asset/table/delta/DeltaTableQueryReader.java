@@ -241,27 +241,19 @@ public class DeltaTableQueryReader {
       SnapshotImpl latest = (SnapshotImpl) DeltaSnapshots.open(session, null, null);
       TableImpl delta = (TableImpl) session.table();
       long start;
-      Long end;
-      try {
-        if (startingVersion != null) {
-          start = startingVersion;
-        } else if (startingTimestamp != null) {
-          start =
-              delta.getVersionAtOrAfterTimestamp(
-                  session.engine(), startingTimestamp.toEpochMilli());
-        } else {
-          throw ApiException.invalidParameter("startingVersion or startingTimestamp is required");
-        }
-        end =
-            endingVersion != null
-                ? endingVersion
-                : endingTimestamp != null
-                    ? delta.getVersionBeforeOrAtTimestamp(
-                        session.engine(), endingTimestamp.toEpochMilli())
-                    : null;
-      } catch (KernelException | IllegalArgumentException invalid) {
-        throw ApiException.invalidParameter(invalid.getMessage());
+      if (startingVersion != null) {
+        start = startingVersion;
+      } else if (startingTimestamp != null) {
+        start = DeltaKernel.versionAtOrAfter(delta, session.engine(), startingTimestamp);
+      } else {
+        throw ApiException.invalidParameter("startingVersion or startingTimestamp is required");
       }
+      Long end =
+          endingVersion != null
+              ? endingVersion
+              : endingTimestamp != null
+                  ? versionBeforeOrAt(delta, session, endingTimestamp)
+                  : null;
       if (start < 0) {
         throw ApiException.invalidParameter("startingVersion must be non-negative");
       }
@@ -283,6 +275,16 @@ public class DeltaTableQueryReader {
               start, resolvedEnd, includeHistoricalMetadata, includeHistoricalProtocol),
           options,
           sink);
+    }
+  }
+
+  private static long versionBeforeOrAt(
+      TableImpl table, DeltaKernel.Session session, Instant endingTimestamp) {
+    try {
+      return table.getVersionBeforeOrAtTimestamp(session.engine(), endingTimestamp.toEpochMilli());
+    } catch (KernelException | IllegalArgumentException invalid) {
+      throw ApiException.invalidParameter(
+          "endingTimestamp is before the earliest table version timestamp");
     }
   }
 
@@ -317,10 +319,13 @@ public class DeltaTableQueryReader {
 
       // The protocol reports the starting version as the table version of a change response.
       out.begin(range.start());
-      // With includeHistoricalProtocol, the starting protocol carries its version like later ones.
+      // With includeHistoricalProtocol, a starting protocol carries its version like later ones. A
+      // latest-version header stays untagged, as it is newer than the later protocols that follow.
       out.protocol(
           header.getProtocol(),
-          range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA
+          range.includeHistoricalProtocol()
+                  && out.format == ResponseFormat.DELTA
+                  && header.getVersion() == range.start()
               ? header.getVersion()
               : null);
       out.metadata(header.getMetadata(), header.getVersion(), crcFor(header, header.getVersion()));
