@@ -42,7 +42,21 @@ public class UrlSigners {
 
       @Override
       public void close() {
-        opened.values().forEach(SigningSession::close);
+        RuntimeException failure = null;
+        for (SigningSession session : opened.values()) {
+          try {
+            session.close();
+          } catch (RuntimeException e) {
+            if (failure == null) {
+              failure = e;
+            } else {
+              failure.addSuppressed(e);
+            }
+          }
+        }
+        if (failure != null) {
+          throw failure;
+        }
       }
     };
   }

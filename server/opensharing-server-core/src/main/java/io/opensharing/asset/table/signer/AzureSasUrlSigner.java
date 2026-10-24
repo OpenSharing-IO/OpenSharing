@@ -5,7 +5,7 @@ import com.azure.storage.blob.sas.BlobServiceSasSignatureValues;
 import com.azure.storage.common.StorageSharedKeyCredential;
 import com.azure.storage.common.sas.SasProtocol;
 import io.opensharing.catalog.StorageCredentials;
-import io.opensharing.http.ApiException;
+import io.opensharing.exception.CatalogException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
@@ -41,14 +41,15 @@ final class AzureSasUrlSigner implements UrlSigner {
     }
     String accountKey = credentials.credentials().get(StorageCredentials.AZURE_ACCOUNT_KEY);
     if (accountKey == null || accountKey.isBlank()) {
-      throw ApiException.invalidParameter(
-          "Azure credentials have neither a SAS token nor an account key");
+      throw new CatalogException(
+          "the catalog returned Azure credentials with neither a SAS token nor an account key");
     }
     try {
       String blobSas = blobSas(path, accountKey, expiration);
       return new SignedUrl(httpsUrl(path) + withQuery(blobSas), expiration);
     } catch (RuntimeException e) {
-      throw ApiException.invalidParameter("Azure account key cannot sign a blob SAS");
+      throw new CatalogException(
+          "the catalog returned an Azure account key that cannot sign a blob SAS", e);
     }
   }
 

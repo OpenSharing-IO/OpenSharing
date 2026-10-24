@@ -7,7 +7,6 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import io.opensharing.catalog.StorageCredentials;
-import io.opensharing.http.ApiException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -37,7 +36,7 @@ final class GcsUrlSigner implements UrlSigner {
             storage
                 .signUrl(
                     BlobInfo.newBuilder(BlobId.of(bucketAndObject[0], bucketAndObject[1])).build(),
-                    ttl.toSeconds(),
+                    Math.max(1, ttl.toSeconds()),
                     TimeUnit.SECONDS,
                     Storage.SignUrlOption.withV4Signature())
                 .toString();
@@ -73,8 +72,7 @@ final class GcsUrlSigner implements UrlSigner {
     try {
       return StorageOptions.getDefaultInstance().getService();
     } catch (RuntimeException e) {
-      throw ApiException.notImplemented(
-          "no Google service account key is configured to sign gs urls");
+      throw new IllegalStateException("no Google credentials are available to sign gs urls", e);
     }
   }
 

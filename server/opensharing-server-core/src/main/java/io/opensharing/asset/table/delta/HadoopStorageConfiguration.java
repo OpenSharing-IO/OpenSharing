@@ -40,7 +40,10 @@ final class HadoopStorageConfiguration {
           "fs.s3a.aws.credentials.provider",
           "org.apache.hadoop.fs.s3a.TemporaryAWSCredentialsProvider");
     }
-    configuration.set("fs.s3a.endpoint.region", credentials.require(StorageCredentials.REGION));
+    String region = credentials.credentials().get(StorageCredentials.REGION);
+    if (region != null && !region.isBlank()) {
+      configuration.set("fs.s3a.endpoint.region", region);
+    }
   }
 
   private static void configureAzure(

@@ -24,11 +24,14 @@ final class S3UrlSigner implements UrlSigner {
   @Override
   public SigningSession open(StorageCredentials credentials) {
     AwsCredentials aws = awsCredentials(credentials);
-    S3Presigner presigner =
-        S3Presigner.builder()
-            .region(Region.of(credentials.require(StorageCredentials.REGION)))
-            .credentialsProvider(StaticCredentialsProvider.create(aws))
-            .build();
+    S3Presigner.Builder builder =
+        S3Presigner.builder().credentialsProvider(StaticCredentialsProvider.create(aws));
+    // Without a vended region, the SDK's default region provider chain picks one.
+    String region = credentials.credentials().get(StorageCredentials.REGION);
+    if (region != null && !region.isBlank()) {
+      builder.region(Region.of(region));
+    }
+    S3Presigner presigner = builder.build();
     return new SigningSession() {
       @Override
       public SignedUrl sign(String path, Duration ttl) {
