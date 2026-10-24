@@ -233,6 +233,30 @@ class DeltaTableQueryReaderTest {
     assertThrows(ApiException.class, () -> changeDataFeed(5L, null, null, null, null, false));
   }
 
+  @Test
+  void changeDataFeedTagsOnlyAStartingVersionProtocol() throws IOException {
+    writeChangeDataFeed();
+    assertFalse(changeDataFeedProtocol(false).contains("\"version\""));
+    assertTrue(changeDataFeedProtocol(true).contains("\"version\":1"));
+  }
+
+  /** The protocol line of a delta Change Data Feed of versions 1 to 2 with historical protocols. */
+  private String changeDataFeedProtocol(boolean includeHistoricalMetadata) {
+    return reader
+        .readChangeDataFeed(
+            table,
+            null,
+            new DeltaTableQueryReader.ResponseOptions("responseformat=delta", null, false),
+            1L,
+            null,
+            2L,
+            null,
+            includeHistoricalMetadata,
+            true)
+        .ndjson()
+        .split("\n")[0];
+  }
+
   private List<String> changeDataFeed(
       Long startingVersion,
       Instant startingTimestamp,
