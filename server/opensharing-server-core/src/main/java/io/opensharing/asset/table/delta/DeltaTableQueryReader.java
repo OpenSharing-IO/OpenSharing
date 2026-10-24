@@ -76,7 +76,7 @@ public class DeltaTableQueryReader {
     boolean historical = version != null || timestamp != null;
     // A refresh token pins the version it was issued for without making the query historical.
     if (refreshToken != null) {
-      version = RefreshTokens.versionOf(refreshToken, table.fullName());
+      version = RefreshTokens.versionOf(refreshToken, table.catalogAssetId());
     }
 
     try (DeltaKernel.Session session = kernel.open(table, auth, URL_TTL);
@@ -109,7 +109,7 @@ public class DeltaTableQueryReader {
         out.endStreamAction(
             includeRefreshToken
                 ? RefreshTokens.encode(
-                    table.fullName(), snapshot.getVersion(), Instant.now().plus(URL_TTL))
+                    table.catalogAssetId(), snapshot.getVersion(), Instant.now().plus(URL_TTL))
                 : null);
       }
     }

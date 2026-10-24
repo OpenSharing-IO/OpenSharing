@@ -118,7 +118,9 @@ public final class TableActions {
   }
 
   public static String endStreamAction(String refreshToken, Long minUrlExpirationTimestamp) {
-    return line(new EndStreamLine(new EndStreamAction(refreshToken, minUrlExpirationTimestamp)));
+    return line(
+        new EndStreamLine(
+            new EndStreamAction(refreshToken, null, minUrlExpirationTimestamp, null)));
   }
 
   /**
@@ -358,8 +360,27 @@ public final class TableActions {
   public record DeltaSingleAction(
       @JsonSerialize(using = KernelActionSerializer.class) AddFile add) {}
 
+  /**
+   * The last line of a response that asks for it:
+   *
+   * <pre>{@code
+   * {"endStreamAction": {...}}
+   * }</pre>
+   */
   public record EndStreamLine(EndStreamAction endStreamAction) {}
 
+  /**
+   * Ends a complete response. Every field is optional:
+   *
+   * <pre>{@code
+   * {"refreshToken": "<refresh token>", "nextPageToken": "<page token>",
+   *  "minUrlExpirationTimestamp": 1652144400000, "errorMessage": "<error>"}
+   * }</pre>
+   */
   @JsonInclude(JsonInclude.Include.NON_NULL)
-  public record EndStreamAction(String refreshToken, Long minUrlExpirationTimestamp) {}
+  public record EndStreamAction(
+      String refreshToken,
+      String nextPageToken,
+      Long minUrlExpirationTimestamp,
+      String errorMessage) {}
 }
