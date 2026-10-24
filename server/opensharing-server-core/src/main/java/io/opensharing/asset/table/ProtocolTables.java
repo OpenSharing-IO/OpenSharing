@@ -234,8 +234,8 @@ public class ProtocolTables {
     String root = location == null ? null : location.storageLocation();
     if (requested == null || requested.isBlank()) {
       if (root == null || root.isBlank()) {
-        throw ApiException.invalidParameter(
-            "table '" + table.fullName() + "' has no storage location");
+        log.error("Catalog table '{}' has no storage location", table.fullName());
+        throw new CatalogException("the catalog reported no storage location for the table");
       }
       return root;
     }
@@ -243,8 +243,7 @@ public class ProtocolTables {
         || (location != null && location.auxiliaryLocations().contains(requested))) {
       return requested;
     }
-    throw ApiException.invalidParameter(
-        "location '" + requested + "' is not part of table '" + table.fullName() + "'");
+    throw ApiException.invalidParameter("location '" + requested + "' is not part of the table");
   }
 
   /** The ISO-8601 UTC timestamp in the parameter {@code name}, or null when absent. */
