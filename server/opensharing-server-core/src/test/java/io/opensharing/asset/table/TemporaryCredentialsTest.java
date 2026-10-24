@@ -2,9 +2,11 @@ package io.opensharing.asset.table;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.StorageCredentials;
+import io.opensharing.exception.CatalogException;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -31,7 +33,6 @@ class TemporaryCredentialsTest {
     assertEquals(EXPIRATION.toEpochMilli(), credentials.expirationTime());
     assertNull(credentials.azureUserDelegationSas());
     assertNull(credentials.gcpOauthToken());
-    assertNull(credentials.r2Credentials());
   }
 
   @Test
@@ -47,7 +48,6 @@ class TemporaryCredentialsTest {
     assertEquals(EXPIRATION.toEpochMilli(), credentials.expirationTime());
     assertNull(credentials.awsTempCredentials());
     assertNull(credentials.gcpOauthToken());
-    assertNull(credentials.r2Credentials());
   }
 
   @Test
@@ -63,27 +63,31 @@ class TemporaryCredentialsTest {
     assertEquals(EXPIRATION.toEpochMilli(), credentials.expirationTime());
     assertNull(credentials.awsTempCredentials());
     assertNull(credentials.azureUserDelegationSas());
-    assertNull(credentials.r2Credentials());
   }
 
   @Test
-  void mapsR2Credentials() {
-    TemporaryCredentials credentials =
-        TemporaryCredentials.from(
-            minted(
-                "s3://r2/table",
-                CloudProvider.R2,
-                Map.of(
-                    StorageCredentials.ACCESS_KEY_ID, "r2key",
-                    StorageCredentials.SECRET_ACCESS_KEY, "r2secret")));
-    assertEquals("s3://r2/table", credentials.location());
-    assertEquals("r2key", credentials.r2Credentials().accessKeyId());
-    assertEquals("r2secret", credentials.r2Credentials().secretAccessKey());
-    assertNull(credentials.r2Credentials().sessionToken());
-    assertEquals(EXPIRATION.toEpochMilli(), credentials.expirationTime());
-    assertNull(credentials.awsTempCredentials());
-    assertNull(credentials.azureUserDelegationSas());
-    assertNull(credentials.gcpOauthToken());
+  void rejectsAwsKeysWithoutASessionToken() {
+    StorageCredentials longLived =
+        minted(
+            "s3://bucket/table/",
+            CloudProvider.AWS,
+            Map.of(
+                StorageCredentials.ACCESS_KEY_ID, "AKIATEST",
+                StorageCredentials.SECRET_ACCESS_KEY, "secret"));
+    assertThrows(CatalogException.class, () -> TemporaryCredentials.from(longLived));
+  }
+
+  @Test
+  void rejectsR2Credentials() {
+    StorageCredentials r2 =
+        minted(
+            "s3://r2/table",
+            CloudProvider.R2,
+            Map.of(
+                StorageCredentials.ACCESS_KEY_ID, "r2key",
+                StorageCredentials.SECRET_ACCESS_KEY, "r2secret",
+                StorageCredentials.SESSION_TOKEN, "session"));
+    assertThrows(CatalogException.class, () -> TemporaryCredentials.from(r2));
   }
 
   private static StorageCredentials minted(
