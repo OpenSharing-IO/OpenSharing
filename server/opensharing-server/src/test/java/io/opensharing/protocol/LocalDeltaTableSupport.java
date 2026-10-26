@@ -16,7 +16,8 @@ import org.junit.jupiter.api.io.TempDir;
  * logs written to a temporary directory: {@code main.sales.orders} with 3 commits, {@code
  * main.sales.customers} with 1, and {@code main.hr.salaries} with 4. Commit {@code n} of each table
  * is timestamped 2024-01-01T00:00:00Z plus {@code n} hours, and table {@code t} has metadata id
- * {@code t} and one {@code long} column, {@code id}.
+ * {@code t} and one {@code long} column, {@code id}. {@code main.lake.unwritten} is a Delta table
+ * with no log, and {@code main.lake.raw} has no format.
  */
 abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
 
@@ -67,8 +68,19 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
               subtype: MANAGED
             storageLocation: %s
             format: delta
+          - identifier: main.lake
+            type: SCHEMA
+          - identifier: main.lake.unwritten
+            attributes:
+              subtype: MANAGED
+            storageLocation: %s
+            format: delta
+          - identifier: main.lake.raw
+            attributes:
+              subtype: EXTERNAL
+            storageLocation: %s
         """
-            .formatted(orders, customers, salaries);
+            .formatted(orders, customers, salaries, location("unwritten"), location("raw"));
     Properties properties = new Properties();
     properties.setProperty("catalog.local.file", write("local-catalog.yml", catalog).toString());
     restartServer(properties);
@@ -89,6 +101,10 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
         throw new UncheckedIOException(e);
       }
     }
+    return location(name);
+  }
+
+  private static String location(String name) {
     return tables.resolve(name).toUri().toString();
   }
 

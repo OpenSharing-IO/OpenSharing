@@ -1,9 +1,10 @@
 package io.opensharing.asset.table.delta;
 
+import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
 import io.delta.kernel.defaults.engine.DefaultEngine;
 import io.delta.kernel.engine.Engine;
-import io.delta.kernel.exceptions.KernelException;
+import io.delta.kernel.exceptions.TableNotFoundException;
 import io.delta.kernel.internal.TableImpl;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.AssetType;
@@ -45,14 +46,24 @@ public class DeltaKernel {
   }
 
   static long versionAtOrAfter(TableImpl table, Engine engine, Instant startingTimestamp) {
+    Snapshot latest = latestSnapshot(table, engine);
     if (startingTimestamp == null) {
-      return table.getLatestSnapshot(engine).getVersion();
+      return latest.getVersion();
     }
-    try {
-      return table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
-    } catch (IllegalArgumentException | KernelException invalid) {
+    if (startingTimestamp.toEpochMilli() > latest.getTimestamp(engine)) {
       throw ApiException.invalidParameter(
           "startingTimestamp is after the latest table version timestamp");
+    }
+    return table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
+  }
+
+  /** The table's latest snapshot. A catalog Delta table without a log is a catalog error. */
+  static Snapshot latestSnapshot(Table table, Engine engine) {
+    try {
+      return table.getLatestSnapshot(engine);
+    } catch (TableNotFoundException missing) {
+      log.error("Delta table at '{}' has no log", table.getPath(engine));
+      throw new CatalogException("the table has no Delta log");
     }
   }
 
