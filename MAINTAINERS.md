@@ -20,10 +20,6 @@ majority vote of the TSC.
 
 **TSC Chair:** _not yet elected_ — the TSC may elect a Chair per Charter §2.f.
 
-**Emeritus Maintainers**
-
-_None yet._
-
 [linzhou-db]: https://github.com/linzhou-db
 [hueyhuilonghan]: https://github.com/hueyhuilonghan
 [chakankardb]: https://github.com/chakankardb
