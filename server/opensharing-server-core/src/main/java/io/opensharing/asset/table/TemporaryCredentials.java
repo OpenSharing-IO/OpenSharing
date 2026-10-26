@@ -21,11 +21,14 @@ public record TemporaryCredentials(
     AwsTempCredentials awsTempCredentials,
     AzureUserDelegationSas azureUserDelegationSas,
     GcpOauthToken gcpOauthToken,
-    Long expirationTime) {
+    long expirationTime) {
 
   static TemporaryCredentials from(StorageCredentials minted) {
     String location = minted.prefix();
-    Long expiration = minted.expiration() == null ? null : minted.expiration().toEpochMilli();
+    if (minted.expiration() == null) {
+      throw new CatalogException("the catalog returned credentials without an expiration");
+    }
+    long expiration = minted.expiration().toEpochMilli();
     return switch (minted.provider()) {
       case AWS ->
           new TemporaryCredentials(
@@ -56,10 +59,31 @@ public record TemporaryCredentials(
     };
   }
 
+  /** The values are live cloud secrets and must never be logged. */
   public record AwsTempCredentials(
-      String accessKeyId, String secretAccessKey, String sessionToken) {}
+      String accessKeyId, String secretAccessKey, String sessionToken) {
 
-  public record AzureUserDelegationSas(String sasToken) {}
+    @Override
+    public String toString() {
+      return "AwsTempCredentials[redacted]";
+    }
+  }
 
-  public record GcpOauthToken(String oauthToken) {}
+  /** The token is a live cloud secret and must never be logged. */
+  public record AzureUserDelegationSas(String sasToken) {
+
+    @Override
+    public String toString() {
+      return "AzureUserDelegationSas[redacted]";
+    }
+  }
+
+  /** The token is a live cloud secret and must never be logged. */
+  public record GcpOauthToken(String oauthToken) {
+
+    @Override
+    public String toString() {
+      return "GcpOauthToken[redacted]";
+    }
+  }
 }

@@ -32,7 +32,7 @@ class ProtocolTableCredentialsTest extends ProtocolApiSupport {
     assertTrue(credentials.path("azureUserDelegationSas").isMissingNode());
     assertTrue(credentials.path("expirationTime").asLong() > 0);
 
-    // An explicit location may repeat the table root.
+    // An explicit location may repeat the table root, with or without its trailing slash.
     Response explicit =
         server.post(
             credentials("table-creds", "sales", "orders"),
@@ -42,6 +42,15 @@ class ProtocolTableCredentialsTest extends ProtocolApiSupport {
     assertEquals(
         "s3://test/main.sales.orders/",
         explicit.body().path("credentials").path("location").asText());
+    Response unslashed =
+        server.post(
+            credentials("table-creds", "sales", "orders"),
+            bearer,
+            "{\"location\":\"s3://test/main.sales.orders\"}");
+    assertEquals(200, unslashed.status());
+    assertEquals(
+        "s3://test/main.sales.orders/",
+        unslashed.body().path("credentials").path("location").asText());
 
     // A SCHEMA grant can mint credentials for a catalog child.
     Response child = server.post(credentials("table-creds", "hr", "employees"), bearer, "{}");

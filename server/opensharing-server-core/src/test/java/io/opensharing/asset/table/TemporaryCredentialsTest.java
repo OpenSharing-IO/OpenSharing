@@ -1,6 +1,7 @@
 package io.opensharing.asset.table;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -88,6 +89,32 @@ class TemporaryCredentialsTest {
                 StorageCredentials.SECRET_ACCESS_KEY, "r2secret",
                 StorageCredentials.SESSION_TOKEN, "session"));
     assertThrows(CatalogException.class, () -> TemporaryCredentials.from(r2));
+  }
+
+  @Test
+  void rejectsCredentialsWithoutAnExpiration() {
+    StorageCredentials unbounded =
+        new StorageCredentials(
+            "gs://bucket/table",
+            CloudProvider.GCP,
+            Map.of(StorageCredentials.OAUTH_TOKEN, "ya29.token"),
+            null);
+    assertThrows(CatalogException.class, () -> TemporaryCredentials.from(unbounded));
+  }
+
+  @Test
+  void toStringRedactsSecrets() {
+    TemporaryCredentials.AwsTempCredentials aws =
+        new TemporaryCredentials.AwsTempCredentials("ASIATEST", "secret", "session");
+    assertEquals("AwsTempCredentials[redacted]", aws.toString());
+    TemporaryCredentials credentials =
+        new TemporaryCredentials("s3://bucket/table/", aws, null, null, 0);
+    assertFalse(credentials.toString().contains("secret"));
+    assertEquals(
+        "AzureUserDelegationSas[redacted]",
+        new TemporaryCredentials.AzureUserDelegationSas("sv=sig").toString());
+    assertEquals(
+        "GcpOauthToken[redacted]", new TemporaryCredentials.GcpOauthToken("ya29.token").toString());
   }
 
   private static StorageCredentials minted(

@@ -226,8 +226,8 @@ public class ProtocolTables {
   }
 
   /**
-   * The location to vend credentials for: the table's root when none is requested, otherwise {@code
-   * requested} when it is the root or one of the table's auxiliary locations.
+   * The location to vend credentials for: the table's root when none is requested, otherwise the
+   * root or auxiliary location {@code requested} names, ignoring trailing slashes.
    */
   private static String credentialLocation(ResolvedAsset table, String requested) {
     AssetLocation location = table.location();
@@ -239,9 +239,16 @@ public class ProtocolTables {
       }
       return root;
     }
-    if (requested.equals(root)
-        || (location != null && location.auxiliaryLocations().contains(requested))) {
-      return requested;
+    String path = StorageCredentials.withoutTrailingSlash(requested);
+    if (root != null && path.equals(StorageCredentials.withoutTrailingSlash(root))) {
+      return root;
+    }
+    if (location != null) {
+      for (String auxiliary : location.auxiliaryLocations()) {
+        if (path.equals(StorageCredentials.withoutTrailingSlash(auxiliary))) {
+          return auxiliary;
+        }
+      }
     }
     throw ApiException.invalidParameter("location '" + requested + "' is not part of the table");
   }
