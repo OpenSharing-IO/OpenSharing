@@ -42,8 +42,9 @@ public final class DeltaSharingCapabilities {
   }
 
   /**
-   * Query Table serves parquet only for tables with reader version 1, and delta only when the
-   * header advertises every reader feature the table requires. Advertised features the server does
+   * A parquet response only carries protocols with reader version 1. A client that accepts delta
+   * must advertise every reader feature the table requires; one that accepts only parquet gets
+   * delta for an advanced table and raises the error itself. Advertised features the server does
    * not know are ignored. Metadata does not enforce this so clients can inspect protocol before
    * querying files.
    */
@@ -54,6 +55,9 @@ public final class DeltaSharingCapabilities {
         throw ApiException.invalidParameter(
             "The table requires reader features that are only available in delta format");
       }
+      return;
+    }
+    if (!responseFormats(parse(header)).contains(ResponseFormat.DELTA)) {
       return;
     }
     Set<String> required = protocol.getReaderFeatures();

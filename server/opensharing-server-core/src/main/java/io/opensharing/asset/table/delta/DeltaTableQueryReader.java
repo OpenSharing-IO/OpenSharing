@@ -93,7 +93,7 @@ public class DeltaTableQueryReader {
         throw new UncheckedIOException(e);
       }
 
-      return new Result(snapshot.getVersion(), out.ndjson());
+      return new Result(snapshot.getVersion(), out.format, out.ndjson());
     }
   }
 
@@ -108,13 +108,17 @@ public class DeltaTableQueryReader {
         .orElse(null);
   }
 
-  /** {@code version} is the snapshot read, returned as the {@code Delta-Table-Version} header. */
-  public record Result(long version, String ndjson) {}
+  /**
+   * {@code version} is the snapshot read, returned as the {@code Delta-Table-Version} header, and
+   * {@code format} is the one the response is written in.
+   */
+  public record Result(long version, ResponseFormat format, String ndjson) {}
 
   /**
    * How one response is written.
    *
-   * @param capabilities the request's {@code delta-sharing-capabilities} header; picks the format
+   * @param capabilities the request's {@code delta-sharing-capabilities} header; with the table's
+   *     protocol, picks the format
    * @param fileIdHash the parsed {@code fileidhash} header, or null to follow the format
    */
   public record ResponseOptions(String capabilities, String fileIdHash) {}
@@ -125,7 +129,7 @@ public class DeltaTableQueryReader {
    */
   private final class ResponseWriter implements AutoCloseable {
 
-    final ResponseFormat format;
+    ResponseFormat format;
     private final DeltaKernel.Session session;
     private final ResolvedAsset table;
     private final String capabilities;
@@ -134,7 +138,6 @@ public class DeltaTableQueryReader {
     private final StringBuilder ndjson = new StringBuilder();
 
     ResponseWriter(DeltaKernel.Session session, ResolvedAsset table, ResponseOptions options) {
-      this.format = DeltaSharingCapabilities.choose(options.capabilities());
       this.session = session;
       this.table = table;
       this.capabilities = options.capabilities();
@@ -142,7 +145,11 @@ public class DeltaTableQueryReader {
       this.signer = signers.open(session.credentials());
     }
 
+    /** Picks the format from the first protocol, before any line is written, then checks each. */
     void requireReaderFeatures(Protocol protocol) {
+      if (format == null) {
+        format = DeltaSharingCapabilities.choose(capabilities, protocol.getMinReaderVersion());
+      }
       DeltaSharingCapabilities.requireReaderFeatures(capabilities, format, protocol);
     }
 
