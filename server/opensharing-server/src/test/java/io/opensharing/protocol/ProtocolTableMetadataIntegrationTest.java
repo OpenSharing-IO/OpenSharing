@@ -46,10 +46,10 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     Response parquet = metadata(endpoint, bearer, "responseformat=parquet");
     assertVersion("2", parquet);
     assertParquetMetadata(parquet.text());
-    // Dual responseformat prefers delta over parquet.
+    // A reader-v1 table answers in parquet when the client accepts it.
     Response both = metadata(endpoint, bearer, "responseformat=delta,parquet");
     assertVersion("2", both);
-    assertDeltaMetadata(both.text());
+    assertParquetMetadata(both.text());
     // Delta-only wraps Kernel protocol and metadata.
     Response delta = metadata(endpoint, bearer, "responseformat=delta");
     assertVersion("2", delta);
@@ -80,10 +80,11 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     assertDeltaMetadata(delta.text());
     assertTrue(delta.text().contains("deletionVectors"), delta.text());
 
-    // Dual responseformat still prefers delta for a reader-v3 table.
-    Response both = metadata(endpoint, bearer, "responseformat=delta,parquet");
-    assertEquals(200, both.status());
-    assertDeltaMetadata(both.text());
+    // A reader-v3 table answers in delta even when the client asks for parquet.
+    Response parquet = metadata(endpoint, bearer, "responseformat=parquet");
+    assertEquals(200, parquet.status());
+    assertEquals("responseformat=delta", parquet.headers().get("delta-sharing-capabilities"));
+    assertDeltaMetadata(parquet.text());
   }
 
   @Test

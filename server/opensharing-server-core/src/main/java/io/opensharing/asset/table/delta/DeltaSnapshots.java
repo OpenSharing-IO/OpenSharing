@@ -2,7 +2,6 @@ package io.opensharing.asset.table.delta;
 
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.exceptions.KernelException;
-import io.delta.kernel.exceptions.TableNotFoundException;
 import io.opensharing.http.ApiException;
 import java.time.Instant;
 
@@ -12,18 +11,30 @@ final class DeltaSnapshots {
   private DeltaSnapshots() {}
 
   static Snapshot open(DeltaKernel.Session session, Long version, Instant timestamp) {
-    try {
-      if (version != null) {
+    Snapshot latest = DeltaKernel.latestSnapshot(session.table(), session.engine());
+    if (version != null) {
+      if (version > latest.getVersion()) {
+        throw ApiException.invalidParameter(
+            "version " + version + " is after the latest table version " + latest.getVersion());
+      }
+      try {
         return session.table().getSnapshotAsOfVersion(session.engine(), version);
+      } catch (KernelException | IllegalArgumentException unavailable) {
+        throw ApiException.invalidParameter("version " + version + " is no longer available");
       }
-      if (timestamp != null) {
-        return session.table().getSnapshotAsOfTimestamp(session.engine(), timestamp.toEpochMilli());
-      }
-      return session.table().getLatestSnapshot(session.engine());
-    } catch (TableNotFoundException missing) {
-      throw ApiException.invalidParameter("the table has no Delta log");
-    } catch (KernelException | IllegalArgumentException invalid) {
-      throw ApiException.invalidParameter(invalid.getMessage());
     }
+    if (timestamp != null) {
+      if (timestamp.toEpochMilli() > latest.getTimestamp(session.engine())) {
+        throw ApiException.invalidParameter(
+            "timestamp is after the latest table version timestamp");
+      }
+      try {
+        return session.table().getSnapshotAsOfTimestamp(session.engine(), timestamp.toEpochMilli());
+      } catch (KernelException | IllegalArgumentException unavailable) {
+        throw ApiException.invalidParameter(
+            "timestamp is before the earliest available table version timestamp");
+      }
+    }
+    return latest;
   }
 }

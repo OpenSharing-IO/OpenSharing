@@ -44,8 +44,11 @@ class TableActionsTest {
 
   @Test
   void encodesParquetProtocolAndMetadata() {
-    assertEquals(parquetBody(""), encode(ResponseFormat.PARQUET, null, null, null));
-    assertEquals(parquetBody(",\"version\":20"), encode(ResponseFormat.PARQUET, 20L, null, null));
+    Protocol readerV1 = new Protocol(1, 2, Set.of(), Set.of());
+    assertEquals(parquetBody(""), encode(readerV1, ResponseFormat.PARQUET, null, null, null));
+    assertEquals(
+        parquetBody(",\"version\":20"),
+        encode(readerV1, ResponseFormat.PARQUET, 20L, null, null));
   }
 
   @Test
@@ -69,7 +72,12 @@ class TableActionsTest {
   }
 
   private static String encode(ResponseFormat format, Long version, Long size, Long numFiles) {
-    return TableActions.protocol(protocol(), null, format)
+    return encode(protocol(), format, version, size, numFiles);
+  }
+
+  private static String encode(
+      Protocol protocol, ResponseFormat format, Long version, Long size, Long numFiles) {
+    return TableActions.protocol(protocol, null, format)
         + TableActions.metadata(metadata(), TABLE, version, size, numFiles, format);
   }
 

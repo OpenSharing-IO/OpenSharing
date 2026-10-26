@@ -23,20 +23,20 @@ public final class DeltaSharingCapabilities {
   private DeltaSharingCapabilities() {}
 
   /**
-   * No header, or parquet only, defaults to parquet. Prefer delta whenever it is listed, including
-   * {@code responseformat=delta,parquet}.
+   * Parquet when the table's {@code minReaderVersion} is 1 and the client accepts parquet, as it
+   * does without a {@code responseformat}; otherwise delta.
    */
-  public static ResponseFormat choose(String header) {
-    return responseFormats(parse(header)).contains(ResponseFormat.DELTA)
-        ? ResponseFormat.DELTA
-        : ResponseFormat.PARQUET;
+  public static ResponseFormat choose(String header, int minReaderVersion) {
+    Set<ResponseFormat> accepted = responseFormats(parse(header));
+    boolean parquet = accepted.isEmpty() || accepted.contains(ResponseFormat.PARQUET);
+    return minReaderVersion == 1 && parquet
+        ? ResponseFormat.PARQUET
+        : ResponseFormat.DELTA;
   }
 
-  /** Value for the response {@code delta-sharing-capabilities} header: the format actually used. */
-  public static String responded(String requestHeader) {
-    return choose(requestHeader) == ResponseFormat.DELTA
-        ? "responseformat=delta"
-        : "responseformat=parquet";
+  /** Value for the response {@code delta-sharing-capabilities} header. */
+  public static String responded(ResponseFormat format) {
+    return "responseformat=" + format.name().toLowerCase(Locale.ROOT);
   }
 
   static Map<String, String> parse(String header) {

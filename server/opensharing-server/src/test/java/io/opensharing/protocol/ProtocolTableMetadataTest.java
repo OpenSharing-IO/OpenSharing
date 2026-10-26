@@ -57,6 +57,8 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
     assertEquals(1, deltaProtocol.path("minReaderVersion").asInt());
     assertEquals(2, deltaProtocol.path("minWriterVersion").asInt());
     assertEquals("orders", lines.get(1).path("metaData").path("deltaMetadata").path("id").asText());
+    Response both = metadata(orders, bearer, "responseformat=delta,parquet");
+    assertEquals("responseformat=parquet", both.headers().get("delta-sharing-capabilities"));
 
     // Unknown responseformat and capability keys are INVALID_PARAMETER_VALUE.
     assertInvalid(metadata(orders, bearer, "responseformat=json"));
@@ -84,6 +86,22 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
             null);
     assertEquals(404, hidden.status());
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, hidden.errorCode());
+  }
+
+  @Test
+  void reportsADeltaTableWithoutALogAsACatalogError() {
+    createShare("unwritten-metadata");
+    addObject("unwritten-metadata", "TABLE", "main.lake.unwritten", "lake.unwritten");
+    String bearer = createAndActivateRecipient("unwritten-metadata-partner");
+    grant("unwritten-metadata", "unwritten-metadata-partner");
+
+    Response unwritten =
+        metadata(
+            PROTOCOL + "/shares/unwritten-metadata/schemas/lake/tables/unwritten/metadata",
+            bearer,
+            null);
+    assertEquals(502, unwritten.status());
+    assertEquals(ErrorCodes.CATALOG_ERROR, unwritten.errorCode());
   }
 
   private static Response metadata(String path, String bearer, String capabilities) {

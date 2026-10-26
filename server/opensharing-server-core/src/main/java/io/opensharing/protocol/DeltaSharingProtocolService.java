@@ -84,7 +84,9 @@ public final class DeltaSharingProtocolService {
         ResponseHeaders.builder(HttpStatus.OK)
             .contentType(NDJSON)
             .add(DELTA_TABLE_VERSION, Long.toString(result.version()))
-            .add(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(capabilities))
+            .add(
+                DeltaSharingCapabilities.HEADER,
+                DeltaSharingCapabilities.responded(result.format()))
             .build();
     return HttpResponse.of(headers, HttpData.ofUtf8(result.ndjson()));
   }

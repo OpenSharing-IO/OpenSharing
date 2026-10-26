@@ -36,10 +36,12 @@ public class DeltaTableMetadataReader {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
       boolean historical = version != null || timestamp != null;
-      ResponseFormat format = DeltaSharingCapabilities.choose(capabilities);
+      ResponseFormat format =
+          DeltaSharingCapabilities.choose(capabilities, impl.getProtocol().getMinReaderVersion());
       CRCInfo crc = crcFor(impl, snapshot.getVersion());
       return new Result(
           snapshot.getVersion(),
+          format,
           TableActions.protocol(impl.getProtocol(), null, format)
               + TableActions.metadata(
                   impl.getMetadata(),
@@ -58,5 +60,5 @@ public class DeltaTableMetadataReader {
         .orElse(null);
   }
 
-  public record Result(long version, String ndjson) {}
+  public record Result(long version, ResponseFormat format, String ndjson) {}
 }

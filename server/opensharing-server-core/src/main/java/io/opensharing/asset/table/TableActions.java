@@ -31,7 +31,7 @@ public final class TableActions {
         new ProtocolLine(
             format == ResponseFormat.DELTA
                 ? new DeltaProtocol(version, protocol)
-                : new ParquetProtocol(1)));
+                : new ParquetProtocol(protocol.getMinReaderVersion())));
   }
 
   public static String metadata(
@@ -107,22 +107,63 @@ public final class TableActions {
     }
   }
 
+  /**
+   * The protocol line of a response:
+   *
+   * <pre>{@code
+   * {"protocol": {...}}
+   * }</pre>
+   */
   public record ProtocolLine(ProtocolBody protocol) {}
 
   public sealed interface ProtocolBody permits ParquetProtocol, DeltaProtocol {}
 
+  /**
+   * The protocol in a parquet response:
+   *
+   * <pre>{@code
+   * {"minReaderVersion": 1}
+   * }</pre>
+   */
   public record ParquetProtocol(int minReaderVersion) implements ProtocolBody {}
 
+  /**
+   * The protocol in a delta response, carrying the log's protocol action:
+   *
+   * <pre>{@code
+   * {"version": 1,
+   *  "deltaProtocol": {"minReaderVersion": 3, "minWriterVersion": 7,
+   *                    "readerFeatures": ["deletionVectors"], "writerFeatures": [...]}}
+   * }</pre>
+   */
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record DeltaProtocol(
       Long version,
       @JsonSerialize(using = KernelActionSerializer.class) Protocol deltaProtocol)
       implements ProtocolBody {}
 
+  /**
+   * The metadata line of a response:
+   *
+   * <pre>{@code
+   * {"metaData": {...}}
+   * }</pre>
+   */
   public record MetadataLine(MetadataBody metaData) {}
 
   public sealed interface MetadataBody permits ParquetMetadata, DeltaMetadata {}
 
+  /**
+   * The metadata in a parquet response:
+   *
+   * <pre>{@code
+   * {"id": "<table id>", "name": "<name>", "description": "<description>",
+   *  "location": "s3://bucket/table", "auxiliaryLocations": ["s3://bucket/other"],
+   *  "accessModes": ["url", "dir"], "format": {"provider": "parquet"},
+   *  "schemaString": "<schema json>", "partitionColumns": ["date"],
+   *  "configuration": {"<key>": "<value>"}, "version": 1, "size": 573, "numFiles": 1}
+   * }</pre>
+   */
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record ParquetMetadata(
       String id,
@@ -140,6 +181,16 @@ public final class TableActions {
       Long numFiles)
       implements MetadataBody {}
 
+  /**
+   * The metadata in a delta response, carrying the log's metaData action:
+   *
+   * <pre>{@code
+   * {"version": 1, "size": 573, "numFiles": 1, "location": "s3://bucket/table",
+   *  "auxiliaryLocations": ["s3://bucket/other"], "accessModes": ["url", "dir"],
+   *  "deltaMetadata": {"id": "<table id>", "format": {"provider": "parquet", "options": {}},
+   *                    "schemaString": "<schema json>", "partitionColumns": [], ...}}
+   * }</pre>
+   */
   @JsonInclude(JsonInclude.Include.NON_NULL)
   public record DeltaMetadata(
       Long version,
@@ -151,5 +202,12 @@ public final class TableActions {
       @JsonSerialize(using = KernelActionSerializer.class) Metadata deltaMetadata)
       implements MetadataBody {}
 
+  /**
+   * The data file format of a parquet metadata:
+   *
+   * <pre>{@code
+   * {"provider": "parquet"}
+   * }</pre>
+   */
   public record FormatBody(String provider) {}
 }
