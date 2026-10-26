@@ -56,7 +56,7 @@ class DeltaSharingCapabilitiesTest {
   }
 
   @Test
-  void queryRequiresReaderFeaturesOnlyForDeltaAdvancedTables() {
+  void queryRequiresReaderFeaturesOnlyFromClientsThatAcceptDelta() {
     Protocol basic = new Protocol(1, 2);
     Protocol columnMapping = new Protocol(2, 5);
     Protocol advanced =
@@ -79,6 +79,12 @@ class DeltaSharingCapabilitiesTest {
         () ->
             DeltaSharingCapabilities.requireReaderFeatures(
                 "responseformat=delta", ResponseFormat.DELTA, columnMapping));
+    assertDoesNotThrow(
+        () ->
+            DeltaSharingCapabilities.requireReaderFeatures(
+                "responseformat=parquet", ResponseFormat.DELTA, advanced));
+    assertDoesNotThrow(
+        () -> DeltaSharingCapabilities.requireReaderFeatures(null, ResponseFormat.DELTA, advanced));
     assertThrows(
         ApiException.class,
         () ->

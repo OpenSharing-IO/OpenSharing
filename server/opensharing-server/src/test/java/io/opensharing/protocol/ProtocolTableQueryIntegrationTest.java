@@ -41,17 +41,17 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
     assertVersion("2", latest);
     assertTrue(latest.headers().contentType().is(MediaType.parse("application/x-ndjson")));
     assertParquetQuery(latest.text());
-    assertTrue(latest.text().contains("https://"), latest.text());
-    assertTrue(latest.text().contains("X-Amz-Signature="), latest.text());
+    assertTrue(latest.text().contains("https://"));
+    assertTrue(latest.text().contains("X-Amz-Signature="));
 
     // Explicit parquet keeps protocol, schemaString, and file.url, not delta wrappers.
     Response parquet = query(endpoint, bearer, "{}", "responseformat=parquet");
     assertVersion("2", parquet);
     assertParquetQuery(parquet.text());
-    // Dual responseformat prefers delta over parquet.
+    // A reader-v1 table answers in parquet when the client accepts it.
     Response both = query(endpoint, bearer, "{}", "responseformat=delta,parquet");
     assertVersion("2", both);
-    assertDeltaQuery(both.text());
+    assertParquetQuery(both.text());
     // Delta-only wraps Kernel add actions as deltaSingleAction.
     Response delta = query(endpoint, bearer, "{}", "responseformat=delta");
     assertVersion("2", delta);
@@ -100,13 +100,17 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
         query(endpoint, bearer, "{}", "responseformat=delta;readerfeatures=deletionvectors");
     assertEquals(200, delta.status());
     assertDeltaQuery(delta.text());
-    assertTrue(delta.text().contains("\"deletionVectorFileId\""), delta.text());
-    assertTrue(delta.text().contains("\"deletionVector\""), delta.text());
-    assertTrue(delta.text().contains("X-Amz-Signature="), delta.text());
+    assertTrue(delta.text().contains("\"deletionVectorFileId\""));
+    assertTrue(delta.text().contains("\"deletionVector\""));
+    assertTrue(delta.text().contains("X-Amz-Signature="));
 
-    // Without the reader feature, or in parquet, the table cannot be read.
+    // A client that accepts delta must advertise the reader feature.
     assertInvalid(query(endpoint, bearer, "{}", "responseformat=delta"));
-    assertInvalid(query(endpoint, bearer, "{}", null));
+    // A parquet client gets delta for a reader-v3 table and decides whether it can read it.
+    Response parquet = query(endpoint, bearer, "{}", null);
+    assertEquals(200, parquet.status());
+    assertEquals("responseformat=delta", parquet.headers().get("delta-sharing-capabilities"));
+    assertDeltaQuery(parquet.text());
   }
 
   @Test
@@ -132,8 +136,8 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
     Response latest = query(endpoint, bearer, "{}", null);
     assertVersion("0", latest);
     assertParquetQuery(latest.text());
-    assertEquals(1, count(latest.text(), "file"), latest.text());
-    assertTrue(latest.text().contains(signature), latest.text());
+    assertEquals(1, count(latest.text(), "file"));
+    assertTrue(latest.text().contains(signature));
     Response delta = query(endpoint, bearer, "{}", "responseformat=delta");
     assertVersion("0", delta);
     assertDeltaQuery(delta.text());
@@ -142,7 +146,7 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
     Response historical = query(endpoint, bearer, "{\"version\":0}", null);
     assertVersion("0", historical);
     assertEquals(
-        2, historical.text().split("\"version\":0", -1).length - 1, historical.text());
+        2, historical.text().split("\"version\":0", -1).length - 1);
     // A version after the latest is INVALID_PARAMETER_VALUE.
     assertInvalid(query(endpoint, bearer, "{\"version\":1}", null));
   }
@@ -186,12 +190,12 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
   }
 
   private static void assertVersion(String expected, Response response) {
-    assertEquals(200, response.status(), response.text());
+    assertEquals(200, response.status());
     assertEquals(expected, response.headers().get("Delta-Table-Version"));
   }
 
   private static void assertInvalid(Response response) {
-    assertEquals(400, response.status(), response.text());
+    assertEquals(400, response.status());
     assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, response.errorCode());
   }
 }
