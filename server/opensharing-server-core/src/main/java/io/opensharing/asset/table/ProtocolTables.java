@@ -116,7 +116,7 @@ public class ProtocolTables {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     Instant timestamp = parseTimestamp(startingTimestamp);
     return kernel.getVersion(
-        resolveTable(share, schemaAlias, tableAlias), timestamp, owner(share));
+        findTable(share, schemaAlias, tableAlias).catalogTable(), timestamp, owner(share));
   }
 
   /**
@@ -158,11 +158,6 @@ public class ProtocolTables {
             + "' does not exist in share '"
             + share.getName()
             + "'");
-  }
-
-  /** The catalog table shared under {@code tableAlias}, resolved as the share's owner. */
-  private ResolvedAsset resolveTable(ShareEntity share, String schemaAlias, String tableAlias) {
-    return findTable(share, schemaAlias, tableAlias).catalogTable();
   }
 
   /** An ISO-8601 UTC timestamp query value, or null when absent. */
