@@ -122,7 +122,7 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
   @Test
   @EnabledIfEnvironmentVariable(named = "GOOGLE_APPLICATION_CREDENTIALS", matches = ".+")
   void queriesGoogleTableFiles() {
-    queryCloudTableFiles("gcs-query", "main.sales.gcs", "sales.gcs", "X-Goog-Signature=");
+    queryCloudTableFiles("gcs-query", "main.sales.gcs", "sales.gcs", "access_token=");
   }
 
   // The cloud copies of table1 have one commit, version 0, with one file in partition c2=foo bar.
