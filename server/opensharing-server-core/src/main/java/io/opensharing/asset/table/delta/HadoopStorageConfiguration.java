@@ -3,14 +3,11 @@ package io.opensharing.asset.table.delta;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.exception.CatalogException;
 import java.net.URI;
-import java.time.Duration;
 import java.time.Instant;
 import org.apache.hadoop.conf.Configuration;
 
 /** Builds a Hadoop {@link Configuration} from catalog-vended storage credentials. */
 final class HadoopStorageConfiguration {
-
-  private static final Duration CREDENTIAL_TTL = Duration.ofMinutes(5);
 
   private HadoopStorageConfiguration() {}
 
@@ -79,7 +76,7 @@ final class HadoopStorageConfiguration {
     Instant expiration =
         credentials.expiration() != null
             ? credentials.expiration()
-            : Instant.now().plus(CREDENTIAL_TTL);
+            : Instant.now().plus(DeltaKernel.CREDENTIAL_TTL);
     configuration.set(
         GcsAccessTokenProvider.EXPIRATION, Long.toString(expiration.toEpochMilli()));
   }

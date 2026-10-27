@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 public class DeltaKernel {
 
   private static final Logger log = LoggerFactory.getLogger(DeltaKernel.class);
-  private static final Duration CREDENTIAL_TTL = Duration.ofMinutes(5);
+  static final Duration CREDENTIAL_TTL = Duration.ofMinutes(5);
 
   private final CatalogConnector catalog;
 
