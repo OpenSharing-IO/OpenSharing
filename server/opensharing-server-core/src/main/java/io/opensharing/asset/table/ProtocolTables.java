@@ -201,7 +201,7 @@ public class ProtocolTables {
       QueryTableRequest request,
       DeltaTableQueryReader.ResponseOptions options) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    ResolvedAsset catalogTable = resolveTable(share, schemaAlias, tableAlias);
+    ResolvedAsset catalogTable = findTable(share, schemaAlias, tableAlias).catalogTable();
     List<String> accessModes = TableAccessModes.forTable(catalogTable);
     if (accessModes == null || !accessModes.contains("url")) {
       throw ApiException.invalidParameter(
