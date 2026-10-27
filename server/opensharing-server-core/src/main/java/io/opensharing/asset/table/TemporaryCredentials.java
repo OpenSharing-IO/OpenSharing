@@ -13,6 +13,8 @@ import io.opensharing.exception.CatalogException;
  *                         "sessionToken": "<session token>"},
  *  "azureUserDelegationSas": {"sasToken": "<SAS token>"},
  *  "gcpOauthToken": {"oauthToken": "<OAuth token>"},
+ *  "r2Credentials": {"accessKeyId": "<key id>", "secretAccessKey": "<secret>",
+ *                    "sessionToken": "<session token>"},
  *  "expirationTime": <epoch milliseconds>}
  * }</pre>
  */
@@ -21,6 +23,7 @@ public record TemporaryCredentials(
     AwsTempCredentials awsTempCredentials,
     AzureUserDelegationSas azureUserDelegationSas,
     GcpOauthToken gcpOauthToken,
+    R2Credentials r2Credentials,
     long expirationTime) {
 
   static TemporaryCredentials from(StorageCredentials minted) {
@@ -39,12 +42,14 @@ public record TemporaryCredentials(
                   minted.require(StorageCredentials.SESSION_TOKEN)),
               null,
               null,
+              null,
               expiration);
       case AZURE ->
           new TemporaryCredentials(
               location,
               null,
               new AzureUserDelegationSas(minted.require(StorageCredentials.SAS_TOKEN)),
+              null,
               null,
               expiration);
       case GCP ->
@@ -53,9 +58,19 @@ public record TemporaryCredentials(
               null,
               null,
               new GcpOauthToken(minted.require(StorageCredentials.OAUTH_TOKEN)),
+              null,
               expiration);
       case R2 ->
-          throw new CatalogException("the sharing protocol has no temporary credentials for R2");
+          new TemporaryCredentials(
+              location,
+              null,
+              null,
+              null,
+              new R2Credentials(
+                  minted.require(StorageCredentials.ACCESS_KEY_ID),
+                  minted.require(StorageCredentials.SECRET_ACCESS_KEY),
+                  minted.require(StorageCredentials.SESSION_TOKEN)),
+              expiration);
     };
   }
 
@@ -84,6 +99,15 @@ public record TemporaryCredentials(
     @Override
     public String toString() {
       return "GcpOauthToken[redacted]";
+    }
+  }
+
+  /** The values are live cloud secrets and must never be logged. */
+  public record R2Credentials(String accessKeyId, String secretAccessKey, String sessionToken) {
+
+    @Override
+    public String toString() {
+      return "R2Credentials[redacted]";
     }
   }
 }

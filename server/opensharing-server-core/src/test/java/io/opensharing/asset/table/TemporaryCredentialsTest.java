@@ -79,16 +79,24 @@ class TemporaryCredentialsTest {
   }
 
   @Test
-  void rejectsR2Credentials() {
-    StorageCredentials r2 =
-        minted(
-            "s3://r2/table",
-            CloudProvider.R2,
-            Map.of(
-                StorageCredentials.ACCESS_KEY_ID, "r2key",
-                StorageCredentials.SECRET_ACCESS_KEY, "r2secret",
-                StorageCredentials.SESSION_TOKEN, "session"));
-    assertThrows(CatalogException.class, () -> TemporaryCredentials.from(r2));
+  void mapsR2SessionCredentials() {
+    TemporaryCredentials credentials =
+        TemporaryCredentials.from(
+            minted(
+                "s3://r2/table",
+                CloudProvider.R2,
+                Map.of(
+                    StorageCredentials.ACCESS_KEY_ID, "r2key",
+                    StorageCredentials.SECRET_ACCESS_KEY, "r2secret",
+                    StorageCredentials.SESSION_TOKEN, "session")));
+    assertEquals("s3://r2/table", credentials.location());
+    assertEquals("r2key", credentials.r2Credentials().accessKeyId());
+    assertEquals("r2secret", credentials.r2Credentials().secretAccessKey());
+    assertEquals("session", credentials.r2Credentials().sessionToken());
+    assertEquals(EXPIRATION.toEpochMilli(), credentials.expirationTime());
+    assertNull(credentials.awsTempCredentials());
+    assertNull(credentials.azureUserDelegationSas());
+    assertNull(credentials.gcpOauthToken());
   }
 
   @Test
@@ -108,13 +116,16 @@ class TemporaryCredentialsTest {
         new TemporaryCredentials.AwsTempCredentials("ASIATEST", "secret", "session");
     assertEquals("AwsTempCredentials[redacted]", aws.toString());
     TemporaryCredentials credentials =
-        new TemporaryCredentials("s3://bucket/table/", aws, null, null, 0);
+        new TemporaryCredentials("s3://bucket/table/", aws, null, null, null, 0);
     assertFalse(credentials.toString().contains("secret"));
     assertEquals(
         "AzureUserDelegationSas[redacted]",
         new TemporaryCredentials.AzureUserDelegationSas("sv=sig").toString());
     assertEquals(
         "GcpOauthToken[redacted]", new TemporaryCredentials.GcpOauthToken("ya29.token").toString());
+    assertEquals(
+        "R2Credentials[redacted]",
+        new TemporaryCredentials.R2Credentials("r2key", "r2secret", "session").toString());
   }
 
   private static StorageCredentials minted(
