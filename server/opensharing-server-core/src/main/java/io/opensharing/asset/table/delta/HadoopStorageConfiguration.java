@@ -14,6 +14,10 @@ final class HadoopStorageConfiguration {
 
   private HadoopStorageConfiguration() {}
 
+  /**
+   * Settings to read {@code location} with {@code credentials}. Azure settings are keyed by the
+   * location's storage account host.
+   */
   static Configuration from(StorageCredentials credentials, String location) {
     Configuration configuration = new Configuration();
     switch (credentials.provider()) {
@@ -29,6 +33,10 @@ final class HadoopStorageConfiguration {
     return location.startsWith("s3://") ? "s3a://" + location.substring(5) : location;
   }
 
+  /**
+   * Temporary credentials when the catalog vends a session token, otherwise the key pair alone.
+   * Without a region, S3A falls back to the AWS SDK's default region resolution.
+   */
   private static void configureS3(Configuration configuration, StorageCredentials credentials) {
     configuration.set("fs.s3a.access.key", credentials.require(StorageCredentials.ACCESS_KEY_ID));
     configuration.set(
@@ -46,6 +54,10 @@ final class HadoopStorageConfiguration {
     }
   }
 
+  /**
+   * The catalog's SAS token for every request to the storage account. An account key is only set
+   * by local integration tests.
+   */
   private static void configureAzure(
       Configuration configuration, StorageCredentials credentials, String location) {
     String host = URI.create(location).getHost();
@@ -66,6 +78,11 @@ final class HadoopStorageConfiguration {
         "fs.azure.sas.fixed.token." + host, credentials.require(StorageCredentials.SAS_TOKEN));
   }
 
+  /**
+   * The catalog's OAuth token, served by {@link GcsAccessTokenProvider} until the credentials
+   * expire, or for five minutes when the catalog sets no expiration. A service account key file is
+   * only set by local integration tests.
+   */
   private static void configureGcs(Configuration configuration, StorageCredentials credentials) {
     String keyFile =
         credentials.credentials().get(StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE);

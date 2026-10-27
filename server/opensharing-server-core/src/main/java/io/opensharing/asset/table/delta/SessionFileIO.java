@@ -27,6 +27,7 @@ final class SessionFileIO implements FileIO, Closeable {
   private final Configuration configuration;
   private final FileSystem fileSystem;
 
+  /** Opens a file system for {@code root} that only this session uses, until {@link #close}. */
   SessionFileIO(Configuration configuration, String root) {
     this.configuration = configuration;
     try {
@@ -48,41 +49,52 @@ final class SessionFileIO implements FileIO, Closeable {
             .iterator());
   }
 
+  /** The size and modification time of the file at {@code path}. */
   @Override
   public FileStatus getFileStatus(String path) throws IOException {
     return status(fileSystem.getFileStatus(new Path(path)));
   }
 
+  /** {@code path} qualified with the file system's scheme and authority. */
   @Override
   public String resolvePath(String path) {
     return fileSystem.makeQualified(new Path(path)).toString();
   }
 
+  /**
+   * A read handle for the existing file at {@code path}. Kernel opens streams on it as it reads log
+   * and checkpoint files; nothing is written.
+   */
   @Override
   public InputFile newInputFile(String path, long fileSize) {
     return new HadoopInputFile(fileSystem, new Path(path), fileSize);
   }
 
+  /** Unsupported: shared tables are read-only. */
   @Override
   public boolean mkdirs(String path) {
     throw new UnsupportedOperationException("shared tables are read-only");
   }
 
+  /** Unsupported: shared tables are read-only. */
   @Override
   public OutputFile newOutputFile(String path) {
     throw new UnsupportedOperationException("shared tables are read-only");
   }
 
+  /** Unsupported: shared tables are read-only. */
   @Override
   public boolean delete(String path) {
     throw new UnsupportedOperationException("shared tables are read-only");
   }
 
+  /** The Hadoop setting {@code key} of this session's configuration, if set. */
   @Override
   public Optional<String> getConf(String key) {
     return Optional.ofNullable(configuration.get(key));
   }
 
+  /** Closes the session's file system and its storage connections. */
   @Override
   public void close() {
     try {
@@ -92,6 +104,7 @@ final class SessionFileIO implements FileIO, Closeable {
     }
   }
 
+  /** Kernel's file status for a Hadoop one. */
   private static FileStatus status(org.apache.hadoop.fs.FileStatus file) {
     return FileStatus.of(file.getPath().toString(), file.getLen(), file.getModificationTime());
   }
