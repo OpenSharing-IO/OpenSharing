@@ -60,9 +60,11 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
     Response both = metadata(orders, bearer, "responseformat=delta,parquet");
     assertEquals("responseformat=parquet", both.headers().get("delta-sharing-capabilities"));
 
-    // Unknown responseformat and capability keys are INVALID_PARAMETER_VALUE.
+    // An unknown responseformat is INVALID_PARAMETER_VALUE; unknown capability keys are ignored.
     assertInvalid(metadata(orders, bearer, "responseformat=json"));
-    assertInvalid(metadata(orders, bearer, "unknown=true"));
+    Response unknown = metadata(orders, bearer, "unknown=true;responseformat=delta");
+    assertEquals(200, unknown.status());
+    assertEquals("responseformat=delta", unknown.headers().get("delta-sharing-capabilities"));
 
     // A historical version or timestamp is echoed in metaData.version.
     Response atVersion = metadata(orders + "?version=1", bearer, null);

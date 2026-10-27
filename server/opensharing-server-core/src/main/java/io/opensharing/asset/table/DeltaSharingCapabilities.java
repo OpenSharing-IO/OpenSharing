@@ -39,31 +39,22 @@ public final class DeltaSharingCapabilities {
     return "responseformat=" + format.name().toLowerCase(Locale.ROOT);
   }
 
+  /**
+   * The capabilities this server knows. Clients advertise ones it does not, such as asyncquery,
+   * and may send parts without a value; both are ignored.
+   */
   static Map<String, String> parse(String header) {
     if (header == null || header.isBlank()) {
       return Map.of();
     }
     Map<String, String> capabilities = new LinkedHashMap<>();
     for (String part : header.split(";")) {
-      String trimmed = part.trim();
-      if (trimmed.isEmpty()) {
-        continue;
-      }
-      int eq = trimmed.indexOf('=');
-      if (eq <= 0) {
-        throw ApiException.invalidParameter(
-            "delta-sharing-capabilities must be semicolon-separated key=value pairs");
-      }
-      String key = trimmed.substring(0, eq).trim().toLowerCase(Locale.ROOT);
-      String value = trimmed.substring(eq + 1).trim().toLowerCase(Locale.ROOT);
-      // Async query is unsupported; ignore it so those clients still get a synchronous response.
-      if (key.equals("asyncquery")) {
-        continue;
-      }
+      int eq = part.indexOf('=');
+      String key = eq < 0 ? "" : part.substring(0, eq).trim().toLowerCase(Locale.ROOT);
       if (!KEYS.contains(key)) {
-        throw ApiException.invalidParameter(
-            "Unsupported delta-sharing-capabilities key: '" + key + "'");
+        continue;
       }
+      String value = part.substring(eq + 1).trim().toLowerCase(Locale.ROOT);
       if (key.equals("includeendstreamaction")
           && !value.equals("true")
           && !value.equals("false")) {

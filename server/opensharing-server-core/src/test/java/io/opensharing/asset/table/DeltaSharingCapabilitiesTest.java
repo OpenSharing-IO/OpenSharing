@@ -36,11 +36,13 @@ class DeltaSharingCapabilitiesTest {
   }
 
   @Test
-  void rejectsUnknownFormatsKeysAndMalformedHeader() {
+  void rejectsUnknownFormatsAndIgnoresUnknownKeys() {
     assertThrows(ApiException.class, () -> choose("responseformat=json"));
     assertThrows(ApiException.class, () -> choose("responseformat="));
-    assertThrows(ApiException.class, () -> choose("not-a-capability"));
-    assertThrows(ApiException.class, () -> choose("unknown=true"));
+    assertThrows(ApiException.class, () -> choose("includeendstreamaction=yes"));
+    assertEquals(ResponseFormat.PARQUET, choose("not-a-capability"));
+    assertEquals(ResponseFormat.PARQUET, choose("unknown=true"));
+    assertEquals(ResponseFormat.DELTA, choose("unknown=true;responseformat=delta;=x"));
     assertEquals(ResponseFormat.PARQUET, choose("asyncquery=true"));
     assertEquals(ResponseFormat.DELTA, choose("responseformat=delta;asyncquery=true"));
     assertEquals(ResponseFormat.PARQUET, choose("readerfeatures=notAFeature"));
