@@ -62,7 +62,7 @@ class UrlSignerCloudIntegrationTest {
   @Test
   @EnabledIfEnvironmentVariable(named = "GOOGLE_APPLICATION_CREDENTIALS", matches = ".+")
   void signsAndReadsARealGcsFile() throws Exception {
-    signAndRead("main.sales.gcs", "X-Goog-Signature=");
+    signAndRead("main.sales.gcs", "access_token=");
   }
 
   private void signAndRead(String fullName, String signatureMarker) throws Exception {
