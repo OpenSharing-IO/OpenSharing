@@ -26,18 +26,9 @@ public record StorageCredentials(
   /** Shared Access Signature token scoped to the storage prefix. */
   public static final String SAS_TOKEN = "sasToken";
 
-  /** Storage account key. Local integration tests only; production catalogs vend a SAS token. */
-  public static final String AZURE_ACCOUNT_KEY = "azureAccountKey";
-
   // GCP
   /** OAuth 2.0 access token for Google Cloud Storage. */
   public static final String OAUTH_TOKEN = "oauthToken";
-
-  /**
-   * Path to a service account JSON key file. Local integration tests only; production catalogs
-   * vend an OAuth token.
-   */
-  public static final String GOOGLE_SERVICE_ACCOUNT_KEY_FILE = "googleServiceAccountKeyFile";
 
   public StorageCredentials {
     credentials = credentials == null ? Map.of() : Map.copyOf(credentials);

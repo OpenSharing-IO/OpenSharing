@@ -54,43 +54,23 @@ final class HadoopStorageConfiguration {
     }
   }
 
-  /**
-   * The catalog's SAS token for every request to the storage account. An account key is only set
-   * by local integration tests.
-   */
+  /** The catalog's SAS token for every request to the storage account. */
   private static void configureAzure(
       Configuration configuration, StorageCredentials credentials, String location) {
     String host = URI.create(location).getHost();
     if (host == null || host.isBlank()) {
       throw new CatalogException("Azure table location has no storage account host");
     }
-    String accountKey = credentials.credentials().get(StorageCredentials.AZURE_ACCOUNT_KEY);
-    if (accountKey != null && !accountKey.isBlank()) {
-      configuration.set("fs.azure.account.auth.type." + host, "SharedKey");
-      configuration.set("fs.azure.account.key." + host, accountKey);
-      return;
-    }
     configuration.set("fs.azure.account.auth.type." + host, "SAS");
-    configuration.set(
-        "fs.azure.sas.token.provider.type." + host,
-        "org.apache.hadoop.fs.azurebfs.services.FixedSASTokenProvider");
     configuration.set(
         "fs.azure.sas.fixed.token." + host, credentials.require(StorageCredentials.SAS_TOKEN));
   }
 
   /**
    * The catalog's OAuth token, served by {@link GcsAccessTokenProvider} until the credentials
-   * expire, or for five minutes when the catalog sets no expiration. A service account key file is
-   * only set by local integration tests.
+   * expire, or for five minutes when the catalog sets no expiration.
    */
   private static void configureGcs(Configuration configuration, StorageCredentials credentials) {
-    String keyFile =
-        credentials.credentials().get(StorageCredentials.GOOGLE_SERVICE_ACCOUNT_KEY_FILE);
-    if (keyFile != null && !keyFile.isBlank()) {
-      configuration.set("fs.gs.auth.type", "SERVICE_ACCOUNT_JSON_KEYFILE");
-      configuration.set("fs.gs.auth.service.account.json.keyfile", keyFile);
-      return;
-    }
     configuration.set("fs.gs.auth.type", "ACCESS_TOKEN_PROVIDER");
     configuration.set(
         "fs.gs.auth.access.token.provider.impl", GcsAccessTokenProvider.class.getName());
