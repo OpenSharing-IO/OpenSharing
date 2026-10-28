@@ -22,8 +22,9 @@ import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 /**
- * ENV credentials list the cloud test table's directory but not the directory above it. Cases are
- * skipped unless the cloud credentials are set.
+ * ENV credentials list the cloud test table's directory but not the directory above it, and a GCS
+ * token for table1 cannot list under the string prefix table10. Cases are skipped unless the cloud
+ * credentials are set.
  */
 @Timeout(60)
 class LocalCatalogEnvCredentialsIntegrationTest {
@@ -66,6 +67,9 @@ class LocalCatalogEnvCredentialsIntegrationTest {
     String directory = directory(location);
 
     assertEquals(200, status(list + encode(directory + "/"), token));
+    // A list prefix of table1, without the slash, would also match table10 on GCS.
+    assertEquals(403, status(list + encode(directory), token));
+    assertEquals(403, status(list + encode(directory + "0/"), token));
     assertEquals(403, status(list + encode(parent(directory) + "/"), token));
   }
 
