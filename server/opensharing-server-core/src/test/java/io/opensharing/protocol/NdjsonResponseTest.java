@@ -23,7 +23,7 @@ class NdjsonResponseTest {
   private static final ResponseOptions OPTIONS = new ResponseOptions(null, null);
 
   @Test
-  void sendsASmallResponseWhole() {
+  void sendsTheHeadersThenEveryLine() {
     AggregatedHttpResponse response =
         stream(
                 sink -> {
@@ -43,7 +43,7 @@ class NdjsonResponseTest {
   }
 
   @Test
-  void streamsEveryLineOfAResponseLargerThanAChunk() {
+  void streamsEveryLinePastTheUnconsumedLimit() {
     String line = "x".repeat(99) + "\n";
     AggregatedHttpResponse response =
         stream(
@@ -62,13 +62,11 @@ class NdjsonResponseTest {
   }
 
   @Test
-  void failsTheResponseWhenTheReadFailsBeforeTheFirstChunk() {
+  void failsTheResponseWhenTheReadFailsBeforeItBegins() {
     ApiException invalid = ApiException.invalidParameter("bad version");
     HttpResponse response =
         stream(
             sink -> {
-              sink.begin(1, ResponseFormat.PARQUET);
-              sink.line("{\"a\":1}\n");
               throw invalid;
             });
 
@@ -78,15 +76,13 @@ class NdjsonResponseTest {
   }
 
   @Test
-  void abortsTheStreamWhenTheReadFailsAfterTheFirstChunk() {
+  void abortsTheStreamWhenTheReadFailsAfterItBegins() {
     IllegalStateException broken = new IllegalStateException("log unreadable");
     HttpResponse response =
         stream(
             sink -> {
               sink.begin(1, ResponseFormat.PARQUET);
-              for (int i = 0; i < 2000; i++) {
-                sink.line("x".repeat(99) + "\n");
-              }
+              sink.line("{\"a\":1}\n");
               throw broken;
             });
 

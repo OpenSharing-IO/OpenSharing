@@ -6,6 +6,7 @@ import com.linecorp.armeria.common.HttpResponseWriter;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.ResponseHeaders;
 import com.linecorp.armeria.common.ResponseHeadersBuilder;
+import com.linecorp.armeria.common.stream.ClosedStreamException;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
@@ -18,27 +19,27 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An NDJSON file response, sent while it is read so a large table is never held in memory. Lines
- * go out in chunks of about {@link #CHUNK} characters, each once the client has taken the last.
- * A response that fails before its first chunk is an ordinary error response; one that fails
- * later is cut short, as its status is already sent.
+ * An NDJSON file response, sent while it is read so a large table is never held in memory. The
+ * headers go out once the reader knows the table version and format, and each line as soon as it
+ * is read. A response that fails before then is an ordinary error response; one that fails later
+ * is cut short, as its status is already sent.
  */
 final class NdjsonResponse implements ResponseSink {
 
   private static final Logger log = LoggerFactory.getLogger(NdjsonResponse.class);
-  private static final int CHUNK = 64 * 1024;
+  // tryWrite queues without bound, so the reader waits for a slow client every this many bytes.
+  private static final int UNCONSUMED_LIMIT = 64 * 1024;
 
   private final ResponseOptions options;
   private final CompletableFuture<HttpResponse> response = new CompletableFuture<>();
-  private final StringBuilder buffer = new StringBuilder();
-  private ResponseHeaders headers;
   private HttpResponseWriter writer;
+  private int unconsumed;
 
   private NdjsonResponse(ResponseOptions options) {
     this.options = options;
   }
 
-  /** Runs {@code read} on a blocking thread, which holds it until the client has every chunk. */
+  /** Runs {@code read} on a blocking thread, which holds it until the client has every line. */
   static HttpResponse stream(
       ServiceRequestContext ctx, ResponseOptions options, Consumer<ResponseSink> read) {
     NdjsonResponse out = new NdjsonResponse(options);
@@ -48,50 +49,39 @@ final class NdjsonResponse implements ResponseSink {
 
   @Override
   public void begin(long version, ResponseFormat format) {
-    ResponseHeadersBuilder builder =
+    ResponseHeadersBuilder headers =
         ResponseHeaders.builder(HttpStatus.OK)
             .contentType(DeltaSharingProtocolService.NDJSON)
             .add(DeltaSharingProtocolService.DELTA_TABLE_VERSION, Long.toString(version))
             .add(DeltaSharingCapabilities.HEADER, DeltaSharingCapabilities.responded(format));
     if (options.fileIdHash() != null) {
-      builder.add(FileIdHash.HEADER, options.fileIdHash());
+      headers.add(FileIdHash.HEADER, options.fileIdHash());
     }
-    headers = builder.build();
+    writer = HttpResponse.streaming();
+    writer.write(headers.build());
+    response.complete(writer);
   }
 
   @Override
   public void line(String line) {
-    buffer.append(line);
-    if (buffer.length() >= CHUNK) {
-      if (writer == null) {
-        writer = HttpResponse.streaming();
-        writer.write(headers);
-        response.complete(writer);
-      }
-      send();
+    HttpData data = HttpData.ofUtf8(line);
+    if (!writer.tryWrite(data)) {
+      throw ClosedStreamException.get();
+    }
+    unconsumed += data.length();
+    if (unconsumed >= UNCONSUMED_LIMIT) {
+      writer.whenConsumed().join();
+      unconsumed = 0;
     }
   }
 
   private void run(Consumer<ResponseSink> read) {
     try {
       read.accept(this);
-      if (writer == null) {
-        response.complete(HttpResponse.of(headers, HttpData.ofUtf8(buffer.toString())));
-      } else {
-        if (!buffer.isEmpty()) {
-          send();
-        }
-        writer.close();
-      }
+      writer.close();
     } catch (Throwable failure) {
       fail(failure);
     }
-  }
-
-  private void send() {
-    writer.write(HttpData.ofUtf8(buffer.toString()));
-    buffer.setLength(0);
-    writer.whenConsumed().join();
   }
 
   private void fail(Throwable failure) {
