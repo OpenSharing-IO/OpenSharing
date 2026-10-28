@@ -123,6 +123,11 @@ public final class TableActions {
             new EndStreamAction(refreshToken, null, minUrlExpirationTimestamp, null)));
   }
 
+  /** Ends a response that failed after it began; clients treat the response as failed. */
+  public static String failedEndStreamAction(String errorMessage) {
+    return line(new EndStreamLine(new EndStreamAction(null, null, null, errorMessage)));
+  }
+
   /**
    * Replace the add path with a signed file URL. When {@code deletionVectorUrl} is set, rewrite the
    * on-disk deletion vector as a path-type descriptor so clients fetch the signed object.
@@ -370,7 +375,7 @@ public final class TableActions {
   public record EndStreamLine(EndStreamAction endStreamAction) {}
 
   /**
-   * Ends a complete response. Every field is optional:
+   * Ends a response, which failed if it has an errorMessage. Every field is optional:
    *
    * <pre>{@code
    * {"refreshToken": "<refresh token>", "nextPageToken": "<page token>",
