@@ -29,6 +29,13 @@ assets:
     storageLocation: s3://delta-exchange-test/delta-exchange-test/table_startingtimestamp_test/
     format: delta
 
+  - identifier: main.sales.deletionvectors
+    type: TABLE
+    attributes:
+      subtype: MANAGED
+    storageLocation: s3://delta-exchange-test/delta-exchange-test/deletion_vectors_with_dvs_dv_property_on
+    format: delta
+
   - identifier: main.sales.azure
     type: TABLE
     attributes:

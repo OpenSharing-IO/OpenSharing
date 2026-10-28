@@ -1,0 +1,167 @@
+package io.opensharing.asset.table;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import io.delta.kernel.defaults.internal.json.JsonUtils;
+import io.delta.kernel.internal.actions.Format;
+import io.delta.kernel.internal.actions.Metadata;
+import io.delta.kernel.internal.actions.Protocol;
+import io.delta.kernel.internal.util.VectorUtils;
+import io.delta.kernel.types.StringType;
+import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
+import io.opensharing.catalog.AssetLocation;
+import io.opensharing.catalog.AssetType;
+import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.catalog.TableProperties;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
+
+class TableActionsTest {
+
+  private static final String SCHEMA =
+      "{\"type\":\"struct\",\"fields\":["
+          + "{\"name\":\"eventTime\",\"type\":\"timestamp\",\"nullable\":true,\"metadata\":{}},"
+          + "{\"name\":\"date\",\"type\":\"date\",\"nullable\":true,\"metadata\":{}}]}";
+
+  private static final String LOCATIONS =
+      "\"location\":\"s3://delta-share-demo/tables/table1\","
+          + "\"auxiliaryLocations\":[\"s3://delta-share-demo/tables/table1-aux1\"],"
+          + "\"accessModes\":[\"url\",\"dir\"]";
+
+  private static final ResolvedAsset TABLE =
+      ResolvedAsset.builder(AssetType.TABLE, "main.sales.table1")
+          .location(
+              new AssetLocation(
+                  "s3://delta-share-demo/tables/table1",
+                  List.of("s3://delta-share-demo/tables/table1-aux1")))
+          .additionalProperties(
+              new TableProperties(DataSourceFormat.DELTA, Map.of("subtype", "MANAGED")))
+          .build();
+
+  @Test
+  void encodesParquetProtocolAndMetadata() {
+    Protocol readerV1 = new Protocol(1, 2, Set.of(), Set.of());
+    assertEquals(
+        parquetBody("{\"enableChangeDataFeed\":\"true\"}", ""),
+        encode(readerV1, ResponseFormat.PARQUET, null, null, null));
+    assertEquals(
+        parquetBody("{\"enableChangeDataFeed\":\"true\"}", ",\"version\":20"),
+        encode(readerV1, ResponseFormat.PARQUET, 20L, null, null));
+  }
+
+  @Test
+  void parquetMetadataKeepsOnlyEnableChangeDataFeed() {
+    Protocol readerV1 = new Protocol(1, 2, Set.of(), Set.of());
+    Map<String, String> source =
+        Map.of(
+            "delta.enableChangeDataFeed",
+            "true",
+            "delta.columnMapping.mode",
+            "name",
+            "other",
+            "ignored");
+    assertEquals(
+        parquetBody("{\"enableChangeDataFeed\":\"true\"}", ""),
+        encode(readerV1, metadata(source), ResponseFormat.PARQUET, null, null, null));
+    assertEquals(
+        parquetBody("{}", ""),
+        encode(
+            readerV1,
+            metadata(Map.of("delta.enableChangeDataFeed", "false")),
+            ResponseFormat.PARQUET,
+            null,
+            null,
+            null));
+  }
+
+  @Test
+  void encodesDeltaProtocolAndMetadataFromKernel() {
+    Protocol protocol = protocol();
+    Metadata metadata = metadata();
+    String deltaProtocol = JsonUtils.rowToJson(protocol.toRow());
+    String deltaMetadata = JsonUtils.rowToJson(metadata.toRow());
+    assertEquals(
+        deltaBody(deltaProtocol, "", deltaMetadata),
+        encode(ResponseFormat.DELTA, null, null, null));
+    assertEquals(
+        deltaBody(deltaProtocol, "\"size\":123456,\"numFiles\":5,", deltaMetadata),
+        encode(ResponseFormat.DELTA, null, 123456L, 5L));
+    assertEquals(
+        """
+        {"protocol":{"version":5,"deltaProtocol":%s}}
+        """
+            .formatted(deltaProtocol),
+        TableActions.protocol(protocol, 5L, ResponseFormat.DELTA));
+  }
+
+  private static String encode(ResponseFormat format, Long version, Long size, Long numFiles) {
+    return encode(protocol(), format, version, size, numFiles);
+  }
+
+  private static String encode(
+      Protocol protocol, ResponseFormat format, Long version, Long size, Long numFiles) {
+    return encode(protocol, metadata(), format, version, size, numFiles);
+  }
+
+  private static String encode(
+      Protocol protocol,
+      Metadata metadata,
+      ResponseFormat format,
+      Long version,
+      Long size,
+      Long numFiles) {
+    return TableActions.protocol(protocol, null, format)
+        + TableActions.metadata(metadata, TABLE, version, size, numFiles, format);
+  }
+
+  private static String parquetBody(String configuration, String versionField) {
+    String schemaString = SCHEMA.replace("\"", "\\\"");
+    return "{\"protocol\":{\"minReaderVersion\":1}}\n"
+        + "{\"metaData\":{\"id\":\"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2\","
+        + LOCATIONS
+        + ",\"format\":{\"provider\":\"parquet\"},\"schemaString\":\""
+        + schemaString
+        + "\",\"partitionColumns\":[\"date\"],"
+        + "\"configuration\":"
+        + configuration
+        + versionField
+        + "}}\n";
+  }
+
+  private static String deltaBody(String deltaProtocol, String stats, String deltaMetadata) {
+    return "{\"protocol\":{\"deltaProtocol\":"
+        + deltaProtocol
+        + "}}\n"
+        + "{\"metaData\":{"
+        + stats
+        + LOCATIONS
+        + ",\"deltaMetadata\":"
+        + deltaMetadata
+        + "}}\n";
+  }
+
+  private static Protocol protocol() {
+    return new Protocol(3, 7, Set.of("columnMapping"), Set.of("columnMapping", "identityColumns"));
+  }
+
+  private static Metadata metadata() {
+    return metadata(Map.of("delta.enableChangeDataFeed", "true"));
+  }
+
+  private static Metadata metadata(Map<String, String> configuration) {
+    return new Metadata(
+        "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
+        Optional.empty(),
+        Optional.empty(),
+        new Format(),
+        SCHEMA,
+        null,
+        VectorUtils.buildArrayValue(List.of("date"), StringType.STRING),
+        Optional.empty(),
+        VectorUtils.stringStringMapValue(configuration));
+  }
+}
