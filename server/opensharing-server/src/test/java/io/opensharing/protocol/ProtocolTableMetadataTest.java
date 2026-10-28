@@ -1,6 +1,7 @@
 package io.opensharing.protocol;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -104,6 +105,20 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
             null);
     assertEquals(502, unwritten.status());
     assertEquals(ErrorCodes.CATALOG_ERROR, unwritten.errorCode());
+  }
+
+  @Test
+  void reportsAReaderFeatureKernelCannotReadWithoutTheStoragePath() {
+    createShare("future-metadata");
+    addObject("future-metadata", "TABLE", "main.lake.future", "lake.future");
+    String bearer = createAndActivateRecipient("future-metadata-partner");
+    grant("future-metadata", "future-metadata-partner");
+
+    Response future =
+        metadata(
+            PROTOCOL + "/shares/future-metadata/schemas/lake/tables/future/metadata", bearer, null);
+    assertInvalid(future);
+    assertFalse(future.body().toString().contains(tables.toString()));
   }
 
   private static Response metadata(String path, String bearer, String capabilities) {

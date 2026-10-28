@@ -20,7 +20,7 @@ final class DeltaSnapshots {
       try {
         return session.table().getSnapshotAsOfVersion(session.engine(), version);
       } catch (KernelException | IllegalArgumentException unavailable) {
-        throw ApiException.invalidParameter("version " + version + " is no longer available");
+        throw unavailable(unavailable, "version " + version + " is no longer available");
       }
     }
     if (timestamp != null) {
@@ -31,10 +31,18 @@ final class DeltaSnapshots {
       try {
         return session.table().getSnapshotAsOfTimestamp(session.engine(), timestamp.toEpochMilli());
       } catch (KernelException | IllegalArgumentException unavailable) {
-        throw ApiException.invalidParameter(
-            "timestamp is before the earliest available table version timestamp");
+        throw unavailable(
+            unavailable, "timestamp is before the earliest available table version timestamp");
       }
     }
     return latest;
+  }
+
+  /** An earlier snapshot can need a protocol Kernel cannot read even when the latest does not. */
+  private static ApiException unavailable(RuntimeException failed, String message) {
+    if (failed instanceof KernelException kernel && DeltaKernel.unsupportedProtocol(kernel)) {
+      return DeltaKernel.unreadableTable(kernel);
+    }
+    return ApiException.invalidParameter(message);
   }
 }
