@@ -51,16 +51,17 @@ public class DeltaTableQueryReader {
   }
 
   /**
-   * Reads one snapshot of {@code table} as Query Table NDJSON.
+   * Reads one snapshot of {@code table} as Query Table NDJSON into {@code sink}.
    *
    * @param auth the share owner the catalog vends storage credentials for
    * @param version the table version to read; null with a null {@code timestamp} reads the latest
    * @param timestamp read the latest version committed at or before this time
    */
-  public Result read(
+  public void read(
       ResolvedAsset table,
       AuthContext auth,
       ResponseOptions options,
+      ResponseSink sink,
       Long version,
       Instant timestamp) {
     if (version != null && timestamp != null) {
@@ -70,12 +71,13 @@ public class DeltaTableQueryReader {
     boolean historical = version != null || timestamp != null;
 
     try (DeltaKernel.Session session = kernel.open(table, auth, URL_TTL);
-        ResponseWriter out = new ResponseWriter(session, table, options)) {
+        ResponseWriter out = new ResponseWriter(session, table, options, sink)) {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
       out.requireReaderFeatures(impl.getProtocol());
       Long fileVersion = historical ? snapshot.getVersion() : null;
       Long fileTimestamp = historical ? snapshot.getTimestamp(session.engine()) : null;
+      out.begin(snapshot.getVersion());
       out.protocol(impl.getProtocol(), null);
       out.metadata(impl.getMetadata(), fileVersion, crcFor(impl, snapshot.getVersion()));
 
@@ -92,8 +94,6 @@ public class DeltaTableQueryReader {
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
-
-      return new Result(snapshot.getVersion(), out.format, out.ndjson());
     }
   }
 
@@ -108,11 +108,18 @@ public class DeltaTableQueryReader {
         .orElse(null);
   }
 
-  /**
-   * {@code version} is the snapshot read, returned as the {@code Delta-Table-Version} header, and
-   * {@code format} is the one the response is written in.
-   */
-  public record Result(long version, ResponseFormat format, String ndjson) {}
+  /** Receives a response as it is read. */
+  public interface ResponseSink {
+
+    /**
+     * Comes once, before the first line. {@code version} is the snapshot read, returned as the
+     * {@code Delta-Table-Version} header, and {@code format} is the one the lines are written in.
+     */
+    void begin(long version, ResponseFormat format);
+
+    /** One NDJSON line, with its trailing newline. */
+    void line(String line);
+  }
 
   /**
    * How one response is written.
@@ -124,7 +131,7 @@ public class DeltaTableQueryReader {
   public record ResponseOptions(String capabilities, String fileIdHash) {}
 
   /**
-   * Builds one NDJSON response. File URLs are presigned with the table's storage credentials,
+   * Writes one NDJSON response. File URLs are presigned with the table's storage credentials,
    * through one signing session that closing the writer closes.
    */
   private final class ResponseWriter implements AutoCloseable {
@@ -135,14 +142,19 @@ public class DeltaTableQueryReader {
     private final String capabilities;
     private final String fileIdHash;
     private final SigningSession signer;
-    private final StringBuilder ndjson = new StringBuilder();
+    private final ResponseSink sink;
 
-    ResponseWriter(DeltaKernel.Session session, ResolvedAsset table, ResponseOptions options) {
+    ResponseWriter(
+        DeltaKernel.Session session,
+        ResolvedAsset table,
+        ResponseOptions options,
+        ResponseSink sink) {
       this.session = session;
       this.table = table;
       this.capabilities = options.capabilities();
       this.fileIdHash = options.fileIdHash();
       this.signer = signers.open(session.credentials());
+      this.sink = sink;
     }
 
     /** Picks the format from the first protocol, before any line is written, then checks each. */
@@ -153,14 +165,19 @@ public class DeltaTableQueryReader {
       DeltaSharingCapabilities.requireReaderFeatures(capabilities, format, protocol);
     }
 
+    /** {@code version} is the response's table version, after the format is picked. */
+    void begin(long version) {
+      sink.begin(version, format);
+    }
+
     /** {@code version} is null for the leading protocol and set for a later one. */
     void protocol(Protocol protocol, Long version) {
-      ndjson.append(TableActions.protocol(protocol, version, format));
+      sink.line(TableActions.protocol(protocol, version, format));
     }
 
     /** {@code crc} supplies the table size and file count; null omits them. */
     void metadata(Metadata metadata, Long version, CRCInfo crc) {
-      ndjson.append(
+      sink.line(
           TableActions.metadata(
               metadata,
               table,
@@ -177,7 +194,7 @@ public class DeltaTableQueryReader {
       SignedFile signed = sign(status.getPath(), add.getPath(), add.getDeletionVector());
       String stats = add.getStatsJson().orElse(null);
       if (format == ResponseFormat.DELTA) {
-        ndjson.append(
+        sink.line(
             TableActions.deltaFile(
                 signed.id(),
                 signed.deletionVectorFileId(),
@@ -188,7 +205,7 @@ public class DeltaTableQueryReader {
       } else {
         // Parquet file actions always carry partitionValues, empty for an unpartitioned table.
         Map<String, String> partitionValues = InternalScanFileUtils.getPartitionValues(scanFile);
-        ndjson.append(
+        sink.line(
             TableActions.parquetFile(
                 signed.url(),
                 signed.id(),
@@ -199,10 +216,6 @@ public class DeltaTableQueryReader {
                 timestamp,
                 signed.expirationTimestamp()));
       }
-    }
-
-    String ndjson() {
-      return ndjson.toString();
     }
 
     @Override
