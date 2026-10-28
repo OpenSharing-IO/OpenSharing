@@ -4,6 +4,7 @@ import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
 import io.delta.kernel.defaults.engine.DefaultEngine;
 import io.delta.kernel.engine.Engine;
+import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.exceptions.TableNotFoundException;
 import io.delta.kernel.internal.TableImpl;
 import io.opensharing.auth.AuthContext;
@@ -57,14 +58,38 @@ public class DeltaKernel {
     return table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
   }
 
-  /** The table's latest snapshot. A catalog Delta table without a log is a catalog error. */
+  /**
+   * The table's latest snapshot. A catalog Delta table without a log is a catalog error, and a
+   * protocol Kernel cannot read is the recipient's.
+   */
   static Snapshot latestSnapshot(Table table, Engine engine) {
     try {
       return table.getLatestSnapshot(engine);
     } catch (TableNotFoundException missing) {
       log.error("Delta table at '{}' has no log", table.getPath(engine));
       throw new CatalogException("the table has no Delta log");
+    } catch (KernelException failed) {
+      if (unsupportedProtocol(failed)) {
+        throw unreadableTable(failed);
+      }
+      throw failed;
     }
+  }
+
+  /**
+   * Whether Kernel cannot read the table's reader version or features, which it reports only by
+   * message.
+   */
+  static boolean unsupportedProtocol(KernelException failed) {
+    String message = failed.getMessage();
+    return message != null && message.startsWith("Unsupported Delta ");
+  }
+
+  /** Kernel's message names the table path, so it stays in the log. */
+  static ApiException unreadableTable(KernelException failed) {
+    log.warn("Kernel cannot read a shared table: {}", failed.getMessage());
+    return ApiException.invalidParameter(
+        "the table requires a Delta reader version or feature this server cannot read");
   }
 
   private Session open(ResolvedAsset table, AuthContext auth) {

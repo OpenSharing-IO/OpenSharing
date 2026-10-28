@@ -17,7 +17,8 @@ import org.junit.jupiter.api.io.TempDir;
  * main.sales.customers} with 1, and {@code main.hr.salaries} with 4. Commit {@code n} of each table
  * is timestamped 2024-01-01T00:00:00Z plus {@code n} hours, and table {@code t} has metadata id
  * {@code t} and one {@code long} column, {@code id}. {@code main.lake.unwritten} is a Delta table
- * with no log, and {@code main.lake.raw} has no format.
+ * with no log, {@code main.lake.raw} has no format, and {@code main.lake.future} requires a reader
+ * feature Kernel does not know.
  */
 abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
 
@@ -33,6 +34,9 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
   private static final String ADD_ACTION =
       "{\"add\":{\"path\":\"part-%d.parquet\",\"partitionValues\":{},\"size\":1,"
           + "\"modificationTime\":0,\"dataChange\":true}}\n";
+  private static final String FUTURE_PROTOCOL_ACTION =
+      "{\"protocol\":{\"minReaderVersion\":3,\"minWriterVersion\":7,"
+          + "\"readerFeatures\":[\"futureFeature\"],\"writerFeatures\":[\"futureFeature\"]}}\n";
 
   @TempDir static Path tables;
 
@@ -41,6 +45,9 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
     String orders = deltaTable("orders", 3);
     String customers = deltaTable("customers", 1);
     String salaries = deltaTable("salaries", 4);
+    write(
+        "future/_delta_log/%020d.json".formatted(0),
+        FUTURE_PROTOCOL_ACTION + METADATA_ACTION.formatted("future"));
     String catalog =
         """
         principals:
@@ -79,8 +86,19 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
             attributes:
               subtype: EXTERNAL
             storageLocation: %s
+          - identifier: main.lake.future
+            attributes:
+              subtype: MANAGED
+            storageLocation: %s
+            format: delta
         """
-            .formatted(orders, customers, salaries, location("unwritten"), location("raw"));
+            .formatted(
+                orders,
+                customers,
+                salaries,
+                location("unwritten"),
+                location("raw"),
+                location("future"));
     Properties properties = new Properties();
     properties.setProperty("catalog.local.file", write("local-catalog.yml", catalog).toString());
     restartServer(properties);
