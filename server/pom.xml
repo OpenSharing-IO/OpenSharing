@@ -77,6 +77,8 @@
     <delta-kernel.version>4.0.0</delta-kernel.version>
     <hadoop.version>3.4.3</hadoop.version>
     <aws-sdk.version>2.35.4</aws-sdk.version>
+    <azure-storage-file-datalake.version>12.20.0</azure-storage-file-datalake.version>
+    <google-auth.version>1.20.0</google-auth.version>
     <gcs-connector.version>hadoop3-2.2.30</gcs-connector.version>
   </properties>
 
@@ -159,6 +161,26 @@
         <groupId>ch.qos.logback</groupId>
         <artifactId>logback-classic</artifactId>
         <version>${logback.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-core</artifactId>
+        <version>1.51.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-json</artifactId>
+        <version>1.2.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.azure</groupId>
+        <artifactId>azure-xml</artifactId>
+        <version>1.0.0</version>
+      </dependency>
+      <dependency>
+        <groupId>io.projectreactor</groupId>
+        <artifactId>reactor-core</artifactId>
+        <version>3.4.38</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
