@@ -40,8 +40,7 @@ public final class TableActions {
       Long version,
       Long size,
       Long numFiles,
-      ResponseFormat format,
-      boolean historyShared) {
+      ResponseFormat format) {
     if (format == ResponseFormat.DELTA) {
       return line(
           new MetadataLine(
@@ -67,7 +66,7 @@ public final class TableActions {
                 new FormatBody(tableFormat.getProvider()),
                 metadata.getSchemaString(),
                 VectorUtils.toJavaList(metadata.getPartitionColumns()),
-                parquetConfiguration(metadata.getConfiguration(), historyShared),
+                parquetConfiguration(metadata.getConfiguration()),
                 version,
                 size,
                 numFiles)));
@@ -93,13 +92,10 @@ public final class TableActions {
 
   /**
    * Parquet metadata keeps only {@code enableChangeDataFeed}, rewritten from {@code
-   * delta.enableChangeDataFeed}, when that property is true and CDF or table history is shared.
-   * Every other table property is dropped.
+   * delta.enableChangeDataFeed}, when that property is true. Every other table property is dropped.
    */
-  private static Map<String, String> parquetConfiguration(
-      Map<String, String> configuration, boolean historyShared) {
-    if (historyShared
-        && configuration != null
+  private static Map<String, String> parquetConfiguration(Map<String, String> configuration) {
+    if (configuration != null
         && "true".equalsIgnoreCase(configuration.get("delta.enableChangeDataFeed"))) {
       return Map.of("enableChangeDataFeed", "true");
     }

@@ -139,8 +139,7 @@ public class ProtocolTables {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     Instant asOf = parseTimestamp("timestamp", timestamp);
     ResolvedAsset table = findTable(share, schemaAlias, tableAlias).catalogTable();
-    // Shares do not yet grant CDF or table history, so parquet metadata never advertises CDF.
-    return metadataReader.read(table, version, asOf, owner(share), capabilities, false);
+    return metadataReader.read(table, version, asOf, owner(share), capabilities);
   }
 
   /**

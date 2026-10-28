@@ -46,14 +46,15 @@ class TableActionsTest {
   void encodesParquetProtocolAndMetadata() {
     Protocol readerV1 = new Protocol(1, 2, Set.of(), Set.of());
     assertEquals(
-        parquetBody("{}", ""), encode(readerV1, ResponseFormat.PARQUET, null, null, null, false));
+        parquetBody("{\"enableChangeDataFeed\":\"true\"}", ""),
+        encode(readerV1, ResponseFormat.PARQUET, null, null, null));
     assertEquals(
-        parquetBody("{}", ",\"version\":20"),
-        encode(readerV1, ResponseFormat.PARQUET, 20L, null, null, false));
+        parquetBody("{\"enableChangeDataFeed\":\"true\"}", ",\"version\":20"),
+        encode(readerV1, ResponseFormat.PARQUET, 20L, null, null));
   }
 
   @Test
-  void parquetMetadataKeepsEnableChangeDataFeedWhenHistoryIsShared() {
+  void parquetMetadataKeepsOnlyEnableChangeDataFeed() {
     Protocol readerV1 = new Protocol(1, 2, Set.of(), Set.of());
     Map<String, String> source =
         Map.of(
@@ -65,10 +66,7 @@ class TableActionsTest {
             "ignored");
     assertEquals(
         parquetBody("{\"enableChangeDataFeed\":\"true\"}", ""),
-        encode(readerV1, metadata(source), ResponseFormat.PARQUET, null, null, null, true));
-    assertEquals(
-        parquetBody("{}", ""),
-        encode(readerV1, metadata(source), ResponseFormat.PARQUET, null, null, null, false));
+        encode(readerV1, metadata(source), ResponseFormat.PARQUET, null, null, null));
     assertEquals(
         parquetBody("{}", ""),
         encode(
@@ -77,8 +75,7 @@ class TableActionsTest {
             ResponseFormat.PARQUET,
             null,
             null,
-            null,
-            true));
+            null));
   }
 
   @Test
@@ -89,10 +86,10 @@ class TableActionsTest {
     String deltaMetadata = JsonUtils.rowToJson(metadata.toRow());
     assertEquals(
         deltaBody(deltaProtocol, "", deltaMetadata),
-        encode(ResponseFormat.DELTA, null, null, null, false));
+        encode(ResponseFormat.DELTA, null, null, null));
     assertEquals(
         deltaBody(deltaProtocol, "\"size\":123456,\"numFiles\":5,", deltaMetadata),
-        encode(ResponseFormat.DELTA, null, 123456L, 5L, false));
+        encode(ResponseFormat.DELTA, null, 123456L, 5L));
     assertEquals(
         """
         {"protocol":{"version":5,"deltaProtocol":%s}}
@@ -101,19 +98,13 @@ class TableActionsTest {
         TableActions.protocol(protocol, 5L, ResponseFormat.DELTA));
   }
 
-  private static String encode(
-      ResponseFormat format, Long version, Long size, Long numFiles, boolean historyShared) {
-    return encode(protocol(), format, version, size, numFiles, historyShared);
+  private static String encode(ResponseFormat format, Long version, Long size, Long numFiles) {
+    return encode(protocol(), format, version, size, numFiles);
   }
 
   private static String encode(
-      Protocol protocol,
-      ResponseFormat format,
-      Long version,
-      Long size,
-      Long numFiles,
-      boolean historyShared) {
-    return encode(protocol, metadata(), format, version, size, numFiles, historyShared);
+      Protocol protocol, ResponseFormat format, Long version, Long size, Long numFiles) {
+    return encode(protocol, metadata(), format, version, size, numFiles);
   }
 
   private static String encode(
@@ -122,10 +113,9 @@ class TableActionsTest {
       ResponseFormat format,
       Long version,
       Long size,
-      Long numFiles,
-      boolean historyShared) {
+      Long numFiles) {
     return TableActions.protocol(protocol, null, format)
-        + TableActions.metadata(metadata, TABLE, version, size, numFiles, format, historyShared);
+        + TableActions.metadata(metadata, TABLE, version, size, numFiles, format);
   }
 
   private static String parquetBody(String configuration, String versionField) {
