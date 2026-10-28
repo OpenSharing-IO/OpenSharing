@@ -5,6 +5,7 @@ import io.opensharing.asset.SharedAssetResolver;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
@@ -21,6 +22,8 @@ import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.share.ShareEntity;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -31,10 +34,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The tables a recipient sees through the sharing protocol in a share it holds SELECT on: the
+ * The tables a recipient reads through the sharing protocol in a share it holds SELECT on: the
  * tables the share includes one by one, plus the tables the catalog currently lists under each
  * schema the share includes as a whole. Listing serves included tables as the share recorded them;
- * only Get Table resolves them in the catalog.
+ * reading a table resolves it in the catalog.
  *
  * <p>Every catalog call is made as the share's owner, so the catalog decides whether the owner may
  * still read each table.
@@ -47,14 +50,17 @@ public class ProtocolTables {
   private static final int CATALOG_PAGE_SIZE = 1000;
 
   private final CatalogConnector catalog;
+  private final DeltaKernel kernel;
   private final ProtocolShares protocolShares;
   private final SharedDataObjectStore sharedObjects;
 
   public ProtocolTables(
       CatalogConnector catalog,
+      DeltaKernel kernel,
       ProtocolShares protocolShares,
       SharedDataObjectStore sharedObjects) {
     this.catalog = catalog;
+    this.kernel = kernel;
     this.protocolShares = protocolShares;
     this.sharedObjects = sharedObjects;
   }
@@ -98,6 +104,22 @@ public class ProtocolTables {
   }
 
   /**
+   * The Delta version of one table in the share: the latest, or with an ISO-8601 {@code
+   * startingTimestamp} the earliest version committed at or after it.
+   */
+  public long version(
+      RecipientPrincipal recipient,
+      String shareName,
+      String schemaAlias,
+      String tableAlias,
+      String startingTimestamp) {
+    ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    Instant timestamp = parseTimestamp(startingTimestamp);
+    return kernel.getVersion(
+        findTable(share, schemaAlias, tableAlias).catalogTable(), timestamp, owner(share));
+  }
+
+  /**
    * The shared table, or the catalog table in a shared schema, under {@code schemaAlias} and
    * {@code tableAlias}.
    */
@@ -136,6 +158,18 @@ public class ProtocolTables {
             + "' does not exist in share '"
             + share.getName()
             + "'");
+  }
+
+  /** An ISO-8601 UTC timestamp query value, or null when absent. */
+  private static Instant parseTimestamp(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      return Instant.parse(value);
+    } catch (DateTimeParseException invalid) {
+      throw ApiException.invalidParameter("startingTimestamp must be an ISO-8601 UTC timestamp");
+    }
   }
 
   /** A table of the share, with the catalog table it resolved to. */

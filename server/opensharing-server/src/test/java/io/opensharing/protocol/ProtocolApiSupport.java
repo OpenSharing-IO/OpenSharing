@@ -8,6 +8,7 @@ import io.opensharing.asset.SharedDataObjectEntity;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Properties;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -33,6 +34,12 @@ public abstract class ProtocolApiSupport {
   @AfterAll
   static void stopServer() {
     server.close();
+  }
+
+  /** Replaces the default server with one started with {@code overrides}. */
+  protected static void restartServer(Properties overrides) {
+    server.close();
+    server = TestServer.start(overrides);
   }
 
   /** Creates a share owned by Alice, with no display name, through the provider API. */
