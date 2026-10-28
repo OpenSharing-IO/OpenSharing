@@ -45,10 +45,10 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 
 /**
  * Reads Query Table files from a Delta log. The parquet or delta response is NDJSON: protocol,
@@ -203,7 +203,7 @@ public class DeltaTableQueryReader {
 
   /**
    * Protocol and metaData from {@code header}, then each commit in {@code range} with its add and
-   * remove files that have dataChange.
+   * remove files that have dataChange, written as they are read.
    */
   private void changes(
       DeltaKernel.Session session,
@@ -214,16 +214,6 @@ public class DeltaTableQueryReader {
       ResponseSink sink) {
     try (ResponseWriter out = new ResponseWriter(session, table, options, sink)) {
       out.requireReaderFeatures(header.getProtocol());
-      // The protocol reports the starting version as the table version of a change response.
-      out.begin(range.start());
-      // With includeHistoricalProtocol, the starting protocol carries its version like later ones.
-      out.protocol(
-          header.getProtocol(),
-          range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA
-              ? header.getVersion()
-              : null);
-      out.metadata(header.getMetadata(), header.getVersion(), crcFor(header, header.getVersion()));
-
       Path tablePath = new Path(session.table().getPath(session.engine()));
       List<FileStatus> commitFiles;
       try {
@@ -238,9 +228,19 @@ public class DeltaTableQueryReader {
                 + " to "
                 + range.end());
       }
+
+      // The protocol reports the starting version as the table version of a change response.
+      out.begin(range.start());
+      // With includeHistoricalProtocol, the starting protocol carries its version like later ones.
+      out.protocol(
+          header.getProtocol(),
+          range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA
+              ? header.getVersion()
+              : null);
+      out.metadata(header.getMetadata(), header.getVersion(), crcFor(header, header.getVersion()));
       try {
         for (FileStatus file : commitFiles) {
-          write(out, range, readCommit(session, file));
+          readCommit(session, file, new CommitWriter(out, range, file)::write);
         }
       } catch (IOException e) {
         throw new UncheckedIOException(e);
@@ -253,12 +253,12 @@ public class DeltaTableQueryReader {
   }
 
   /**
-   * Reads one commit file, which holds every action of its version. Kernel can split a large file
-   * across several batches, each with its own schema ordinals.
+   * Reads one commit file, which holds every action of its version, in log order. Kernel can split
+   * a large file across several batches, each with its own schema ordinals.
    */
-  private static Commit readCommit(DeltaKernel.Session session, FileStatus file)
+  private static void readCommit(
+      DeltaKernel.Session session, FileStatus file, BiConsumer<Row, ChangeColumns> action)
       throws IOException {
-    Commit commit = new Commit(FileNames.deltaVersion(file.getPath()), file.getModificationTime());
     try (CloseableIterator<ColumnarBatch> batches =
         session
             .engine()
@@ -270,32 +270,10 @@ public class DeltaTableQueryReader {
         ChangeColumns columns = ChangeColumns.of(batch.getSchema());
         try (CloseableIterator<Row> rows = batch.getRows()) {
           while (rows.hasNext()) {
-            commit.add(rows.next(), columns);
+            action.accept(rows.next(), columns);
           }
         }
       }
-    }
-    return commit;
-  }
-
-  private static void write(ResponseWriter out, ChangeRange range, Commit commit) {
-    long version = commit.version;
-    // The header already covers the starting version's protocol and metaData.
-    boolean later = version > range.start();
-    for (Protocol protocol : commit.protocols) {
-      // A later protocol can need reader features the client did not declare.
-      out.requireReaderFeatures(protocol);
-      if (range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA && later) {
-        out.protocol(protocol, version);
-      }
-    }
-    for (Metadata metadata : commit.metadata) {
-      if (later) {
-        out.metadata(metadata, version, null);
-      }
-    }
-    for (ChangeFile file : commit.files) {
-      out.changeFile(file, version, commit.timestamp);
     }
   }
 
@@ -566,34 +544,48 @@ public class DeltaTableQueryReader {
     }
   }
 
-  /** The actions of one commit, buffered so its protocol and metaData go out before its files. */
-  private static final class Commit {
-    final long version;
-    long timestamp;
-    final List<Protocol> protocols = new ArrayList<>();
-    final List<Metadata> metadata = new ArrayList<>();
-    final List<ChangeFile> files = new ArrayList<>();
+  /** Writes the actions of one commit as they are read. */
+  private static final class CommitWriter {
+    private final ResponseWriter out;
+    private final ChangeRange range;
+    private final long version;
+    // The header already covers the starting version's protocol and metaData.
+    private final boolean later;
+    private long timestamp;
 
     /**
      * The commit file's {@code modificationTime} is the timestamp unless commitInfo has an
      * inCommitTimestamp, which tables with in-commit timestamps record because modification times
-     * change when the log is copied.
+     * change when the log is copied. Their commitInfo is the commit's first action, so it comes
+     * before any file.
      */
-    Commit(long version, long modificationTime) {
-      this.version = version;
-      this.timestamp = modificationTime;
+    CommitWriter(ResponseWriter out, ChangeRange range, FileStatus file) {
+      this.out = out;
+      this.range = range;
+      this.version = FileNames.deltaVersion(file.getPath());
+      this.later = version > range.start();
+      this.timestamp = file.getModificationTime();
     }
 
     // Each line of a commit file holds exactly one action, so one column of the row is set.
-    void add(Row row, ChangeColumns columns) {
+    void write(Row row, ChangeColumns columns) {
       if (!row.isNullAt(columns.protocol())) {
-        protocols.add(Protocol.fromRow(row.getStruct(columns.protocol())));
+        Protocol protocol = Protocol.fromRow(row.getStruct(columns.protocol()));
+        // A later protocol can need reader features the client did not declare.
+        out.requireReaderFeatures(protocol);
+        if (range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA && later) {
+          out.protocol(protocol, version);
+        }
       } else if (!row.isNullAt(columns.metadata())) {
-        metadata.add(Metadata.fromRow(row.getStruct(columns.metadata())));
+        if (later) {
+          out.metadata(Metadata.fromRow(row.getStruct(columns.metadata())), version, null);
+        }
       } else if (!row.isNullAt(columns.add())) {
-        files.add(ChangeFile.of(ChangeType.ADD, row.getStruct(columns.add())));
+        out.changeFile(
+            ChangeFile.of(ChangeType.ADD, row.getStruct(columns.add())), version, timestamp);
       } else if (!row.isNullAt(columns.remove())) {
-        files.add(ChangeFile.of(ChangeType.REMOVE, row.getStruct(columns.remove())));
+        out.changeFile(
+            ChangeFile.of(ChangeType.REMOVE, row.getStruct(columns.remove())), version, timestamp);
       } else if (!row.isNullAt(columns.commitInfo())) {
         Row commitInfo = row.getStruct(columns.commitInfo());
         int inCommitTimestamp = commitInfo.getSchema().indexOf("inCommitTimestamp");
