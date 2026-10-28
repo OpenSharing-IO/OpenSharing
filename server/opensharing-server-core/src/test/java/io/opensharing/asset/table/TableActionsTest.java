@@ -162,6 +162,11 @@ class TableActionsTest {
         {"endStreamAction":{}}
         """,
         TableActions.endStreamAction(null, null));
+    assertEquals(
+        """
+        {"endStreamAction":{"errorMessage":"bad version"}}
+        """,
+        TableActions.failedEndStreamAction("bad version"));
   }
 
   @Test
