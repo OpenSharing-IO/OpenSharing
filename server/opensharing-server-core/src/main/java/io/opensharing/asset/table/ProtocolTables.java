@@ -191,15 +191,16 @@ public class ProtocolTables {
   /**
    * One snapshot of a table in the share that supports url access, as of the latest version,
    * {@code version}, or an ISO-8601 {@code timestamp} in {@code request}, with presigned file
-   * URLs. Pushdown hints and startingVersion queries are not implemented.
+   * URLs, written to {@code sink}. Pushdown hints and startingVersion queries are not implemented.
    */
-  public DeltaTableQueryReader.Result query(
+  public void query(
       RecipientPrincipal recipient,
       String shareName,
       String schemaAlias,
       String tableAlias,
       QueryTableRequest request,
-      DeltaTableQueryReader.ResponseOptions options) {
+      DeltaTableQueryReader.ResponseOptions options,
+      DeltaTableQueryReader.ResponseSink sink) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     ResolvedAsset catalogTable = findTable(share, schemaAlias, tableAlias).catalogTable();
     List<String> accessModes = TableAccessModes.forTable(catalogTable);
@@ -211,10 +212,11 @@ public class ProtocolTables {
     if (body.startingVersion() != null || body.endingVersion() != null) {
       throw ApiException.notImplemented("startingVersion queries are not supported");
     }
-    return queryReader.read(
+    queryReader.read(
         catalogTable,
         owner(share),
         options,
+        sink,
         body.version(),
         parseTimestamp("timestamp", body.timestamp()));
   }

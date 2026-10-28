@@ -7,7 +7,6 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.ResponseHeaders;
-import com.linecorp.armeria.common.ResponseHeadersBuilder;
 import com.linecorp.armeria.common.annotation.Nullable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
@@ -36,8 +35,8 @@ import io.opensharing.http.ApiJson;
 @ProducesJson
 public final class DeltaSharingProtocolService {
 
-  private static final String DELTA_TABLE_VERSION = "Delta-Table-Version";
-  private static final MediaType NDJSON = MediaType.parse("application/x-ndjson; charset=utf-8");
+  static final String DELTA_TABLE_VERSION = "Delta-Table-Version";
+  static final MediaType NDJSON = MediaType.parse("application/x-ndjson; charset=utf-8");
 
   private final ProtocolTables tables;
 
@@ -147,24 +146,17 @@ public final class DeltaSharingProtocolService {
         body.isBlank() ? null : ApiJson.MAPPER.readValue(body, QueryTableRequest.class);
     DeltaTableQueryReader.ResponseOptions options =
         new DeltaTableQueryReader.ResponseOptions(capabilities, FileIdHash.parse(fileIdHash));
-    DeltaTableQueryReader.Result result =
-        tables.query(
-            RecipientTokenDecorator.recipient(ctx),
-            ObjectNames.normalize(share),
-            ObjectNames.normalize(schema),
-            ObjectNames.normalize(table),
-            query,
-            options);
-    ResponseHeadersBuilder headers =
-        ResponseHeaders.builder(HttpStatus.OK)
-            .contentType(NDJSON)
-            .add(DELTA_TABLE_VERSION, Long.toString(result.version()))
-            .add(
-                DeltaSharingCapabilities.HEADER,
-                DeltaSharingCapabilities.responded(result.format()));
-    if (options.fileIdHash() != null) {
-      headers.add(FileIdHash.HEADER, options.fileIdHash());
-    }
-    return HttpResponse.of(headers.build(), HttpData.ofUtf8(result.ndjson()));
+    return NdjsonResponse.stream(
+        ctx,
+        options,
+        sink ->
+            tables.query(
+                RecipientTokenDecorator.recipient(ctx),
+                ObjectNames.normalize(share),
+                ObjectNames.normalize(schema),
+                ObjectNames.normalize(table),
+                query,
+                options,
+                sink));
   }
 }
