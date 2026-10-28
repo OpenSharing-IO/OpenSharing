@@ -339,10 +339,11 @@ public final class LocalCatalogConnector implements CatalogConnector {
                     .setAvailabilityCondition(
                         CredentialAccessBoundary.AccessBoundaryRule.AvailabilityCondition
                             .newBuilder()
+                            // List prefixes include the trailing slash so table1 does not
+                            // authorize listing table10.
                             .setExpression(
                                 "resource.name == '" + objects + "'"
                                     + " || resource.name.startsWith('" + objects + "/')"
-                                    + " || " + listPrefix + " == '" + directory + "'"
                                     + " || " + listPrefix + ".startsWith('" + directory + "/')")
                             .build())
                     .build())
