@@ -40,7 +40,8 @@ public final class TableActions {
       Long version,
       Long size,
       Long numFiles,
-      ResponseFormat format) {
+      ResponseFormat format,
+      boolean historyShared) {
     if (format == ResponseFormat.DELTA) {
       return line(
           new MetadataLine(
@@ -66,7 +67,7 @@ public final class TableActions {
                 new FormatBody(tableFormat.getProvider()),
                 metadata.getSchemaString(),
                 VectorUtils.toJavaList(metadata.getPartitionColumns()),
-                emptyMapToNull(metadata.getConfiguration()),
+                parquetConfiguration(metadata.getConfiguration(), historyShared),
                 version,
                 size,
                 numFiles)));
@@ -90,8 +91,19 @@ public final class TableActions {
         : table.location().auxiliaryLocations();
   }
 
-  private static Map<String, String> emptyMapToNull(Map<String, String> values) {
-    return values == null || values.isEmpty() ? null : values;
+  /**
+   * Parquet metadata keeps only {@code enableChangeDataFeed}, rewritten from {@code
+   * delta.enableChangeDataFeed}, when that property is true and CDF or table history is shared.
+   * Every other table property is dropped.
+   */
+  private static Map<String, String> parquetConfiguration(
+      Map<String, String> configuration, boolean historyShared) {
+    if (historyShared
+        && configuration != null
+        && "true".equalsIgnoreCase(configuration.get("delta.enableChangeDataFeed"))) {
+      return Map.of("enableChangeDataFeed", "true");
+    }
+    return Map.of();
   }
 
   /** Writes Kernel protocol/metadata rows as Delta log JSON. */
@@ -161,7 +173,7 @@ public final class TableActions {
    *  "location": "s3://bucket/table", "auxiliaryLocations": ["s3://bucket/other"],
    *  "accessModes": ["url", "dir"], "format": {"provider": "parquet"},
    *  "schemaString": "<schema json>", "partitionColumns": ["date"],
-   *  "configuration": {"<key>": "<value>"}, "version": 1, "size": 573, "numFiles": 1}
+   *  "configuration": {"enableChangeDataFeed": "true"}, "version": 1, "size": 573, "numFiles": 1}
    * }</pre>
    */
   @JsonInclude(JsonInclude.Include.NON_NULL)

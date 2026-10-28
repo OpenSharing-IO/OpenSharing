@@ -23,12 +23,17 @@ public class DeltaTableMetadataReader {
     this.kernel = kernel;
   }
 
+  /**
+   * {@code historyShared} is whether the share grants CDF or table history. Parquet metadata then
+   * may include {@code enableChangeDataFeed}.
+   */
   public Result read(
       ResolvedAsset table,
       Long version,
       Instant timestamp,
       AuthContext auth,
-      String capabilities) {
+      String capabilities,
+      boolean historyShared) {
     if (version != null && timestamp != null) {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
@@ -49,7 +54,8 @@ public class DeltaTableMetadataReader {
                   historical ? snapshot.getVersion() : null,
                   crc == null ? null : crc.getTableSizeBytes(),
                   crc == null ? null : crc.getNumFiles(),
-                  format));
+                  format,
+                  historyShared));
     }
   }
 

@@ -45,10 +45,40 @@ class TableActionsTest {
   @Test
   void encodesParquetProtocolAndMetadata() {
     Protocol readerV1 = new Protocol(1, 2, Set.of(), Set.of());
-    assertEquals(parquetBody(""), encode(readerV1, ResponseFormat.PARQUET, null, null, null));
     assertEquals(
-        parquetBody(",\"version\":20"),
-        encode(readerV1, ResponseFormat.PARQUET, 20L, null, null));
+        parquetBody("{}", ""), encode(readerV1, ResponseFormat.PARQUET, null, null, null, false));
+    assertEquals(
+        parquetBody("{}", ",\"version\":20"),
+        encode(readerV1, ResponseFormat.PARQUET, 20L, null, null, false));
+  }
+
+  @Test
+  void parquetMetadataKeepsEnableChangeDataFeedWhenHistoryIsShared() {
+    Protocol readerV1 = new Protocol(1, 2, Set.of(), Set.of());
+    Map<String, String> source =
+        Map.of(
+            "delta.enableChangeDataFeed",
+            "true",
+            "delta.columnMapping.mode",
+            "name",
+            "other",
+            "ignored");
+    assertEquals(
+        parquetBody("{\"enableChangeDataFeed\":\"true\"}", ""),
+        encode(readerV1, metadata(source), ResponseFormat.PARQUET, null, null, null, true));
+    assertEquals(
+        parquetBody("{}", ""),
+        encode(readerV1, metadata(source), ResponseFormat.PARQUET, null, null, null, false));
+    assertEquals(
+        parquetBody("{}", ""),
+        encode(
+            readerV1,
+            metadata(Map.of("delta.enableChangeDataFeed", "false")),
+            ResponseFormat.PARQUET,
+            null,
+            null,
+            null,
+            true));
   }
 
   @Test
@@ -59,10 +89,10 @@ class TableActionsTest {
     String deltaMetadata = JsonUtils.rowToJson(metadata.toRow());
     assertEquals(
         deltaBody(deltaProtocol, "", deltaMetadata),
-        encode(ResponseFormat.DELTA, null, null, null));
+        encode(ResponseFormat.DELTA, null, null, null, false));
     assertEquals(
         deltaBody(deltaProtocol, "\"size\":123456,\"numFiles\":5,", deltaMetadata),
-        encode(ResponseFormat.DELTA, null, 123456L, 5L));
+        encode(ResponseFormat.DELTA, null, 123456L, 5L, false));
     assertEquals(
         """
         {"protocol":{"version":5,"deltaProtocol":%s}}
@@ -71,17 +101,34 @@ class TableActionsTest {
         TableActions.protocol(protocol, 5L, ResponseFormat.DELTA));
   }
 
-  private static String encode(ResponseFormat format, Long version, Long size, Long numFiles) {
-    return encode(protocol(), format, version, size, numFiles);
+  private static String encode(
+      ResponseFormat format, Long version, Long size, Long numFiles, boolean historyShared) {
+    return encode(protocol(), format, version, size, numFiles, historyShared);
   }
 
   private static String encode(
-      Protocol protocol, ResponseFormat format, Long version, Long size, Long numFiles) {
-    return TableActions.protocol(protocol, null, format)
-        + TableActions.metadata(metadata(), TABLE, version, size, numFiles, format);
+      Protocol protocol,
+      ResponseFormat format,
+      Long version,
+      Long size,
+      Long numFiles,
+      boolean historyShared) {
+    return encode(protocol, metadata(), format, version, size, numFiles, historyShared);
   }
 
-  private static String parquetBody(String versionField) {
+  private static String encode(
+      Protocol protocol,
+      Metadata metadata,
+      ResponseFormat format,
+      Long version,
+      Long size,
+      Long numFiles,
+      boolean historyShared) {
+    return TableActions.protocol(protocol, null, format)
+        + TableActions.metadata(metadata, TABLE, version, size, numFiles, format, historyShared);
+  }
+
+  private static String parquetBody(String configuration, String versionField) {
     String schemaString = SCHEMA.replace("\"", "\\\"");
     return "{\"protocol\":{\"minReaderVersion\":1}}\n"
         + "{\"metaData\":{\"id\":\"f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2\","
@@ -89,7 +136,8 @@ class TableActionsTest {
         + ",\"format\":{\"provider\":\"parquet\"},\"schemaString\":\""
         + schemaString
         + "\",\"partitionColumns\":[\"date\"],"
-        + "\"configuration\":{\"enableChangeDataFeed\":\"true\"}"
+        + "\"configuration\":"
+        + configuration
         + versionField
         + "}}\n";
   }
@@ -111,6 +159,10 @@ class TableActionsTest {
   }
 
   private static Metadata metadata() {
+    return metadata(Map.of("delta.enableChangeDataFeed", "true"));
+  }
+
+  private static Metadata metadata(Map<String, String> configuration) {
     return new Metadata(
         "f8d5c169-3d01-4ca3-ad9e-7dc3355aedb2",
         Optional.empty(),
@@ -120,6 +172,6 @@ class TableActionsTest {
         null,
         VectorUtils.buildArrayValue(List.of("date"), StringType.STRING),
         Optional.empty(),
-        VectorUtils.stringStringMapValue(Map.of("enableChangeDataFeed", "true")));
+        VectorUtils.stringStringMapValue(configuration));
   }
 }

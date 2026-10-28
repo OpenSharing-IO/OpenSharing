@@ -48,6 +48,8 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
     assertEquals("url", metaData.path("accessModes").path(0).asText());
     assertTrue(metaData.path("version").isMissingNode());
     assertTrue(metaData.path("deltaMetadata").isMissingNode());
+    assertTrue(metaData.path("configuration").isObject());
+    assertEquals(0, metaData.path("configuration").size());
 
     // responseformat=delta wraps Kernel protocol and metadata as deltaProtocol/deltaMetadata.
     Response delta = metadata(orders, bearer, "responseformat=delta");
