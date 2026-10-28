@@ -44,10 +44,12 @@ class ProtocolTableChangesIntegrationTest extends ProtocolApiSupport {
     String delta = ok(changes(endpoint + range, bearer, "responseformat=delta"), "0");
     assertEquals(changes, count(delta, "file"), delta);
 
-    // A range through version 4 is rejected.
-    Response off = changes(endpoint + "?startingVersion=0", bearer, null);
-    assertInvalid(off);
-    assertTrue(off.text().contains("not recorded for version [4]"), off.text());
+    // Version 4 stops recording change data after the response has begun, so its error ends it.
+    String off =
+        ok(changes(endpoint + "?startingVersion=0", bearer, "includeendstreamaction=true"), "0");
+    String last = off.substring(off.stripTrailing().lastIndexOf('\n') + 1);
+    assertTrue(last.startsWith("{\"endStreamAction\":{\"errorMessage\":"), last);
+    assertTrue(last.contains("not recorded for version [4]"), last);
     // An end after the latest version is capped rather than rejected.
     ok(changes(endpoint + "?startingVersion=5&endingVersion=1000", bearer, null), "5");
     // A range that ends before it starts is rejected.
