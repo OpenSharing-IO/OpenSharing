@@ -7,6 +7,7 @@ import io.delta.kernel.engine.Engine;
 import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.exceptions.TableNotFoundException;
 import io.delta.kernel.internal.TableImpl;
+import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
@@ -115,7 +116,7 @@ public class DeltaKernel {
             auth);
     StorageCredentials rootCredentials =
         credentials.stream()
-            .filter(candidate -> candidate.covers(location))
+            .filter(candidate -> StorageLocations.covers(candidate.prefix(), location))
             .findFirst()
             .orElseThrow(
                 () -> {

@@ -175,7 +175,7 @@ public class ProtocolTables {
             null);
     StorageCredentials minted =
         catalog.getStorageCredentials(credentials, owner(share)).stream()
-            .filter(candidate -> candidate.covers(location))
+            .filter(candidate -> StorageLocations.covers(candidate.prefix(), location))
             .findFirst()
             .orElseThrow(
                 () ->
@@ -239,13 +239,12 @@ public class ProtocolTables {
       }
       return root;
     }
-    String path = StorageCredentials.withoutTrailingSlash(requested);
-    if (root != null && path.equals(StorageCredentials.withoutTrailingSlash(root))) {
+    if (root != null && StorageLocations.same(requested, root)) {
       return root;
     }
     if (location != null) {
       for (String auxiliary : location.auxiliaryLocations()) {
-        if (path.equals(StorageCredentials.withoutTrailingSlash(auxiliary))) {
+        if (StorageLocations.same(requested, auxiliary)) {
           return auxiliary;
         }
       }

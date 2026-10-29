@@ -34,28 +34,6 @@ public record StorageCredentials(
     credentials = credentials == null ? Map.of() : Map.copyOf(credentials);
   }
 
-  /**
-   * Whether these credentials' prefix is {@code location} or a directory above it, ignoring
-   * trailing slashes.
-   */
-  public boolean covers(String location) {
-    if (prefix == null || prefix.isBlank()) {
-      return false;
-    }
-    String directory = withoutTrailingSlash(prefix);
-    String path = withoutTrailingSlash(location);
-    return path.equals(directory) || path.startsWith(directory + "/");
-  }
-
-  /** {@code location} without its trailing slashes. */
-  public static String withoutTrailingSlash(String location) {
-    int end = location.length();
-    while (end > 0 && location.charAt(end - 1) == '/') {
-      end--;
-    }
-    return location.substring(0, end);
-  }
-
   public String require(String key) {
     String value = credentials.get(key);
     if (value == null || value.isBlank()) {
