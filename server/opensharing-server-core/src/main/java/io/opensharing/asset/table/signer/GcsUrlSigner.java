@@ -1,5 +1,6 @@
 package io.opensharing.asset.table.signer;
 
+import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.catalog.StorageCredentials;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -26,13 +27,13 @@ final class GcsUrlSigner implements UrlSigner {
 
   private static SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {
     String token = credentials.require(StorageCredentials.OAUTH_TOKEN);
-    String[] bucketAndObject = StoragePaths.bucketAndKey(path);
+    String[] bucketAndObject = StorageLocations.bucketAndKey(path);
     Instant expiration =
         credentials.expiration() == null ? Instant.now().plus(ttl) : credentials.expiration();
     return new SignedUrl(
         "https://storage.googleapis.com/"
             + bucketAndObject[0]
-            + StoragePaths.encodePath(bucketAndObject[1])
+            + StorageLocations.encodePath(bucketAndObject[1])
             + "?access_token="
             + URLEncoder.encode(token, StandardCharsets.UTF_8),
         expiration);

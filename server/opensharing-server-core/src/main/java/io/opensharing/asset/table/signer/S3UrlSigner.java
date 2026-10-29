@@ -1,5 +1,6 @@
 package io.opensharing.asset.table.signer;
 
+import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.catalog.StorageCredentials;
 import java.time.Duration;
 import java.time.Instant;
@@ -35,7 +36,7 @@ final class S3UrlSigner implements UrlSigner {
     return new SigningSession() {
       @Override
       public SignedUrl sign(String path, Duration ttl) {
-        String[] bucketAndKey = StoragePaths.bucketAndKey(path);
+        String[] bucketAndKey = StorageLocations.bucketAndKey(path);
         Instant expiration = Instant.now().plus(ttl);
         String url =
             presigner

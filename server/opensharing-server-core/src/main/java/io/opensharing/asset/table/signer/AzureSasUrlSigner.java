@@ -1,5 +1,6 @@
 package io.opensharing.asset.table.signer;
 
+import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.catalog.StorageCredentials;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,11 +30,11 @@ final class AzureSasUrlSigner implements UrlSigner {
   }
 
   private static String httpsUrl(String path) {
-    StoragePaths.AzureBlob parsed = StoragePaths.azureBlob(path);
+    StorageLocations.AzureBlob parsed = StorageLocations.azureBlob(path);
     return "https://"
         + parsed.host().replace(".dfs.", ".blob.")
         + "/"
         + parsed.container()
-        + StoragePaths.encodePath(parsed.blob());
+        + StorageLocations.encodePath(parsed.blob());
   }
 }
