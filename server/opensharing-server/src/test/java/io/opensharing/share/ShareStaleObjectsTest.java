@@ -45,31 +45,4 @@ class ShareStaleObjectsTest extends ProtocolApiSupport {
         200, server.patch(PROVIDER + "/shares/replaced-table", ALICE, removeOrders).status());
     assertEquals(200, server.get(replacedSharePath, ALICE).status());
   }
-
-  @Test
-  void getShareAsksToRemoveAReplacedOrDroppedSchema() {
-    createShare("replaced-schema");
-    addObject("replaced-schema", "SCHEMA", "main.hr", "hr");
-    createShare("dropped-schema");
-    addObject("dropped-schema", "SCHEMA", "main.legal", "legal");
-    String replacedSharePath = PROVIDER + "/shares/replaced-schema?include_shared_data=true";
-    assertEquals(200, server.get(replacedSharePath, ALICE).status());
-
-    // Another schema now has the shared schema's name.
-    replaceInCatalog("replaced-schema", "main.hr");
-    Response replacedShare = server.get(replacedSharePath, ALICE);
-    assertEquals(409, replacedShare.status());
-    assertEquals(ErrorCodes.RESOURCE_CONFLICT, replacedShare.errorCode());
-    assertEquals(
-        "schema 'hr' in share 'replaced-schema' was dropped or replaced in the catalog;"
-            + " remove it from the share",
-        replacedShare.body().path("message").asText());
-
-    // The shared schema is gone from the catalog.
-    dropFromCatalog("dropped-schema", "main.legal");
-    Response droppedShare =
-        server.get(PROVIDER + "/shares/dropped-schema?include_shared_data=true", ALICE);
-    assertEquals(409, droppedShare.status());
-    assertEquals(ErrorCodes.RESOURCE_CONFLICT, droppedShare.errorCode());
-  }
 }

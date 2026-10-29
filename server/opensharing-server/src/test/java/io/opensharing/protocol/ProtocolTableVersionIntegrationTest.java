@@ -60,23 +60,6 @@ class ProtocolTableVersionIntegrationTest extends ProtocolApiSupport {
   }
 
   @Test
-  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
-  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
-  void queriesVersionThroughASchemaGrant() {
-    createShare("schema-version");
-    addObject("schema-version", "SCHEMA", "main.sales", "sales");
-    String bearer = createAndActivateRecipient("schema-version-partner");
-    grant("schema-version", "schema-version-partner");
-
-    String tables = PROTOCOL + "/shares/schema-version/schemas/";
-    assertVersion("2", version(tables + "SALES/tables/TABLE1/version", bearer, null));
-    assertVersion(
-        "2",
-        version(
-            tables + "sales/tables/startingtimestamp/version", bearer, "2023-05-09T08:32:00Z"));
-  }
-
-  @Test
   @EnabledIfEnvironmentVariable(named = "AZURE_TEST_ACCOUNT_KEY", matches = ".+")
   void queriesAzureTableVersions() {
     queryCloudTableVersions("azure-version", "main.sales.azure", "sales.azure");

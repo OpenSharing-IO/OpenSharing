@@ -181,14 +181,6 @@ class ShareAdminServiceTest {
     assertOk(update("sales", "REMOVE", "{\"type\":\"TABLE\",\"sharedAs\":\"SALES.ORDERS\"}"));
     assertEquals(0, objects("sales").size());
 
-    // A schema is shared under the last segment of its name.
-    assertOk(update("sales", "ADD", "{\"name\":\"Main.Sales\",\"type\":\"SCHEMA\"}"));
-    assertEquals("sales", objects("sales").get(0).path("sharedAs").asText());
-
-    // Owner removes the schema by sharedAs; the catalog segment is dropped.
-    assertOk(update("sales", "REMOVE", "{\"type\":\"SCHEMA\",\"sharedAs\":\"MAIN.SALES\"}"));
-    assertEquals(0, objects("sales").size());
-
     // Owner adds a table under an explicit alias, which is lowercased.
     assertOk(
         update(
@@ -216,6 +208,11 @@ class ShareAdminServiceTest {
     assertEquals(
         "updates[0].dataObject.type must be one of [TABLE, SCHEMA]",
         volume.body().path("message").asText());
+
+    // A share holds tables, not whole schemas.
+    Response schema = update("edge-volume", "ADD", "{\"name\":\"main.sales\",\"type\":\"SCHEMA\"}");
+    assertInvalid(schema);
+    assertEquals("dataObject.type must be TABLE", schema.body().path("message").asText());
   }
 
   @Test
@@ -223,25 +220,6 @@ class ShareAdminServiceTest {
     // A TABLE name must include a schema segment.
     createShare("edge-nodot");
     assertInvalid(update("edge-nodot", "ADD", "{\"name\":\"Orders\",\"type\":\"TABLE\"}"));
-  }
-
-  @Test
-  void rejectsATableUnderASharedSchema() {
-    createShare("edge-schema-table");
-    assertOk(update("edge-schema-table", "ADD", "{\"name\":\"Main.Sales\",\"type\":\"SCHEMA\"}"));
-    assertConflict(
-        update("edge-schema-table", "ADD", "{\"name\":\"Main.Sales.Orders\",\"type\":\"TABLE\"}"),
-        ErrorCodes.RESOURCE_CONFLICT);
-  }
-
-  @Test
-  void rejectsASchemaOverSharedTables() {
-    createShare("edge-table-schema");
-    assertOk(
-        update("edge-table-schema", "ADD", "{\"name\":\"Main.Sales.Orders\",\"type\":\"TABLE\"}"));
-    assertConflict(
-        update("edge-table-schema", "ADD", "{\"name\":\"Main.Sales\",\"type\":\"SCHEMA\"}"),
-        ErrorCodes.RESOURCE_CONFLICT);
   }
 
   @Test

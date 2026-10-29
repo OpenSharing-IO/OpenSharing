@@ -24,7 +24,7 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
   void queriesGrantedTableMetadata() {
     createShare("table-metadata");
     addObject("table-metadata", "TABLE", "main.sales.orders", "sales.orders");
-    addObject("table-metadata", "SCHEMA", "main.hr", "hr");
+    addObject("table-metadata", "TABLE", "main.hr.salaries", "hr.salaries");
     createShare("hidden-metadata");
     addObject("hidden-metadata", "TABLE", "main.sales.customers", "sales.customers");
     String bearer = createAndActivateRecipient("table-metadata-partner");
