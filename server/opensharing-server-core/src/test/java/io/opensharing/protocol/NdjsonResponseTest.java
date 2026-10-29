@@ -15,7 +15,6 @@ import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader.ResponseOptions;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader.ResponseSink;
 import io.opensharing.http.ApiException;
-import java.time.Duration;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -65,16 +64,6 @@ class NdjsonResponseTest {
     assertEquals(200, response.status().code());
     assertEquals("7", response.headers().get(DeltaSharingProtocolService.DELTA_TABLE_VERSION));
     assertEquals(line.repeat(2000), response.contentUtf8());
-  }
-
-  @Test
-  void allowsFiveMinutesFromTheRequestStart() {
-    ServiceRequestContext ctx = ServiceRequestContext.of(HttpRequest.of(HttpMethod.POST, "/query"));
-    NdjsonResponse.stream(ctx, OPTIONS, sink -> sink.begin(1, ResponseFormat.PARQUET))
-        .aggregate()
-        .join();
-
-    assertEquals(Duration.ofMinutes(5).toMillis(), ctx.requestTimeoutMillis());
   }
 
   @Test

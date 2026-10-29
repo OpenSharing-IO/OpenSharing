@@ -16,6 +16,7 @@ import com.linecorp.armeria.server.annotation.Param;
 import com.linecorp.armeria.server.annotation.Post;
 import com.linecorp.armeria.server.annotation.Produces;
 import com.linecorp.armeria.server.annotation.ProducesJson;
+import com.linecorp.armeria.server.annotation.decorator.RequestTimeout;
 import io.opensharing.ObjectNames;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.FileIdHash;
@@ -26,6 +27,7 @@ import io.opensharing.asset.table.TemporaryTableCredentialsResponse;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader;
 import io.opensharing.http.ApiJson;
+import java.util.concurrent.TimeUnit;
 
 /**
  * The Delta Sharing protocol endpoints for one shared table, which recipients call with their
@@ -37,6 +39,8 @@ public final class DeltaSharingProtocolService {
 
   static final String DELTA_TABLE_VERSION = "Delta-Table-Version";
   static final MediaType NDJSON = MediaType.parse("application/x-ndjson; charset=utf-8");
+  // From the request's arrival, so it bounds reading the table's log as well as sending its files.
+  private static final long QUERY_TIMEOUT_MINUTES = 5;
 
   private final ProtocolTables tables;
 
@@ -132,6 +136,7 @@ public final class DeltaSharingProtocolService {
    */
   @Post("/shares/{share}/schemas/{schema}/tables/{table}/query")
   @Produces("application/x-ndjson")
+  @RequestTimeout(value = QUERY_TIMEOUT_MINUTES, unit = TimeUnit.MINUTES)
   public HttpResponse queryTable(
       ServiceRequestContext ctx,
       @Param String share,

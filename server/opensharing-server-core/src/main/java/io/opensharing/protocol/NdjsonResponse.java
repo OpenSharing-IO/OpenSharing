@@ -7,14 +7,12 @@ import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.ResponseHeaders;
 import com.linecorp.armeria.common.ResponseHeadersBuilder;
 import com.linecorp.armeria.common.stream.ClosedStreamException;
-import com.linecorp.armeria.common.util.TimeoutMode;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.asset.table.FileIdHash;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader.ResponseOptions;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader.ResponseSink;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
@@ -30,8 +28,6 @@ import org.slf4j.LoggerFactory;
 final class NdjsonResponse implements ResponseSink {
 
   private static final Logger log = LoggerFactory.getLogger(NdjsonResponse.class);
-  // From the request's start, so it bounds reading the log as well as sending every line.
-  private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
 
   private final ResponseOptions options;
   private final CompletableFuture<HttpResponse> response = new CompletableFuture<>();
@@ -47,7 +43,6 @@ final class NdjsonResponse implements ResponseSink {
    */
   static HttpResponse stream(
       ServiceRequestContext ctx, ResponseOptions options, Consumer<ResponseSink> read) {
-    ctx.setRequestTimeout(TimeoutMode.SET_FROM_START, REQUEST_TIMEOUT);
     NdjsonResponse out = new NdjsonResponse(options);
     ctx.blockingTaskExecutor().execute(() -> out.run(read));
     return HttpResponse.of(out.response);
