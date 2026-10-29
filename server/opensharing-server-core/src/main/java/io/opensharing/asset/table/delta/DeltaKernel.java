@@ -7,6 +7,7 @@ import io.delta.kernel.engine.Engine;
 import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.exceptions.TableNotFoundException;
 import io.delta.kernel.internal.TableImpl;
+import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
@@ -115,7 +116,7 @@ public class DeltaKernel {
             auth);
     StorageCredentials rootCredentials =
         credentials.stream()
-            .filter(candidate -> covers(candidate.prefix(), location))
+            .filter(candidate -> StorageLocations.covers(candidate.prefix(), location))
             .findFirst()
             .orElseThrow(
                 () -> {
@@ -127,14 +128,6 @@ public class DeltaKernel {
         new SessionFileIO(HadoopStorageConfiguration.from(rootCredentials, location), path);
     Engine engine = DefaultEngine.create(files);
     return new Session(engine, Table.forPath(engine, path), files);
-  }
-
-  private static boolean covers(String prefix, String location) {
-    if (prefix == null || prefix.isBlank()) {
-      return false;
-    }
-    String normalized = prefix.endsWith("/") ? prefix : prefix + "/";
-    return location.equals(prefix) || location.startsWith(normalized);
   }
 
   /** A Kernel engine and table reading through files the session owns until it is closed. */
