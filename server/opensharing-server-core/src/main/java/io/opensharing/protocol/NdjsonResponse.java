@@ -21,31 +21,29 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An NDJSON file response, sent while it is read so a large table is never held in memory. The
- * headers go out once the reader knows the table version and format, and each line as soon as it
- * is read. A response that fails before then is an ordinary error response; one that fails later
- * is cut short, as its status is already sent.
+ * An NDJSON file response, sent while it is read. The headers go out once the reader knows the
+ * table version and format, and each line as soon as it is read, without waiting for the client to
+ * take the earlier ones, so lines a slow client has not received yet queue in memory. A response
+ * that fails before then is an ordinary error response; one that fails later is cut short, as its
+ * status is already sent.
  */
 final class NdjsonResponse implements ResponseSink {
 
   private static final Logger log = LoggerFactory.getLogger(NdjsonResponse.class);
   // From the request's start, so it bounds reading the log as well as sending every line.
   private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
-  // tryWrite queues without bound, so the reader waits for a slow client every this many bytes.
-  private static final int UNCONSUMED_LIMIT = 64 * 1024;
 
   private final ResponseOptions options;
   private final CompletableFuture<HttpResponse> response = new CompletableFuture<>();
   private HttpResponseWriter writer;
-  private int unconsumed;
 
   private NdjsonResponse(ResponseOptions options) {
     this.options = options;
   }
 
   /**
-   * Runs {@code read} on a blocking thread, which holds it until the client has every line or the
-   * request times out.
+   * Runs {@code read} on a blocking thread until every line is written, the client goes away, or
+   * the request times out.
    */
   static HttpResponse stream(
       ServiceRequestContext ctx, ResponseOptions options, Consumer<ResponseSink> read) {
@@ -72,14 +70,8 @@ final class NdjsonResponse implements ResponseSink {
 
   @Override
   public void line(String line) {
-    HttpData data = HttpData.ofUtf8(line);
-    if (!writer.tryWrite(data)) {
+    if (!writer.tryWrite(HttpData.ofUtf8(line))) {
       throw ClosedStreamException.get();
-    }
-    unconsumed += data.length();
-    if (unconsumed >= UNCONSUMED_LIMIT) {
-      writer.whenConsumed().join();
-      unconsumed = 0;
     }
   }
 

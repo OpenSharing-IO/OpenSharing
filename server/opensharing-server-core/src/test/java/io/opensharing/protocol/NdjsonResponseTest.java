@@ -3,6 +3,7 @@ package io.opensharing.protocol;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpMethod;
@@ -16,6 +17,8 @@ import io.opensharing.asset.table.delta.DeltaTableQueryReader.ResponseSink;
 import io.opensharing.http.ApiException;
 import java.time.Duration;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
@@ -44,19 +47,21 @@ class NdjsonResponseTest {
   }
 
   @Test
-  void streamsEveryLinePastTheUnconsumedLimit() {
+  void writesEveryLineWithoutWaitingForTheClient() throws InterruptedException {
     String line = "x".repeat(99) + "\n";
-    AggregatedHttpResponse response =
+    CountDownLatch written = new CountDownLatch(1);
+    HttpResponse streamed =
         stream(
-                sink -> {
-                  sink.begin(7, ResponseFormat.DELTA);
-                  for (int i = 0; i < 2000; i++) {
-                    sink.line(line);
-                  }
-                })
-            .aggregate()
-            .join();
+            sink -> {
+              sink.begin(7, ResponseFormat.DELTA);
+              for (int i = 0; i < 2000; i++) {
+                sink.line(line);
+              }
+              written.countDown();
+            });
 
+    assertTrue(written.await(10, TimeUnit.SECONDS));
+    AggregatedHttpResponse response = streamed.aggregate().join();
     assertEquals(200, response.status().code());
     assertEquals("7", response.headers().get(DeltaSharingProtocolService.DELTA_TABLE_VERSION));
     assertEquals(line.repeat(2000), response.contentUtf8());
