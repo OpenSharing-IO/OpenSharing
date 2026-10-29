@@ -172,6 +172,7 @@ public final class DeltaSharingProtocolService {
    */
   @Get("/shares/{share}/schemas/{schema}/tables/{table}/changes")
   @Produces("application/x-ndjson")
+  @RequestTimeout(value = QUERY_TIMEOUT_MINUTES, unit = TimeUnit.MINUTES)
   public HttpResponse queryTableChanges(
       ServiceRequestContext ctx,
       @Param String share,
