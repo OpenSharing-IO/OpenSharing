@@ -1,10 +1,10 @@
 package io.opensharing.share;
 
-import io.opensharing.ObjectNames;
 import io.opensharing.Transactions;
 import io.opensharing.auth.Ownership;
 import io.opensharing.auth.UserContext;
 import io.opensharing.http.ApiException;
+import io.opensharing.util.ObjectNames;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.util.List;

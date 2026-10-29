@@ -1,10 +1,10 @@
 package io.opensharing.asset;
 
 import io.opensharing.BaseEntity;
-import io.opensharing.ObjectNames;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.share.ShareEntity;
+import io.opensharing.util.ObjectNames;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

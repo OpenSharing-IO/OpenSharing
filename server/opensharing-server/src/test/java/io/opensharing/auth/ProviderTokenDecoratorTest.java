@@ -19,7 +19,7 @@ import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.exception.CatalogAuthenticationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiExceptionHandler;
-import io.opensharing.http.ErrorCodes;
+import io.opensharing.util.ErrorCodes;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Arrays;

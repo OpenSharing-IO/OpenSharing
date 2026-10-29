@@ -3,9 +3,9 @@ package io.opensharing.asset.schema;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.http.ListResponse;
-import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.share.ShareEntity;
+import io.opensharing.util.Pagination;
 
 /**
  * The schemas a recipient sees through the sharing protocol: the distinct schema aliases of the

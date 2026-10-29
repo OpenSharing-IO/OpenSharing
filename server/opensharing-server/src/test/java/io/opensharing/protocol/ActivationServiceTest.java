@@ -5,11 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
-import io.opensharing.auth.TokenHashes;
-import io.opensharing.http.ErrorCodes;
+import io.opensharing.TestServer;
 import io.opensharing.recipient.RecipientTokenEntity;
+import io.opensharing.util.ErrorCodes;
+import io.opensharing.util.TokenHashes;
 import java.net.URI;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;

@@ -1,4 +1,4 @@
-package io.opensharing.auth;
+package io.opensharing.util;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

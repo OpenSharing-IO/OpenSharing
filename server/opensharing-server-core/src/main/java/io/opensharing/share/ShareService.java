@@ -1,6 +1,5 @@
 package io.opensharing.share;
 
-import io.opensharing.ObjectNames;
 import io.opensharing.Transactions;
 import io.opensharing.asset.SharedAssetResolver;
 import io.opensharing.asset.SharedDataObjectEntity;
@@ -17,9 +16,10 @@ import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
-import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientStore;
+import io.opensharing.util.ObjectNames;
+import io.opensharing.util.Pagination;
 import jakarta.persistence.EntityManager;
 import java.util.ArrayList;
 import java.util.List;

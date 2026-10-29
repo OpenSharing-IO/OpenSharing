@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.util;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;

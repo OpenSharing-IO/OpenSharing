@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.common.HttpMethod;
 import io.opensharing.TestServer.Response;
-import io.opensharing.http.ErrorCodes;
+import io.opensharing.util.ErrorCodes;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;

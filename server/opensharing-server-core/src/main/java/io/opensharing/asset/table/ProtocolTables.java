@@ -1,6 +1,5 @@
 package io.opensharing.asset.table;
 
-import io.opensharing.ObjectNames;
 import io.opensharing.asset.SharedAssetResolver;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
@@ -25,9 +24,11 @@ import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
-import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.share.ShareEntity;
+import io.opensharing.util.ObjectNames;
+import io.opensharing.util.Pagination;
+import io.opensharing.util.StorageLocations;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;

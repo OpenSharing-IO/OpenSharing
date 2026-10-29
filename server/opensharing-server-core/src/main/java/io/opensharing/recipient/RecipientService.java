@@ -1,16 +1,16 @@
 package io.opensharing.recipient;
 
-import io.opensharing.ObjectNames;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.Ownership;
 import io.opensharing.auth.Privilege;
-import io.opensharing.auth.TokenHashes;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
-import io.opensharing.http.Pagination;
+import io.opensharing.util.ObjectNames;
+import io.opensharing.util.Pagination;
+import io.opensharing.util.TokenHashes;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;

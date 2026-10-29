@@ -3,8 +3,8 @@ package io.opensharing.share;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.opensharing.TestServer.Response;
-import io.opensharing.http.ErrorCodes;
 import io.opensharing.protocol.ProtocolApiSupport;
+import io.opensharing.util.ErrorCodes;
 import org.junit.jupiter.api.Test;
 
 class ShareStaleObjectsTest extends ProtocolApiSupport {

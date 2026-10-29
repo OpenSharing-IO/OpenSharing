@@ -1,4 +1,4 @@
-package io.opensharing.http;
+package io.opensharing.util;
 
 /** Error codes used in {@link ErrorResponse#errorCode()}. */
 public final class ErrorCodes {

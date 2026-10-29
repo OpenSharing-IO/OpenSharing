@@ -1,4 +1,4 @@
-package io.opensharing;
+package io.opensharing.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;

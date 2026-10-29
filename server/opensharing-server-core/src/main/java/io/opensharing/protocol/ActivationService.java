@@ -7,8 +7,8 @@ import com.linecorp.armeria.common.ResponseHeaders;
 import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Param;
-import io.opensharing.http.ApiJson;
 import io.opensharing.recipient.RecipientService;
+import io.opensharing.util.ApiJson;
 
 /**
  * Public one-time redemption of a recipient activation URL. {@link OpenSharingRecipientApi} mounts

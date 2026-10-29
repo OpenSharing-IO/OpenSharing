@@ -1,4 +1,4 @@
-package io.opensharing.http;
+package io.opensharing.util;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;

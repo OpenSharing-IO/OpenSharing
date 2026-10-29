@@ -1,5 +1,7 @@
 package io.opensharing.http;
 
+import io.opensharing.util.ErrorCodes;
+
 /** An error with an explicit protocol error code and HTTP status. */
 public class ApiException extends RuntimeException {
 

@@ -1,6 +1,7 @@
 package io.opensharing.asset.table.signer;
 
 import io.opensharing.catalog.StorageCredentials;
+import io.opensharing.util.StoragePaths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;

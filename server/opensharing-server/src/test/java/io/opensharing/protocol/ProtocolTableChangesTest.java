@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.opensharing.TestServer.Response;
-import io.opensharing.http.ErrorCodes;
+import io.opensharing.util.ErrorCodes;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 

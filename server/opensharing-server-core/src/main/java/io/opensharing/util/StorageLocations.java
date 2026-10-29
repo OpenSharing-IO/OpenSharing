@@ -1,4 +1,4 @@
-package io.opensharing.asset.table;
+package io.opensharing.util;
 
 /** Storage locations compared regardless of trailing slashes. */
 public final class StorageLocations {

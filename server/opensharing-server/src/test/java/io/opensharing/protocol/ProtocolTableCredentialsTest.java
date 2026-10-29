@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.opensharing.TestServer.Response;
-import io.opensharing.http.ErrorCodes;
+import io.opensharing.util.ErrorCodes;
 import org.junit.jupiter.api.Test;
 
 class ProtocolTableCredentialsTest extends ProtocolApiSupport {

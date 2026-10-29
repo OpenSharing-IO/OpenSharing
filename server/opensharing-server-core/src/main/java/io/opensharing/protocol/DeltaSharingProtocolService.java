@@ -16,7 +16,6 @@ import com.linecorp.armeria.server.annotation.Param;
 import com.linecorp.armeria.server.annotation.Post;
 import com.linecorp.armeria.server.annotation.Produces;
 import com.linecorp.armeria.server.annotation.ProducesJson;
-import io.opensharing.ObjectNames;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.FileIdHash;
 import io.opensharing.asset.table.ProtocolTables;
@@ -26,7 +25,8 @@ import io.opensharing.asset.table.TemporaryTableCredentialsRequest;
 import io.opensharing.asset.table.TemporaryTableCredentialsResponse;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader;
-import io.opensharing.http.ApiJson;
+import io.opensharing.util.ApiJson;
+import io.opensharing.util.ObjectNames;
 
 /**
  * The Delta Sharing protocol endpoints for one shared table, which recipients call with their

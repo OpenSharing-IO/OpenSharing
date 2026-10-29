@@ -1,9 +1,11 @@
-package io.opensharing.http;
+package io.opensharing.util;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.opensharing.http.ApiException;
+import io.opensharing.http.ListResponse;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;

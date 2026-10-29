@@ -5,8 +5,8 @@ import com.linecorp.armeria.server.ServerBuilder;
 import com.linecorp.armeria.server.annotation.JacksonRequestConverterFunction;
 import com.linecorp.armeria.server.annotation.JacksonResponseConverterFunction;
 import io.opensharing.http.ApiExceptionHandler;
-import io.opensharing.http.ApiJson;
 import io.opensharing.runtime.OpenSharing;
+import io.opensharing.util.ApiJson;
 
 /**
  * The recipient-facing endpoints, which OpenSharing authenticates itself. A host mounts them on

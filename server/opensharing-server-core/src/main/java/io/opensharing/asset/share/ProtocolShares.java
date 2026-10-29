@@ -2,12 +2,12 @@ package io.opensharing.asset.share;
 
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
-import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.share.ShareEntity;
 import io.opensharing.share.SharePermissionStore;
 import io.opensharing.share.ShareResponse;
 import io.opensharing.share.ShareStore;
+import io.opensharing.util.Pagination;
 
 /**
  * The shares a recipient sees through the sharing protocol: those it holds SELECT on. Any other

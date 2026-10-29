@@ -3,6 +3,7 @@ package io.opensharing.http;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import io.opensharing.util.Pagination;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;

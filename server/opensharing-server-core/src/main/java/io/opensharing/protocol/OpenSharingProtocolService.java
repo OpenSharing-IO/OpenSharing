@@ -6,7 +6,6 @@ import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Param;
 import com.linecorp.armeria.server.annotation.ProducesJson;
-import io.opensharing.ObjectNames;
 import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.schema.SchemaResponse;
 import io.opensharing.asset.share.GetShareResponse;
@@ -16,6 +15,7 @@ import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.asset.table.TableResponse;
 import io.opensharing.http.ListResponse;
 import io.opensharing.share.ShareResponse;
+import io.opensharing.util.ObjectNames;
 
 /**
  * The OpenSharing protocol endpoints that list and get shares, schemas and tables, which recipients

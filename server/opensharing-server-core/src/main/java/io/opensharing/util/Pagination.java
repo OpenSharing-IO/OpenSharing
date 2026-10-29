@@ -1,5 +1,7 @@
-package io.opensharing.http;
+package io.opensharing.util;
 
+import io.opensharing.http.ApiException;
+import io.opensharing.http.ListResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;

@@ -8,6 +8,7 @@ import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import io.opensharing.OpenSharingServer;
 import io.opensharing.config.ServerProperties;
+import io.opensharing.util.ErrorCodes;
 import java.util.Properties;
 import org.junit.jupiter.api.Test;
 

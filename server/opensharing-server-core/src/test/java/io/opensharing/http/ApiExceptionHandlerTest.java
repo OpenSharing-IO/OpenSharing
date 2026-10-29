@@ -18,6 +18,7 @@ import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.HttpStatusException;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import io.opensharing.catalog.AssetType;
+import io.opensharing.util.ErrorCodes;
 import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.Test;
 

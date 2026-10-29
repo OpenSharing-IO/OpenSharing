@@ -1,4 +1,4 @@
-package io.opensharing;
+package io.opensharing.util;
 
 import java.util.Locale;
 

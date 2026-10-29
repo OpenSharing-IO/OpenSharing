@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.http.ApiException;
-import io.opensharing.http.ErrorCodes;
+import io.opensharing.util.ErrorCodes;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;

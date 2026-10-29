@@ -1,7 +1,7 @@
 package io.opensharing.recipient;
 
 import io.opensharing.BaseEntity;
-import io.opensharing.ObjectNames;
+import io.opensharing.util.ObjectNames;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

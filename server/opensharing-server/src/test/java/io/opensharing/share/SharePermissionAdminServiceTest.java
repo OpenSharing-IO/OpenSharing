@@ -2,9 +2,9 @@ package io.opensharing.share;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
-import io.opensharing.http.ErrorCodes;
+import io.opensharing.TestServer;
+import io.opensharing.util.ErrorCodes;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;

@@ -11,15 +11,15 @@ import io.opensharing.auth.ProviderTokenDecorator;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogConnector;
 import io.opensharing.catalog.local.LocalCatalogLoader;
-import io.opensharing.config.ServerProperties;
 import io.opensharing.config.ServerProperties.Property;
+import io.opensharing.config.ServerProperties;
 import io.opensharing.http.ApiExceptionHandler;
-import io.opensharing.http.ApiJson;
 import io.opensharing.persistence.JpaTransactions;
 import io.opensharing.protocol.OpenSharingRecipientApi;
 import io.opensharing.recipient.RecipientAdminService;
 import io.opensharing.runtime.OpenSharing;
 import io.opensharing.share.ShareAdminService;
+import io.opensharing.util.ApiJson;
 import java.util.List;
 import java.util.Locale;
 

@@ -15,6 +15,7 @@ import io.opensharing.exception.CatalogAuthenticationException;
 import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
+import io.opensharing.util.ErrorCodes;
 import java.sql.SQLException;
 import java.util.List;
 import org.junit.jupiter.api.Test;

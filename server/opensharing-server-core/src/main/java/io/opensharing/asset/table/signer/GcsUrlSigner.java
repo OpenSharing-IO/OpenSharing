@@ -1,6 +1,7 @@
 package io.opensharing.asset.table.signer;
 
 import io.opensharing.catalog.StorageCredentials;
+import io.opensharing.util.StoragePaths;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
