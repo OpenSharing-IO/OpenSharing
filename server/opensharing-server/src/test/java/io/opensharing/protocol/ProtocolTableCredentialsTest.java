@@ -14,7 +14,7 @@ class ProtocolTableCredentialsTest extends ProtocolApiSupport {
   void vendsTemporaryCredentialsForAGrantedTable() {
     createShare("table-creds");
     addObject("table-creds", "TABLE", "main.sales.orders", "sales.orders");
-    addObject("table-creds", "SCHEMA", "main.hr", "hr");
+    addObject("table-creds", "TABLE", "main.hr.employees", "hr.employees");
     createShare("hidden-creds");
     addObject("hidden-creds", "TABLE", "main.sales.customers", "sales.customers");
     String bearer = createAndActivateRecipient("table-creds-partner");
@@ -52,11 +52,11 @@ class ProtocolTableCredentialsTest extends ProtocolApiSupport {
         "s3://test/main.sales.orders/",
         unslashed.body().path("credentials").path("location").asText());
 
-    // A SCHEMA grant can mint credentials for a catalog child.
-    Response child = server.post(credentials("table-creds", "hr", "employees"), bearer, "{}");
-    assertEquals(200, child.status());
+    // Each table of the share mints credentials for its own root.
+    Response other = server.post(credentials("table-creds", "hr", "employees"), bearer, "{}");
+    assertEquals(200, other.status());
     assertEquals(
-        "s3://test/main.hr.employees/", child.body().path("credentials").path("location").asText());
+        "s3://test/main.hr.employees/", other.body().path("credentials").path("location").asText());
 
     // A body that is not JSON is malformed.
     Response malformed = server.post(credentials("table-creds", "sales", "orders"), bearer, "{");

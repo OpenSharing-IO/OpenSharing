@@ -50,12 +50,12 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Column(nullable = false, length = 32)
   private AssetType type;
 
-  /** Data source format for tables, such as Delta; null for schemas. */
+  /** Data source format for tables, such as Delta. */
   @Enumerated(EnumType.STRING)
   @Column(name = "source_format", length = 32)
   private DataSourceFormat sourceFormat;
 
-  /** Storage location of a table as the catalog reported it when shared; null for schemas. */
+  /** Storage location of a table as the catalog reported it when shared. */
   @Column(name = "storage_location", length = 2048)
   private String storageLocation;
 
@@ -67,7 +67,7 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Column(name = "shared_as_schema", nullable = false, length = 255)
   private String sharedAsSchema;
 
-  /** Empty for schema-level shares; otherwise the lowercase table (or other asset) name. */
+  /** Lowercase table (or other asset) name recipients see. */
   @Column(name = "shared_as_table", nullable = false, length = 255)
   private String sharedAsTable;
 
@@ -141,13 +141,11 @@ public class SharedDataObjectEntity extends BaseEntity {
   }
 
   public void setSharedAsTable(String sharedAsTable) {
-    this.sharedAsTable = sharedAsTable == null ? "" : ObjectNames.normalize(sharedAsTable);
+    this.sharedAsTable = ObjectNames.normalize(sharedAsTable);
   }
 
-  /** Recipient-visible alias: {@code schema} or {@code schema.table}. */
+  /** Recipient-visible alias: {@code schema.table}. */
   public String getSharedAs() {
-    return sharedAsTable == null || sharedAsTable.isEmpty()
-        ? sharedAsSchema
-        : sharedAsSchema + "." + sharedAsTable;
+    return sharedAsSchema + "." + sharedAsTable;
   }
 }

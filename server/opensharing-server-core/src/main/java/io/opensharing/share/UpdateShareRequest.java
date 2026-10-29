@@ -24,9 +24,9 @@ public record UpdateShareRequest(
   public record Update(Action action, DataObject dataObject) {}
 
   /**
-   * A catalog object. {@code name} is the full catalog name; {@code sharedAs} is the alias
-   * recipients see, {@code schema} or {@code schema.table}, and defaults to {@code name} without
-   * its catalog. A remove needs {@code name} or {@code sharedAs}.
+   * A catalog table. {@code name} is the full catalog name; {@code sharedAs} is the alias
+   * recipients see, {@code schema.table}, and defaults to {@code name} without its catalog. A
+   * remove needs {@code name} or {@code sharedAs}.
    */
   public record DataObject(String name, AssetType type, String sharedAs) {}
 

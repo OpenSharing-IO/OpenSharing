@@ -18,7 +18,7 @@ class ProtocolSchemasTest extends ProtocolApiSupport {
     createShare("schema-share");
     addObject("schema-share", "TABLE", "main.sales.table1", "alpha.t1");
     addObject("schema-share", "TABLE", "main.sales.orders", "alpha.t2");
-    addObject("schema-share", "SCHEMA", "main.hr", "beta");
+    addObject("schema-share", "TABLE", "main.hr.salaries", "beta.t1");
     addObject("schema-share", "TABLE", "main.ops.people", "gamma.t3");
     createShare("hidden-share");
     addObject("hidden-share", "TABLE", "main.sales.table1", "hidden.t");
