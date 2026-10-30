@@ -15,8 +15,14 @@ public record QueryTableRequest(
     Long startingVersion,
     Long endingVersion,
     Boolean includeHistoricalProtocol,
-    String idempotencyKey) {
+    String idempotencyKey,
+    Boolean includeRefreshToken,
+    String refreshToken) {
 
   static final QueryTableRequest EMPTY =
-      new QueryTableRequest(null, null, null, null, null, null, null, null, null);
+      new QueryTableRequest(null, null, null, null, null, null, null, null, null, null, null);
+
+  public QueryTableRequest {
+    refreshToken = refreshToken == null || refreshToken.isBlank() ? null : refreshToken;
+  }
 }

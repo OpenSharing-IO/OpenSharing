@@ -23,7 +23,8 @@ import org.junit.jupiter.api.Test;
 
 class NdjsonResponseTest {
 
-  private static final ResponseOptions OPTIONS = new ResponseOptions(null, null);
+  private static final ResponseOptions OPTIONS = new ResponseOptions(null, null, false);
+  private static final ResponseOptions END_STREAM = new ResponseOptions(null, null, true);
 
   @Test
   void sendsTheHeadersThenEveryLine() {
@@ -40,7 +41,7 @@ class NdjsonResponseTest {
     assertEquals(200, response.status().code());
     assertEquals("3", response.headers().get(DeltaSharingProtocolService.DELTA_TABLE_VERSION));
     assertEquals(
-        DeltaSharingCapabilities.responded(ResponseFormat.PARQUET),
+        DeltaSharingCapabilities.responded(ResponseFormat.PARQUET, false),
         response.headers().get(DeltaSharingCapabilities.HEADER));
     assertEquals("{\"a\":1}\n{\"b\":2}\n", response.contentUtf8());
   }
@@ -96,8 +97,38 @@ class NdjsonResponseTest {
     assertSame(broken, failed.getCause());
   }
 
+  @Test
+  void endsAStreamThatFailsAfterItBeginsWithTheErrorWhenAsked() {
+    AggregatedHttpResponse response =
+        stream(
+                END_STREAM,
+                sink -> {
+                  sink.begin(1, ResponseFormat.PARQUET);
+                  sink.line("{\"a\":1}\n");
+                  throw ApiException.invalidParameter("change data was not recorded");
+                })
+            .aggregate()
+            .join();
+
+    assertEquals(200, response.status().code());
+    assertEquals(
+        DeltaSharingCapabilities.responded(ResponseFormat.PARQUET, true),
+        response.headers().get(DeltaSharingCapabilities.HEADER));
+    assertEquals(
+        """
+        {"a":1}
+        {"endStreamAction":{"errorMessage":"change data was not recorded"}}
+        """,
+        response.contentUtf8());
+  }
+
+
   private static HttpResponse stream(Consumer<ResponseSink> read) {
+    return stream(OPTIONS, read);
+  }
+
+  private static HttpResponse stream(ResponseOptions options, Consumer<ResponseSink> read) {
     ServiceRequestContext ctx = ServiceRequestContext.of(HttpRequest.of(HttpMethod.POST, "/query"));
-    return NdjsonResponse.stream(ctx, OPTIONS, read);
+    return NdjsonResponse.stream(ctx, options, read);
   }
 }
