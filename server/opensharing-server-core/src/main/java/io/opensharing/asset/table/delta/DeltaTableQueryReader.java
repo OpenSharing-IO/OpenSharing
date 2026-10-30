@@ -16,12 +16,14 @@ import io.delta.kernel.utils.FileStatus;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.asset.table.FileIdHash;
+import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.asset.table.TableActions;
 import io.opensharing.asset.table.signer.SignedUrl;
 import io.opensharing.asset.table.signer.SigningSession;
 import io.opensharing.asset.table.signer.UrlSigners;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -29,6 +31,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.hadoop.fs.Path;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Reads Query Table snapshot files from a Delta log. The parquet or delta response is NDJSON:
@@ -40,6 +45,7 @@ import java.util.Optional;
  */
 public class DeltaTableQueryReader {
 
+  private static final Logger log = LoggerFactory.getLogger(DeltaTableQueryReader.class);
   private static final Duration URL_TTL = Duration.ofHours(1);
 
   private final DeltaKernel kernel;
@@ -230,6 +236,7 @@ public class DeltaTableQueryReader {
      */
     private SignedFile sign(
         String absolutePath, String logPath, Optional<DeletionVectorDescriptor> deletionVector) {
+      requireUnderRoot(absolutePath);
       SignedUrl file = signer.sign(absolutePath, URL_TTL);
       long expirationTimestamp = file.expiration().toEpochMilli();
       String deletionVectorUrl = null;
@@ -241,6 +248,7 @@ public class DeltaTableQueryReader {
       if (dv != null) {
         String dvPath =
             dv.getAbsolutePath(HadoopStorageConfiguration.kernelPath(session.location()));
+        requireUnderRoot(dvPath);
         SignedUrl signedDv = signer.sign(dvPath, URL_TTL);
         deletionVectorUrl = signedDv.url();
         deletionVectorFileId = FileIdHash.hash(dvPath, fileIdHash, format);
@@ -252,6 +260,25 @@ public class DeltaTableQueryReader {
           deletionVectorUrl,
           deletionVectorFileId,
           expirationTimestamp);
+    }
+
+    /**
+     * The catalog scoped the credentials to the table root, so a log path outside it, absolute or
+     * through {@code ..}, is never signed. Paths compare in Kernel's form, after normalizing.
+     */
+    private void requireUnderRoot(String path) {
+      if (!StorageLocations.covers(kernelForm(session.location()), kernelForm(path))) {
+        log.error(
+            "Table '{}' references '{}' outside its root '{}'",
+            table.fullName(),
+            path,
+            session.location());
+        throw new CatalogException("the table references a file outside its storage location");
+      }
+    }
+
+    private static String kernelForm(String location) {
+      return new Path(HadoopStorageConfiguration.kernelPath(location)).toString();
     }
   }
 
