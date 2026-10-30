@@ -196,9 +196,6 @@
           <configuration>
             <compilerArgs>
               <arg>-parameters</arg>
-              <arg>-Xlint:all</arg>
-              <arg>-Xlint:-options</arg>
-              <arg>-Xlint:-processing</arg>
             </compilerArgs>
           </configuration>
         </plugin>

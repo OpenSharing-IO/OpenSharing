@@ -17,7 +17,6 @@ SPDX-License-Identifier = "Apache-2.0"
 
 [[annotations]]
 path = [
-    "CHANGELOG.md",
     "CHARTER.md",
     "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
