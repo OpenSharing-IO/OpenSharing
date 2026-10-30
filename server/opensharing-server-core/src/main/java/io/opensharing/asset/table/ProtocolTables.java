@@ -7,6 +7,7 @@ import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
+import io.opensharing.asset.table.delta.DeltaTableQueryReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
@@ -57,6 +58,7 @@ public class ProtocolTables {
   private final CatalogConnector catalog;
   private final DeltaKernel kernel;
   private final DeltaTableMetadataReader metadataReader;
+  private final DeltaTableQueryReader queryReader;
   private final ProtocolShares protocolShares;
   private final SharedDataObjectStore sharedObjects;
 
@@ -64,11 +66,13 @@ public class ProtocolTables {
       CatalogConnector catalog,
       DeltaKernel kernel,
       DeltaTableMetadataReader metadataReader,
+      DeltaTableQueryReader queryReader,
       ProtocolShares protocolShares,
       SharedDataObjectStore sharedObjects) {
     this.catalog = catalog;
     this.kernel = kernel;
     this.metadataReader = metadataReader;
+    this.queryReader = queryReader;
     this.protocolShares = protocolShares;
     this.sharedObjects = sharedObjects;
   }
@@ -182,6 +186,39 @@ public class ProtocolTables {
                     new CatalogException(
                         "catalog returned no credentials for location '" + location + "'"));
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(minted));
+  }
+
+  /**
+   * One snapshot of a table in the share that supports url access, as of the latest version,
+   * {@code version}, or an ISO-8601 {@code timestamp} in {@code request}, with presigned file
+   * URLs, written to {@code sink}. Pushdown hints and startingVersion queries are not implemented.
+   */
+  public void query(
+      RecipientPrincipal recipient,
+      String shareName,
+      String schemaAlias,
+      String tableAlias,
+      QueryTableRequest request,
+      DeltaTableQueryReader.ResponseOptions options,
+      DeltaTableQueryReader.ResponseSink sink) {
+    ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    ResolvedAsset catalogTable = findTable(share, schemaAlias, tableAlias).catalogTable();
+    List<String> accessModes = TableAccessModes.forTable(catalogTable);
+    if (accessModes == null || !accessModes.contains("url")) {
+      throw ApiException.invalidParameter(
+          "table '" + schemaAlias + "." + tableAlias + "' does not support url access");
+    }
+    QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
+    if (body.startingVersion() != null || body.endingVersion() != null) {
+      throw ApiException.notImplemented("startingVersion queries are not supported");
+    }
+    queryReader.read(
+        catalogTable,
+        owner(share),
+        options,
+        sink,
+        body.version(),
+        parseTimestamp("timestamp", body.timestamp()));
   }
 
   /**

@@ -1,8 +1,10 @@
 package io.opensharing.asset.table;
 
+import io.delta.kernel.internal.actions.Protocol;
 import io.opensharing.http.ApiException;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +39,40 @@ public final class DeltaSharingCapabilities {
   /** Value for the response {@code delta-sharing-capabilities} header. */
   public static String responded(ResponseFormat format) {
     return "responseformat=" + format.name().toLowerCase(Locale.ROOT);
+  }
+
+  /**
+   * A parquet response only carries protocols with reader version 1. A client that accepts delta
+   * must advertise every reader feature the table requires; one that accepts only parquet gets
+   * delta for an advanced table and raises the error itself. Advertised features the server does
+   * not know are ignored. Metadata does not enforce this so clients can inspect protocol before
+   * querying files.
+   */
+  public static void requireReaderFeatures(
+      String header, ResponseFormat format, Protocol protocol) {
+    if (format != ResponseFormat.DELTA) {
+      if (protocol.getMinReaderVersion() > 1) {
+        throw ApiException.invalidParameter(
+            "The table requires reader features that are only available in delta format");
+      }
+      return;
+    }
+    if (!responseFormats(parse(header)).contains(ResponseFormat.DELTA)) {
+      return;
+    }
+    Set<String> required = protocol.getReaderFeatures();
+    if (required == null || required.isEmpty()) {
+      return;
+    }
+    Set<String> advertised = advertisedReaderFeatures(header);
+    for (String feature : required) {
+      if (!advertised.contains(feature.toLowerCase(Locale.ROOT))) {
+        throw ApiException.invalidParameter(
+            "The table requires reader feature '"
+                + feature
+                + "' which was not specified in delta-sharing-capabilities");
+      }
+    }
   }
 
   /**
@@ -87,5 +123,17 @@ public final class DeltaSharingCapabilities {
       }
     }
     return requested;
+  }
+
+  private static Set<String> advertisedReaderFeatures(String header) {
+    String value = parse(header).get("readerfeatures");
+    if (value == null) {
+      return Set.of();
+    }
+    Set<String> advertised = new LinkedHashSet<>();
+    for (String token : value.split(",")) {
+      advertised.add(token.trim());
+    }
+    return advertised;
   }
 }
