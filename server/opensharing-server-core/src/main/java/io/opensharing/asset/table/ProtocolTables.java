@@ -205,12 +205,9 @@ public class ProtocolTables {
       DeltaTableQueryReader.ResponseOptions options,
       DeltaTableQueryReader.ResponseSink sink) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    ResolvedAsset catalogTable = findTable(share, schemaAlias, tableAlias).catalogTable();
-    List<String> accessModes = TableAccessModes.forTable(catalogTable);
-    if (accessModes == null || !accessModes.contains("url")) {
-      throw ApiException.invalidParameter(
-          "table '" + schemaAlias + "." + tableAlias + "' does not support url access");
-    }
+    ResolvedAsset catalogTable =
+        requireUrlAccess(
+            findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     if (body.startingVersion() != null || body.endingVersion() != null) {
       queryChanges(body, catalogTable, share, options, sink);
@@ -240,6 +237,48 @@ public class ProtocolTables {
         includeRefreshToken,
         body.jsonPredicateHints(),
         limitHint(body));
+  }
+
+  /**
+   * The Change Data Feed of a table in the share that supports url access and records it, from
+   * {@code startingVersion} or an ISO-8601 {@code startingTimestamp} through {@code endingVersion},
+   * {@code endingTimestamp}, or the latest version, with presigned file URLs, written to {@code
+   * sink}.
+   */
+  public void changes(
+      RecipientPrincipal recipient,
+      String shareName,
+      String schemaAlias,
+      String tableAlias,
+      TableChangesRequest request,
+      DeltaTableQueryReader.ResponseOptions options,
+      DeltaTableQueryReader.ResponseSink sink) {
+    ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    ResolvedAsset catalogTable =
+        requireUrlAccess(
+            findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
+    queryReader.readChangeDataFeed(
+        catalogTable,
+        owner(share),
+        options,
+        sink,
+        request.startingVersion(),
+        parseTimestamp("startingTimestamp", request.startingTimestamp()),
+        request.endingVersion(),
+        parseTimestamp("endingTimestamp", request.endingTimestamp()),
+        Boolean.TRUE.equals(request.includeHistoricalMetadata()),
+        Boolean.TRUE.equals(request.includeHistoricalProtocol()));
+  }
+
+  /** Returns {@code catalogTable} once it is known to support the {@code url} access mode. */
+  private static ResolvedAsset requireUrlAccess(
+      ResolvedAsset catalogTable, String schemaAlias, String tableAlias) {
+    List<String> accessModes = TableAccessModes.forTable(catalogTable);
+    if (accessModes == null || !accessModes.contains("url")) {
+      throw ApiException.invalidParameter(
+          "table '" + schemaAlias + "." + tableAlias + "' does not support url access");
+    }
+    return catalogTable;
   }
 
   /**

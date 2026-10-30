@@ -20,6 +20,13 @@ class DeltaSharingProtocolServiceTest {
         requestTimeoutOf(HttpMethod.POST, "/shares/s/schemas/c/tables/t/query"));
   }
 
+  @Test
+  void givesQueryTableChangesFiveMinutesFromTheRequestsArrival() {
+    assertEquals(
+        TimeUnit.MINUTES.toMillis(5),
+        requestTimeoutOf(HttpMethod.GET, "/shares/s/schemas/c/tables/t/changes"));
+  }
+
   private static long requestTimeoutOf(HttpMethod method, String path) {
     AtomicLong timeout = new AtomicLong();
     Server server =
