@@ -24,7 +24,10 @@ stable version and may change without a MAJOR bump until specified.
 2. When the TSC agrees a set of changes constitutes a release, a Maintainer
    proposes the version number and a summary of changes.
 3. On TSC approval, a Maintainer tags the release (`vMAJOR.MINOR.PATCH`) and
-   publishes release notes via GitHub Releases.
+   publishes release notes via GitHub Releases. Release notes are a human
+   summary of user-facing changes (not a raw `git log`), and they list any
+   publicly known runtime CVE (or equivalent) fixed in that release. The
+   same notes are recorded in [CHANGELOG.md](./CHANGELOG.md).
 
 ## Cadence
 

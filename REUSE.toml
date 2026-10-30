@@ -1,0 +1,38 @@
+version = 1
+
+# File-level license inventory for Apache 2.0 / Charter §7.d / REUSE.
+# SPDX identifiers live here so we do not have to stamp every file.
+
+[[annotations]]
+path = [
+    ".github/**",
+    ".gitignore",
+    "LICENSE",
+    "REUSE.toml",
+    "server/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Copyright 2026 The OpenSharing Authors"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [
+    "CHANGELOG.md",
+    "CHARTER.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "GOVERNANCE.md",
+    "MAINTAINERS.md",
+    "NOTICE",
+    "README.md",
+    "RELEASE.md",
+    "ROADMAP.md",
+    "SECURITY.md",
+    "SUPPORT.md",
+    "assets/**",
+    "charter/**",
+    "spec/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Copyright 2026 The OpenSharing Authors"
+SPDX-License-Identifier = "CC-BY-4.0"

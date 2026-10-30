@@ -335,4 +335,15 @@ This specification is a community proposal. Many of the AI asset types described
 
 ## License
 
-The OpenSharing specification is licensed under [Apache 2.0](./LICENSE).
+Per the [Technical Charter](./CHARTER.md) §7:
+
+- **Code**, including the reference server, is licensed under the
+  [Apache License 2.0](./LICENSE).
+- **Documentation**, including [`spec/`](./spec/), is licensed under
+  [CC-BY-4.0](./LICENSES/CC-BY-4.0.txt).
+- **Data**, when a contribution includes any, is licensed under
+  [CDLA-Permissive-2.0](./LICENSES/CDLA-Permissive-2.0.txt).
+
+Copyright is retained by contributors; see [NOTICE](./NOTICE). The
+[REUSE](https://reuse.software/) inventory in [`REUSE.toml`](./REUSE.toml)
+maps paths to SPDX identifiers.

@@ -1,0 +1,15 @@
+# Dependabot keeps GitHub Actions and Maven dependencies current.
+# OpenSSF Scorecard: Dependency-Update-Tool.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: maven
+    directory: /server
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

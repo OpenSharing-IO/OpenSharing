@@ -18,15 +18,28 @@ Please include, where possible:
 
 ## What to expect
 
-- We aim to **acknowledge** a report within 5 business days.
+- We aim to **acknowledge** a report within **5 business days**, and in any
+  case within **14 days**.
 - We will work with you on an assessment and a coordinated disclosure timeline.
 - We will credit reporters who wish to be acknowledged.
+- Fixes for publicly known runtime vulnerabilities that already have a CVE (or
+  equivalent) at release time are listed in the release notes and
+  [CHANGELOG.md](./CHANGELOG.md).
 
 <!-- TODO(maintainers): once the LF AI & Data security mailing list is provisioned
      and a security contact/team is named, add them here as an alternate reporting
      channel. -->
 
+## What this project covers
+
+OpenSharing is a protocol specification plus a reference server. Operators
+deploy and harden their own deployments; this repository does not run a
+hosted sharing service. The server vends short-lived, scoped storage
+credentials and should be treated as trusted infrastructure. See
+[RELEASE.md](./RELEASE.md) for versioning of the specification.
+
 ## Supported versions
 
-OpenSharing is an evolving specification. Security fixes are applied to the
-current specification version; see [RELEASE.md](./RELEASE.md) for versioning.
+Security fixes are applied to the current specification version and to the
+`main` line of the reference server. Older tagged releases are not separately
+maintained unless a release note says otherwise.
