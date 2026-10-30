@@ -16,6 +16,7 @@ import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.TableProperties;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -104,6 +105,20 @@ class TableActionsTest {
         """,
         TableActions.parquetFile(
             "https://example.invalid/part.parquet", "file-1", Map.of(), 1, null, null, null, 1L));
+    assertEquals(
+        """
+        {"file":{"url":"https://example.invalid/part.parquet","id":"file-1",\
+        "partitionValues":{"date":null},"size":1,"expirationTimestamp":1}}
+        """,
+        TableActions.parquetFile(
+            "https://example.invalid/part.parquet",
+            "file-1",
+            Collections.singletonMap("date", null),
+            1,
+            null,
+            null,
+            null,
+            1L));
     AddFile add =
         new AddFile(
             AddFile.createAddFileRow(

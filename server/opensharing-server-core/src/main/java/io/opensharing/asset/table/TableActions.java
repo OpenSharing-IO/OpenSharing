@@ -317,7 +317,7 @@ public final class TableActions {
   public record ParquetFile(
       String url,
       String id,
-      Map<String, String> partitionValues,
+      @JsonInclude(content = JsonInclude.Include.ALWAYS) Map<String, String> partitionValues,
       long size,
       String stats,
       Long version,
