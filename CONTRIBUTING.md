@@ -30,21 +30,12 @@ your employer.
 
 ## Licensing
 
-- **Code** is contributed and released under the [Apache License 2.0](./LICENSE)
-  (full text also in [`LICENSES/Apache-2.0.txt`](./LICENSES/Apache-2.0.txt)).
-- **Documentation** is licensed under
-  [CC-BY-4.0](./LICENSES/CC-BY-4.0.txt).
+- **Code** is contributed and released under the [Apache License 2.0](./LICENSE).
+- **Documentation** is licensed under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/).
 - **Data**, where a contribution includes any, is licensed under
-  [CDLA-Permissive-2.0](./LICENSES/CDLA-Permissive-2.0.txt).
-- File-level SPDX annotations are declared in [`REUSE.toml`](./REUSE.toml).
-  New files should either match those path rules or carry a short-form header:
-
-  ```
-  SPDX-FileCopyrightText: Copyright 2026 The OpenSharing Authors
-  SPDX-License-Identifier: Apache-2.0
-  ```
-
-  Use `CC-BY-4.0` for documentation and `CDLA-Permissive-2.0` for data.
+  [CDLA-Permissive-2.0](https://cdla.dev/permissive-2-0).
+- Contributed files should carry an [SPDX](https://spdx.dev/) short-form license
+  identifier in their header where practical.
 
 ## Roles
 
