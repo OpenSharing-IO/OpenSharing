@@ -335,4 +335,7 @@ This specification is a community proposal. Many of the AI asset types described
 
 ## License
 
-The OpenSharing specification is licensed under [Apache 2.0](./LICENSE).
+The OpenSharing specification and the reference server are licensed under
+[Apache License 2.0](./LICENSE). See [NOTICE](./NOTICE) for copyright and
+upstream attribution, including protocol text derived from
+[Delta Sharing](https://github.com/delta-io/delta-sharing).
