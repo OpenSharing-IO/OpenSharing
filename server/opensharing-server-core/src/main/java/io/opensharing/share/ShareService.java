@@ -243,7 +243,7 @@ public class ShareService {
       throw ApiException.invalidParameter("dataObject.name must not exceed 512 characters");
     }
     AssetType type = requireType(dataObject.type());
-    Alias alias = parseAlias(dataObject.sharedAs(), type, name);
+    Alias alias = parseAlias(dataObject.sharedAs(), name);
     // The catalog is responsible for checking that the caller holds SELECT on the asset. A host
     // that already checks it at its endpoint can skip that check in resolveAsset.
     ResolvedAsset resolved = catalog.resolveAsset(new Asset(type, name), AuthContext.of(user));
@@ -258,7 +258,7 @@ public class ShareService {
   private static Removal removal(UpdateShareRequest.DataObject dataObject) {
     AssetType type = requireType(dataObject.type());
     if (dataObject.sharedAs() != null && !dataObject.sharedAs().isBlank()) {
-      return new Removal(type, parseAlias(dataObject.sharedAs(), type, null), null);
+      return new Removal(type, parseAlias(dataObject.sharedAs(), null), null);
     }
     return new Removal(
         type, null, requireText(dataObject.name(), "dataObject.name or dataObject.sharedAs"));
@@ -267,19 +267,15 @@ public class ShareService {
   /**
    * Lowercased {@code sharedAs}, or {@code name} if omitted; catalog prefix is dropped.
    *
-   * <p>{@code Main.Sales.Orders} (TABLE) → {@code sales} / {@code orders}. {@code Main.Sales}
-   * (SCHEMA) → {@code sales}. {@code Sales.Orders} (TABLE) → {@code sales} / {@code orders}.
+   * <p>{@code Main.Sales.Orders} and {@code Sales.Orders} → {@code sales} / {@code orders}.
    */
-  private static Alias parseAlias(String sharedAs, AssetType type, String name) {
+  private static Alias parseAlias(String sharedAs, String name) {
     String raw = sharedAs == null || sharedAs.isBlank() ? name : sharedAs;
     if (raw == null || raw.isBlank()) {
       throw ApiException.invalidParameter("dataObject.sharedAs is required");
     }
     raw = ObjectNames.normalize(raw);
     String[] parts = raw.split("\\.", -1);
-    if (type == AssetType.SCHEMA) {
-      return new Alias(ObjectNames.validateSchemaName(parts[parts.length - 1]), "");
-    }
     if (parts.length < 2) {
       throw ApiException.invalidParameter(
           "dataObject.sharedAs must have at least 2 dot-separated names");
@@ -292,6 +288,9 @@ public class ShareService {
   private static AssetType requireType(AssetType type) {
     if (type == null) {
       throw ApiException.invalidParameter("dataObject.type is required");
+    }
+    if (type != AssetType.TABLE) {
+      throw ApiException.invalidParameter("dataObject.type must be TABLE");
     }
     return type;
   }

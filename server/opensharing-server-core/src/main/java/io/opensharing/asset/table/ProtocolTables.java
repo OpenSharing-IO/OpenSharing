@@ -1,6 +1,5 @@
 package io.opensharing.asset.table;
 
-import io.opensharing.ObjectNames;
 import io.opensharing.asset.SharedAssetResolver;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
@@ -9,9 +8,7 @@ import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
-import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetLocation;
-import io.opensharing.catalog.AssetPage;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.CredentialRequest;
@@ -20,7 +17,6 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
 import io.opensharing.catalog.TableProperties;
-import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
@@ -39,10 +35,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The tables a recipient reads through the sharing protocol in a share it holds SELECT on: the
- * tables the share includes one by one, plus the tables the catalog currently lists under each
- * schema the share includes as a whole. Listing serves included tables as the share recorded them;
- * reading a table resolves it in the catalog.
+ * The tables a recipient reads through the sharing protocol in a share it holds SELECT on. Listing
+ * serves them as the share recorded them; reading a table resolves it in the catalog.
  *
  * <p>Every catalog call is made as the share's owner, so the catalog decides whether the owner may
  * still read each table.
@@ -52,7 +46,6 @@ import org.slf4j.LoggerFactory;
 public class ProtocolTables {
 
   private static final Logger log = LoggerFactory.getLogger(ProtocolTables.class);
-  private static final int CATALOG_PAGE_SIZE = 1000;
 
   private final CatalogConnector catalog;
   private final DeltaKernel kernel;
@@ -184,10 +177,7 @@ public class ProtocolTables {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(minted));
   }
 
-  /**
-   * The shared table, or the catalog table in a shared schema, under {@code schemaAlias} and
-   * {@code tableAlias}.
-   */
+  /** The shared table under {@code schemaAlias} and {@code tableAlias}. */
   private SharedTable findTable(ShareEntity share, String schemaAlias, String tableAlias) {
     Optional<SharedDataObjectEntity> sharedTable =
         sharedObjects.findByAlias(share, schemaAlias, tableAlias);
@@ -196,22 +186,6 @@ public class ProtocolTables {
       if (catalogTable != null) {
         return new SharedTable(
             schemaAlias, tableAlias, sharedTable.get().getSourceAssetId(), catalogTable);
-      }
-    } else {
-      Optional<SharedDataObjectEntity> sharedSchema =
-          sharedObjects.findByAlias(share, schemaAlias, "");
-      if (sharedSchema.isPresent()
-          && !tableAlias.contains(".")
-          && resolveSharedAsset(share, sharedSchema.get()) != null) {
-        Asset childTable =
-            new Asset(AssetType.TABLE, sharedSchema.get().getFullName() + "." + tableAlias);
-        try {
-          ResolvedAsset catalogTable = catalog.resolveAsset(childTable, owner(share));
-          return new SharedTable(
-              schemaAlias, alias(catalogTable), catalogTable.catalogAssetId(), catalogTable);
-        } catch (AssetNotFoundException notInCatalog) {
-          // Falls through to the alias-only not-found below.
-        }
       }
     }
     // Recipients see aliases only, so the catalog's own not-found message must not reach them.
@@ -273,31 +247,13 @@ public class ProtocolTables {
       ShareEntity share, List<SharedDataObjectEntity> sharedObjects) {
     List<TableResponse> tables = new ArrayList<>();
     for (SharedDataObjectEntity sharedObject : sharedObjects) {
-      String schemaAlias = sharedObject.getSharedAsSchema();
-      if (sharedObject.getType() == AssetType.SCHEMA) {
-        // The share records no tables under a shared schema, so only the catalog can list them.
-        for (ResolvedAsset catalogTable : catalogTablesIn(share, sharedObject)) {
-          AssetLocation location = catalogTable.location();
-          tables.add(
-              new TableResponse(
-                  alias(catalogTable),
-                  schemaAlias,
-                  share.getName(),
-                  share.getId(),
-                  catalogTable.catalogAssetId(),
-                  location == null ? null : location.storageLocation(),
-                  location == null || location.auxiliaryLocations().isEmpty()
-                      ? null
-                      : location.auxiliaryLocations(),
-                  TableAccessModes.forFormat(dataSourceFormat(catalogTable))));
-        }
-      } else if (sharedObject.getType() == AssetType.TABLE) {
+      if (sharedObject.getType() == AssetType.TABLE) {
         // The share recorded everything listed about an included table, so the catalog isn't
         // called; Get Table resolves it.
         tables.add(
             new TableResponse(
                 sharedObject.getSharedAsTable(),
-                schemaAlias,
+                sharedObject.getSharedAsSchema(),
                 share.getName(),
                 share.getId(),
                 sharedObject.getSourceAssetId(),
@@ -346,36 +302,6 @@ public class ProtocolTables {
         Function.identity());
   }
 
-  /**
-   * Every table the catalog lists under the included {@code sharedSchema}, across all pages, or
-   * none once the catalog has dropped the schema.
-   */
-  private List<ResolvedAsset> catalogTablesIn(
-      ShareEntity share, SharedDataObjectEntity sharedSchema) {
-    Asset catalogSchema = new Asset(AssetType.SCHEMA, sharedSchema.getFullName());
-    List<ResolvedAsset> catalogTables = new ArrayList<>();
-    String catalogPageToken = null;
-    do {
-      AssetPage catalogPage;
-      try {
-        catalogPage =
-            catalog.listChildren(catalogSchema, CATALOG_PAGE_SIZE, catalogPageToken, owner(share));
-      } catch (AssetNotFoundException dropped) {
-        log.error(
-            "Hiding the tables of schema '{}' in share '{}': catalog schema '{}' was dropped",
-            sharedSchema.getSharedAs(),
-            share.getName(),
-            sharedSchema.getFullName());
-        return List.of();
-      }
-      catalogPage.assets().stream()
-          .filter(child -> child.type() == AssetType.TABLE)
-          .forEach(catalogTables::add);
-      catalogPageToken = catalogPage.nextPageToken();
-    } while (catalogPageToken != null);
-    return catalogTables;
-  }
-
   /** The table's format, or null when the catalog reports none. */
   private static DataSourceFormat dataSourceFormat(ResolvedAsset catalogTable) {
     return catalogTable.additionalProperties() instanceof TableProperties tableProperties
@@ -386,14 +312,5 @@ public class ProtocolTables {
   /** The share's owner, whom every catalog call acts as. */
   private static AuthContext owner(ShareEntity share) {
     return AuthContext.of(UserContext.fromUserIdAndName(share.getOwnerId(), null));
-  }
-
-  /**
-   * The alias recipients see for a catalog table in an included schema: its table name, lowercased
-   * like every alias.
-   */
-  private static String alias(ResolvedAsset catalogTable) {
-    String fullName = catalogTable.fullName();
-    return ObjectNames.normalize(fullName.substring(fullName.lastIndexOf('.') + 1));
   }
 }

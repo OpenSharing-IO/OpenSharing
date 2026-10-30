@@ -17,7 +17,7 @@ import java.util.Map;
  *   "displayName": "<display name>",
  *   "comment": "<comment>",
  *   "properties": {"<key>": "<value>"},
- *   "objects": [{"name": "<asset name>", "type": "<TABLE or SCHEMA>", "sharedAs": "<alias>"}]
+ *   "objects": [{"name": "<asset name>", "type": "TABLE", "sharedAs": "<alias>"}]
  * }
  * }</pre>
  */

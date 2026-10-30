@@ -32,37 +32,6 @@ class ProtocolGetTableTest extends ProtocolApiSupport {
   }
 
   @Test
-  void getsACatalogChildOfASharedSchema() {
-    createShare("get-schema-table");
-    addObject("get-schema-table", "SCHEMA", "main.hr", "hr");
-    String bearer = createAndActivateRecipient("get-schema-table-partner");
-    grant("get-schema-table", "get-schema-table-partner");
-
-    // The table is looked up in the catalog, which matches its name in any case.
-    Response got =
-        server.get(PROTOCOL + "/shares/get-schema-table/schemas/HR/tables/Salaries", bearer);
-    assertEquals(200, got.status());
-    assertEquals("salaries", got.body().path("name").asText());
-    assertEquals("hr", got.body().path("schema").asText());
-    assertEquals("main.hr.salaries", got.body().path("id").asText());
-    assertEquals("delta", got.body().path("format").asText());
-  }
-
-  @Test
-  void namesACatalogChildOfASharedSchemaByLowercaseAlias() {
-    createShare("get-cased-table");
-    addObject("get-cased-table", "SCHEMA", "main.legal", "legal");
-    String bearer = createAndActivateRecipient("get-cased-table-partner");
-    grant("get-cased-table", "get-cased-table-partner");
-
-    Response got =
-        server.get(PROTOCOL + "/shares/get-cased-table/schemas/legal/tables/contracts", bearer);
-    assertEquals(200, got.status());
-    assertEquals("contracts", got.body().path("name").asText());
-    assertEquals("legal", got.body().path("schema").asText());
-  }
-
-  @Test
   void reportsMissingTablesSchemasAndShares() {
     createShare("get-missing");
     addObject("get-missing", "TABLE", "main.sales.orders", "sales.orders");
@@ -79,13 +48,13 @@ class ProtocolGetTableTest extends ProtocolApiSupport {
   }
 
   @Test
-  void getsATableOfAnAliasedSchemaAndReportsAMissingOneByItsAlias() {
-    createShare("get-schema-missing");
-    addObject("get-schema-missing", "SCHEMA", "main.hr", "people");
-    String bearer = createAndActivateRecipient("get-schema-missing-partner");
-    grant("get-schema-missing", "get-schema-missing-partner");
+  void getsATableUnderAnAliasAndReportsAMissingOneByItsAlias() {
+    createShare("get-alias-missing");
+    addObject("get-alias-missing", "TABLE", "main.hr.salaries", "people.salaries");
+    String bearer = createAndActivateRecipient("get-alias-missing-partner");
+    grant("get-alias-missing", "get-alias-missing-partner");
 
-    String tables = PROTOCOL + "/shares/get-schema-missing/schemas/people/tables/";
+    String tables = PROTOCOL + "/shares/get-alias-missing/schemas/people/tables/";
     Response got = server.get(tables + "salaries", bearer);
     assertEquals(200, got.status());
     assertEquals("salaries", got.body().path("name").asText());
@@ -95,10 +64,8 @@ class ProtocolGetTableTest extends ProtocolApiSupport {
     Response missing = server.get(tables + "bonuses", bearer);
     assertNotFound(missing);
     assertEquals(
-        "table 'people.bonuses' does not exist in share 'get-schema-missing'",
+        "table 'people.bonuses' does not exist in share 'get-alias-missing'",
         missing.body().path("message").asText());
-    // Only tables directly in the schema are on the listing.
-    assertNotFound(server.get(tables + "salaries.history", bearer));
   }
 
   /** Missing tables, schemas and shares all get the protocol's not-found error. */

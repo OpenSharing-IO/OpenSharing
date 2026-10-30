@@ -33,7 +33,7 @@ class ShareUpdateTransactionTest {
   void rollsBackEveryChangeWhenAnAddFails() {
     createShareWithOrders("atomic");
 
-    // Removing orders and adding table1 succeed, but the schema over table1 then conflicts.
+    // Removing orders and adding table1 succeed, but customers then reuses table1's alias.
     Response failed =
         patch(
             "atomic",
@@ -43,13 +43,14 @@ class ShareUpdateTransactionTest {
               "updates": [
                 {"action": "REMOVE", "dataObject": %s},
                 {"action": "ADD", "dataObject": {"name": "main.sales.table1", "type": "TABLE"}},
-                {"action": "ADD", "dataObject": {"name": "main.sales", "type": "SCHEMA"}}
+                {"action": "ADD", "dataObject":
+                  {"name": "main.sales.customers", "type": "TABLE", "sharedAs": "sales.table1"}}
               ]
             }
             """
                 .formatted(ORDERS));
     assertEquals(409, failed.status(), () -> failed.body().toString());
-    assertEquals(ErrorCodes.RESOURCE_CONFLICT, failed.errorCode());
+    assertEquals(ErrorCodes.RESOURCE_ALREADY_EXISTS, failed.errorCode());
 
     // Orders is still shared, table1 was not added, and the comment is unchanged.
     JsonNode share = share("atomic");

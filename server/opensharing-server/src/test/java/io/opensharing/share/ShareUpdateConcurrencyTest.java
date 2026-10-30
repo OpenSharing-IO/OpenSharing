@@ -38,17 +38,19 @@ class ShareUpdateConcurrencyTest {
   }
 
   @Test
-  void concurrentSchemaAndTableAddsCannotBothSucceed() throws Exception {
+  void concurrentAddsUnderOneAliasCannotBothSucceed() throws Exception {
     for (int i = 0; i < RUNS; i++) {
       String share = "racing-adds-" + i;
       createShare(share);
 
       List<Response> results =
           race(
-              () -> server.patch(SHARES + "/" + share, "alice-token", add("main.sales", "SCHEMA")),
               () ->
                   server.patch(
-                      SHARES + "/" + share, "alice-token", add("main.sales.table1", "TABLE")));
+                      SHARES + "/" + share, "alice-token", add("main.sales.table1", "sales.t")),
+              () ->
+                  server.patch(
+                      SHARES + "/" + share, "alice-token", add("main.sales.orders", "sales.t")));
 
       assertEquals(
           List.of(200, 409), results.stream().map(Response::status).sorted().toList());
@@ -67,7 +69,7 @@ class ShareUpdateConcurrencyTest {
           race(
               () ->
                   server.patch(
-                      SHARES + "/" + share, "alice-token", add("main.sales.table1", "TABLE")),
+                      SHARES + "/" + share, "alice-token", add("main.sales.table1", "sales.t")),
               () -> server.delete(SHARES + "/" + share, "alice-token"));
 
       assertTrue(Set.of(200, 404).contains(results.get(0).status()));
@@ -79,11 +81,11 @@ class ShareUpdateConcurrencyTest {
     assertEquals(201, server.post(SHARES, "alice-token", "{\"name\":\"" + share + "\"}").status());
   }
 
-  private static String add(String name, String type) {
+  private static String add(String name, String sharedAs) {
     return "{\"updates\":[{\"action\":\"ADD\",\"dataObject\":{\"name\":\""
         + name
-        + "\",\"type\":\""
-        + type
+        + "\",\"type\":\"TABLE\",\"sharedAs\":\""
+        + sharedAs
         + "\"}}]}";
   }
 

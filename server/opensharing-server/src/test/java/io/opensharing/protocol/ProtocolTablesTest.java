@@ -43,50 +43,13 @@ class ProtocolTablesTest extends ProtocolApiSupport {
     Response missing = server.get(PROTOCOL + "/shares/table-share/schemas/missing/tables", bearer);
     assertEquals(404, missing.status());
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, missing.errorCode());
-  }
-
-  @Test
-  void listsCatalogChildrenOfASharedSchema() {
-    createShare("schema-tables");
-    addObject("schema-tables", "SCHEMA", "main.hr", "hr");
-    createShare("hidden-tables");
-    addObject("hidden-tables", "TABLE", "main.sales.orders", "sales.orders");
-    String bearer = createAndActivateRecipient("schema-tables-partner");
-    grant("schema-tables", "schema-tables-partner");
-
-    Response list = server.get(PROTOCOL + "/shares/schema-tables/schemas/hr/tables", bearer);
-    assertEquals(200, list.status());
-    JsonNode items = list.body().path("items");
-    assertEquals(2, items.size());
-    assertEquals("employees", items.path(0).path("name").asText());
-    assertEquals("s3://test/main.hr.employees/", items.path(0).path("location").asText());
-    assertEquals("main.hr.employees", items.path(0).path("id").asText());
-    JsonNode salaries = items.path(1);
-    assertEquals("salaries", salaries.path("name").asText());
-    assertEquals("s3://test/main.hr.salaries/", salaries.path("location").asText());
-    assertEquals("main.hr.salaries", salaries.path("id").asText());
-    assertEquals("url", salaries.path("accessModes").path(0).asText());
-    assertEquals("dir", salaries.path("accessModes").path(1).asText());
 
     // An ungranted share is reported as missing.
+    createShare("hidden-tables");
+    addObject("hidden-tables", "TABLE", "main.sales.orders", "sales.orders");
     Response hidden = server.get(PROTOCOL + "/shares/hidden-tables/schemas/sales/tables", bearer);
     assertEquals(404, hidden.status());
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, hidden.errorCode());
-  }
-
-  @Test
-  void namesCatalogChildrenOfASharedSchemaByLowercaseAlias() {
-    createShare("cased-tables");
-    addObject("cased-tables", "SCHEMA", "main.legal", "legal");
-    String bearer = createAndActivateRecipient("cased-tables-partner");
-    grant("cased-tables", "cased-tables-partner");
-
-    Response list = server.get(PROTOCOL + "/shares/cased-tables/schemas/legal/tables", bearer);
-    assertEquals(200, list.status());
-    JsonNode items = list.body().path("items");
-    assertEquals(1, items.size());
-    assertEquals("contracts", items.path(0).path("name").asText());
-    assertEquals("legal", items.path(0).path("schema").asText());
   }
 
   @Test
@@ -136,13 +99,14 @@ class ProtocolTablesTest extends ProtocolApiSupport {
   void listsAllTablesInAGrantedShare() {
     createShare("all-tables");
     addObject("all-tables", "TABLE", "main.sales.orders", "sales.orders");
-    addObject("all-tables", "SCHEMA", "main.hr", "hr");
+    addObject("all-tables", "TABLE", "main.hr.salaries", "hr.salaries");
+    addObject("all-tables", "TABLE", "main.hr.employees", "hr.employees");
     createShare("empty-tables");
     String bearer = createAndActivateRecipient("all-tables-partner");
     grant("all-tables", "all-tables-partner");
     grant("empty-tables", "all-tables-partner");
 
-    // Catalog children of a shared schema and included tables, by schema and then name.
+    // By schema and then name.
     String all = PROTOCOL + "/shares/all-tables/all-tables";
     Response list = server.get(PROTOCOL + "/shares/ALL-TABLES/all-tables", bearer);
     assertEquals(200, list.status());
