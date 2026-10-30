@@ -76,7 +76,6 @@
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>s3</artifactId>
       <version>${aws-sdk.version}</version>
-      <scope>runtime</scope>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
