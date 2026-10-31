@@ -76,6 +76,11 @@
     <junit.version>5.12.2</junit.version>
     <delta-kernel.version>4.0.0</delta-kernel.version>
     <hadoop.version>3.4.3</hadoop.version>
+    <!-- Spark e2e only. Spark 4.2 needs Netty 4.2 IoHandler; this JVM has Armeria's 4.1.126.
+         The connector artifact in opensharing-spark-e2e names Spark's minor version, so it
+         changes with spark.version. -->
+    <spark.version>4.0.1</spark.version>
+    <delta-sharing-spark.version>4.1.0</delta-sharing-spark.version>
     <aws-sdk.version>2.35.4</aws-sdk.version>
     <azure-storage-file-datalake.version>12.20.0</azure-storage-file-datalake.version>
     <google-auth.version>1.20.0</google-auth.version>
@@ -259,6 +264,14 @@
   </build>
 
   <profiles>
+    <!-- Spark + delta-sharing-spark are large; default verify does not download them. The
+         module is never installed or published. -->
+    <profile>
+      <id>spark-e2e</id>
+      <modules>
+        <module>opensharing-spark-e2e</module>
+      </modules>
+    </profile>
     <!-- Maven Central requires sources and javadoc jars and a GPG signature for every file. -->
     <profile>
       <id>release</id>
