@@ -191,7 +191,9 @@ public class ProtocolTables {
   /**
    * One snapshot of a table in the share that supports url access, as of the latest version,
    * {@code version}, or an ISO-8601 {@code timestamp} in {@code request}, with presigned file
-   * URLs, written to {@code sink}. Pushdown hints and startingVersion queries are not implemented.
+   * URLs, written to {@code sink}. A latest-snapshot query can ask for a refresh token, and a later
+   * query can pass it back to re-sign the same version. Pushdown hints and startingVersion queries
+   * are not implemented.
    */
   public void query(
       RecipientPrincipal recipient,
@@ -212,13 +214,25 @@ public class ProtocolTables {
     if (body.startingVersion() != null || body.endingVersion() != null) {
       throw ApiException.notImplemented("startingVersion queries are not supported");
     }
+    boolean historical = body.version() != null || body.timestamp() != null;
+    boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
+    if (includeRefreshToken && historical) {
+      throw ApiException.invalidParameter(
+          "includeRefreshToken cannot be used when querying a specific version.");
+    }
+    if (body.refreshToken() != null && historical) {
+      throw ApiException.invalidParameter(
+          "refreshToken cannot be used when querying a specific version.");
+    }
     queryReader.read(
         catalogTable,
         owner(share),
         options,
         sink,
         body.version(),
-        parseTimestamp("timestamp", body.timestamp()));
+        parseTimestamp("timestamp", body.timestamp()),
+        body.refreshToken(),
+        includeRefreshToken);
   }
 
   /**

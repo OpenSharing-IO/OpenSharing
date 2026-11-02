@@ -130,17 +130,25 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
    */
   private static String deltaTable(String name, int commits, boolean files) {
     for (int version = 0; version < commits; version++) {
-      String actions = version == 0 ? PROTOCOL_ACTION + METADATA_ACTION.formatted(name) : "";
-      String change = files ? ADD_ACTION.formatted(version) : COMMIT_INFO_ACTION;
-      Path commit = write(name + "/_delta_log/%020d.json".formatted(version), actions + change);
-      try {
-        Files.setLastModifiedTime(
-            commit, FileTime.from(COMMIT_TIME.plus(Duration.ofHours(version))));
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
+      writeCommit(name, version, files);
     }
     return location(name);
+  }
+
+  /** Appends commit {@code version}, with no data file, to the log of table {@code name}. */
+  protected static void appendCommit(String name, int version) {
+    writeCommit(name, version, false);
+  }
+
+  private static void writeCommit(String name, int version, boolean files) {
+    String actions = version == 0 ? PROTOCOL_ACTION + METADATA_ACTION.formatted(name) : "";
+    String change = files ? ADD_ACTION.formatted(version) : COMMIT_INFO_ACTION;
+    Path commit = write(name + "/_delta_log/%020d.json".formatted(version), actions + change);
+    try {
+      Files.setLastModifiedTime(commit, FileTime.from(COMMIT_TIME.plus(Duration.ofHours(version))));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   private static Path write(String relativePath, String content) {
