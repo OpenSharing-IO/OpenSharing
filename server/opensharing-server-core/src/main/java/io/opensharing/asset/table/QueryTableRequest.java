@@ -7,7 +7,7 @@ import java.util.List;
  * implemented.
  */
 public record QueryTableRequest(
-    List<String> predicateHints,
+    @Deprecated List<String> predicateHints,
     String jsonPredicateHints,
     Integer limitHint,
     Long version,

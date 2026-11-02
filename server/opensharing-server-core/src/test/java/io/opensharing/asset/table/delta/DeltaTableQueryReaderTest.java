@@ -2,6 +2,7 @@ package io.opensharing.asset.table.delta;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.delta.kernel.Table;
 import io.delta.kernel.defaults.engine.DefaultEngine;
@@ -25,11 +26,13 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -41,10 +44,39 @@ class DeltaTableQueryReaderTest {
 
   private static final String OUTSIDE = "the table references a file outside its storage location";
   private static final Pattern SIGNED = Pattern.compile("https://signed/[^\"]+");
+  private static final String SCHEMA =
+      "{\\\"type\\\":\\\"struct\\\",\\\"fields\\\":["
+          + "{\\\"name\\\":\\\"id\\\",\\\"type\\\":\\\"long\\\",\\\"nullable\\\":true,"
+          + "\\\"metadata\\\":{}},"
+          + "{\\\"name\\\":\\\"date\\\",\\\"type\\\":\\\"date\\\",\\\"nullable\\\":true,"
+          + "\\\"metadata\\\":{}}]}";
 
   @TempDir Path dir;
 
   private int tables;
+  private DeltaTableQueryReader reader;
+  private ResolvedAsset table;
+
+  @BeforeEach
+  void writeTable() throws IOException {
+    Path log = Files.createDirectories(dir.resolve("_delta_log"));
+    Files.writeString(
+        log.resolve("00000000000000000000.json"),
+        String.join(
+                "\n",
+                "{\"protocol\":{\"minReaderVersion\":1,\"minWriterVersion\":2}}",
+                "{\"metaData\":{\"id\":\"t\",\"format\":{\"provider\":\"parquet\",\"options\":{}},"
+                    + "\"schemaString\":\""
+                    + SCHEMA
+                    + "\",\"partitionColumns\":[\"date\"],\"configuration\":{},\"createdTime\":0}}",
+                add("a", "2021-01-01", 1, 10),
+                add("b", "2021-01-02", 11, 20),
+                add("c", "2021-01-02", 21, 30))
+            + "\n");
+
+    reader = reader(dir);
+    table = table(dir);
+  }
 
   @Test
   void signsOnlyFilesUnderTheTableRoot() throws IOException {
@@ -61,6 +93,53 @@ class DeltaTableQueryReaderTest {
   void signsOnlyDeletionVectorsUnderTheTableRoot() {
     String outside = dir.resolve("elsewhere/dv.bin").toUri().toString();
     assertOutside(() -> signedUrls("a.parquet", outside));
+  }
+
+  @Test
+  void jsonPredicateHintsPrunePartitionsAndSkipFilesByStats() {
+    assertEquals(List.of("a", "b", "c"), files(null, null));
+    // date = 2021-01-02 prunes the 2021-01-01 partition.
+    assertEquals(
+        List.of("b", "c"),
+        files(
+            "{\"op\":\"equal\",\"children\":[{\"op\":\"column\",\"name\":\"date\","
+                + "\"valueType\":\"date\"},{\"op\":\"literal\",\"value\":\"2021-01-02\","
+                + "\"valueType\":\"date\"}]}",
+            null));
+    // id > 25 skips files whose maxValues.id is at most 25.
+    assertEquals(
+        List.of("c"),
+        files(
+            "{\"op\":\"greaterThan\",\"children\":[{\"op\":\"column\",\"name\":\"id\","
+                + "\"valueType\":\"long\"},{\"op\":\"literal\",\"value\":\"25\","
+                + "\"valueType\":\"long\"}]}",
+            null));
+    // An unsupported hint returns every file.
+    assertEquals(List.of("a", "b", "c"), files("{\"op\":\"like\"}", null));
+  }
+
+  @Test
+  void limitHintStopsOnceFilesCoverTheLimit() {
+    // limitHint counts stats.numRecords, which file actions carry through.
+    assertTrue(ndjson(null, null).contains("\\\"numRecords\\\":10"));
+    assertEquals(0, files(null, 0L).size());
+    assertEquals(1, files(null, 10L).size());
+    assertEquals(2, files(null, 11L).size());
+    assertEquals(3, files(null, 1000L).size());
+  }
+
+  @Test
+  void limitHintCountsAFileWithADeletionVectorButNoStatsAsNoRecords() throws IOException {
+    // Commit 1 replaces file a with a copy that has a deletion vector of 4 rows and no stats.
+    Files.writeString(
+        dir.resolve("_delta_log/00000000000000000001.json"),
+        "{\"remove\":{\"path\":\"date=2021-01-01/a.parquet\",\"dataChange\":true}}\n"
+            + "{\"add\":{\"path\":\"date=2021-01-01/a.parquet\","
+            + "\"partitionValues\":{\"date\":\"2021-01-01\"},\"size\":1,"
+            + "\"modificationTime\":0,\"dataChange\":true,\"deletionVector\":{"
+            + "\"storageType\":\"i\",\"pathOrInlineDv\":\"wi5b=000010000siXQKl0rr91000f\","
+            + "\"sizeInBytes\":40,\"cardinality\":4}}}\n");
+    assertEquals(List.of("a", "b"), files(null, 10L));
   }
 
   private static void assertOutside(ThrowingQuery query) {
@@ -124,10 +203,52 @@ class DeltaTableQueryReaderTest {
             null,
             null,
             null,
-            false);
+            false,
+            null,
+            null);
     return urls;
   }
 
+  private String ndjson(String jsonPredicateHints, Long limitHint) {
+    StringBuilder ndjson = new StringBuilder();
+    reader.read(
+        table,
+        null,
+        new DeltaTableQueryReader.ResponseOptions(null, null, false),
+        new DeltaTableQueryReader.ResponseSink() {
+          @Override
+          public void begin(long version, ResponseFormat format) {}
+
+          @Override
+          public void line(String line) {
+            ndjson.append(line);
+          }
+        },
+        null,
+        null,
+        null,
+        false,
+        jsonPredicateHints,
+        limitHint);
+    return ndjson.toString();
+  }
+
+  private List<String> files(String jsonPredicateHints, Long limitHint) {
+    return Arrays.stream(ndjson(jsonPredicateHints, limitHint).split("\n"))
+        .filter(line -> line.startsWith("{\"file\""))
+        .map(line -> line.replaceAll(".*https://signed/(\\w)\\.parquet.*", "$1"))
+        .sorted()
+        .toList();
+  }
+
+  private static String add(String name, String date, long minId, long maxId) {
+    return ("{\"add\":{\"path\":\"date=%s/%s.parquet\",\"partitionValues\":{\"date\":\"%s\"},"
+            + "\"size\":1,\"modificationTime\":0,\"dataChange\":true,"
+            + "\"stats\":\"{\\\"numRecords\\\":10,"
+            + "\\\"minValues\\\":{\\\"id\\\":%d},\\\"maxValues\\\":{\\\"id\\\":%d},"
+            + "\\\"nullCount\\\":{\\\"id\\\":0}}\"}}")
+        .formatted(date, name, date, minId, maxId);
+  }
   private static DeltaTableQueryReader reader(Path root) {
     String location = root.toUri().toString();
     StorageCredentials credentials =

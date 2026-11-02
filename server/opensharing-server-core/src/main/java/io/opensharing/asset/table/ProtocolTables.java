@@ -192,8 +192,8 @@ public class ProtocolTables {
    * One snapshot of a table in the share that supports url access, as of the latest version,
    * {@code version}, or an ISO-8601 {@code timestamp} in {@code request}, with presigned file
    * URLs, written to {@code sink}. A latest-snapshot query can ask for a refresh token, and a later
-   * query can pass it back to re-sign the same version. Pushdown hints and startingVersion queries
-   * are not implemented.
+   * query can pass it back to re-sign the same version. jsonPredicateHints and limitHint narrow the
+   * files returned. startingVersion queries are not implemented.
    */
   public void query(
       RecipientPrincipal recipient,
@@ -224,6 +224,9 @@ public class ProtocolTables {
       throw ApiException.invalidParameter(
           "refreshToken cannot be used when querying a specific version.");
     }
+    if (body.predicateHints() != null && !body.predicateHints().isEmpty()) {
+      log.debug("Ignoring deprecated predicateHints {}", body.predicateHints());
+    }
     queryReader.read(
         catalogTable,
         owner(share),
@@ -232,7 +235,20 @@ public class ProtocolTables {
         body.version(),
         parseTimestamp("timestamp", body.timestamp()),
         body.refreshToken(),
-        includeRefreshToken);
+        includeRefreshToken,
+        body.jsonPredicateHints(),
+        limitHint(body));
+  }
+
+  /**
+   * The limit hint to push down. It counts unfiltered file records, so it is dropped when any
+   * predicate hint is present.
+   */
+  private static Long limitHint(QueryTableRequest body) {
+    boolean hasPredicate =
+        (body.predicateHints() != null && !body.predicateHints().isEmpty())
+            || (body.jsonPredicateHints() != null && !body.jsonPredicateHints().isBlank());
+    return hasPredicate || body.limitHint() == null ? null : body.limitHint().longValue();
   }
 
   /**
