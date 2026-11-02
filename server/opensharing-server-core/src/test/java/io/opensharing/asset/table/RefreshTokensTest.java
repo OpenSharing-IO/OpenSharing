@@ -28,6 +28,9 @@ class RefreshTokensTest {
     assertThrows(ApiException.class, () -> RefreshTokens.versionOf(expired, "orders-id"));
     String token = RefreshTokens.encode("orders-id", 1, Instant.now().plusSeconds(60));
     assertThrows(ApiException.class, () -> RefreshTokens.versionOf(token, "salaries-id"));
+    assertThrows(ApiException.class, () -> RefreshTokens.versionOf(token, null));
+    String withoutId = RefreshTokens.encode(null, 1, Instant.now().plusSeconds(60));
+    assertThrows(ApiException.class, () -> RefreshTokens.versionOf(withoutId, null));
     assertThrows(
         ApiException.class, () -> RefreshTokens.versionOf("not-a-token", "orders-id"));
   }

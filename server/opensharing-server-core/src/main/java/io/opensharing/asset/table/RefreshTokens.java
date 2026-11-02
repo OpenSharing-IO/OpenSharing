@@ -55,7 +55,8 @@ public final class RefreshTokens {
       throw ApiException.invalidParameter(
           "The refresh token has expired. Please restart the query.");
     }
-    if (!tableId.equals(decoded.tableId())) {
+    // Without a catalog id a token cannot be tied to one table, so none is accepted.
+    if (tableId == null || !tableId.equals(decoded.tableId())) {
       throw ApiException.invalidParameter(
           "The table specified in the refresh token does not match the table being queried.");
     }
