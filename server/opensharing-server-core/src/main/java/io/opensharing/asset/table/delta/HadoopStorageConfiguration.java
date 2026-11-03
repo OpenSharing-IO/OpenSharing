@@ -13,16 +13,21 @@ import org.apache.hadoop.conf.Configuration;
 /** Builds a Hadoop {@link Configuration} from catalog-vended storage credentials. */
 final class HadoopStorageConfiguration {
 
-  /** File URLs are signed only for abfs:// and abfss://, so WASB locations are not read. */
-  private static final Set<String> UNSUPPORTED_SCHEMES = Set.of("wasb", "wasbs");
+  /**
+   * Storage that tables are read from, a path with no scheme being a local file. Hadoop no longer
+   * reads s3n://, and Azure file URLs are signed only for abfs:// and abfss://, not WASB.
+   */
+  private static final Set<String> SUPPORTED_SCHEMES =
+      Set.of("s3", "s3a", "r2", "gs", "abfs", "abfss", "file");
 
   private HadoopStorageConfiguration() {}
 
   /** Rejects a location in storage this build does not read. */
   static void requireSupported(String location) {
     int separator = location.indexOf("://");
-    String scheme = separator < 0 ? "" : location.substring(0, separator).toLowerCase(Locale.ROOT);
-    if (UNSUPPORTED_SCHEMES.contains(scheme)) {
+    String scheme =
+        separator < 0 ? "file" : location.substring(0, separator).toLowerCase(Locale.ROOT);
+    if (!SUPPORTED_SCHEMES.contains(scheme)) {
       throw ApiException.notImplemented(
           "this build cannot read tables in '" + scheme + "' storage");
     }

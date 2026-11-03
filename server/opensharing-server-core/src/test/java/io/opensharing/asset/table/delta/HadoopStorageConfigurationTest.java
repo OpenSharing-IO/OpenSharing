@@ -1,14 +1,17 @@
 package io.opensharing.asset.table.delta;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.exception.CatalogException;
+import io.opensharing.http.ApiException;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -33,6 +36,31 @@ class HadoopStorageConfigurationTest {
     assertEquals("r2key", configuration.get("fs.s3a.access.key"));
     assertEquals("session", configuration.get("fs.s3a.session.token"));
     assertOpens("org.apache.hadoop.fs.s3a.S3AFileSystem", location, configuration);
+  }
+
+  @Test
+  void readsOnlySupportedStorage() {
+    for (String location :
+        List.of(
+            "s3://bucket/table",
+            "S3A://bucket/table",
+            "r2://bucket@account.r2.cloudflarestorage.com/table",
+            "gs://bucket/table",
+            "abfs://container@account.dfs.core.windows.net/table",
+            "abfss://container@account.dfs.core.windows.net/table",
+            "file:///tmp/table",
+            "/tmp/table")) {
+      assertDoesNotThrow(() -> HadoopStorageConfiguration.requireSupported(location), location);
+    }
+    for (String scheme : List.of("wasb", "wasbs", "s3n", "hdfs")) {
+      ApiException rejected =
+          assertThrows(
+              ApiException.class,
+              () -> HadoopStorageConfiguration.requireSupported(scheme + "://bucket/table"));
+      assertEquals(501, rejected.getStatus());
+      assertEquals(
+          "this build cannot read tables in '" + scheme + "' storage", rejected.getMessage());
+    }
   }
 
   @Test
