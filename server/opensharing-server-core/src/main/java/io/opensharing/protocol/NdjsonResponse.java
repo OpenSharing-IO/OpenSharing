@@ -92,7 +92,8 @@ final class NdjsonResponse implements ResponseSink {
     } else if (options.includeEndStreamAction()) {
       // ApiFailure logs catalog and unhandled failures, as it does for an error response.
       String message =
-          ApiFailure.of(failure instanceof Exception e ? e : new RuntimeException(failure))
+          ApiFailure.ofRecipientRequest(
+                  failure instanceof Exception e ? e : new RuntimeException(failure))
               .message();
       writer.tryWrite(HttpData.ofUtf8(TableActions.failedEndStreamAction(message)));
       writer.close();

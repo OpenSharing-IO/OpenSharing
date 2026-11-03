@@ -53,7 +53,7 @@ class ProviderTokenDecoratorTest {
     assertNull(response.headers().get("WWW-Authenticate"));
     JsonNode body = body(response);
     assertEquals(ErrorCodes.CATALOG_ERROR, body.get("errorCode").asText());
-    assertEquals("catalog unreachable", body.get("message").asText());
+    assertEquals("the catalog failed to serve the request", body.get("message").asText());
   }
 
   @Test

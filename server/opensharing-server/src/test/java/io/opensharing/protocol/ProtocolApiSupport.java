@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
 import io.opensharing.asset.SharedDataObjectEntity;
+import io.opensharing.share.ShareEntity;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -105,6 +106,25 @@ public abstract class ProtocolApiSupport {
   protected static void dropFromCatalog(String shareName, String fullName) {
     editSharedObject(
         shareName, fullName, sharedObject -> sharedObject.setFullName(fullName + "_dropped"));
+  }
+
+  /**
+   * Stands in for the catalog no longer letting the share's owner share its objects, by handing
+   * {@code shareName} to the catalog user {@code ownerId}.
+   */
+  protected static void handToOwner(String shareName, String ownerId) {
+    server
+        .server()
+        .transactions()
+        .inTransaction(
+            false,
+            em -> {
+              em.createQuery("select s from ShareEntity s where s.name = :name", ShareEntity.class)
+                  .setParameter("name", shareName)
+                  .getSingleResult()
+                  .setOwnerId(ownerId);
+              return null;
+            });
   }
 
   /** Applies {@code edit} to what {@code shareName} recorded about its object {@code fullName}. */
