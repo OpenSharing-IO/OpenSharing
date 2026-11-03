@@ -43,11 +43,13 @@ public class RecipientService {
       DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX").withZone(ZoneOffset.UTC);
 
   private final CatalogConnector catalog;
+  private final String serverId;
   private final RecipientStore recipients;
   private final SecureRandom random = new SecureRandom();
 
-  public RecipientService(CatalogConnector catalog, RecipientStore recipients) {
+  public RecipientService(CatalogConnector catalog, String serverId, RecipientStore recipients) {
     this.catalog = catalog;
+    this.serverId = serverId;
     this.recipients = recipients;
   }
 
@@ -59,7 +61,7 @@ public class RecipientService {
       UserContext user, CreateRecipientRequest request, String activationBaseUrl) {
     // The host has already authenticated the caller. A host that also checks CREATE_RECIPIENT at
     // its endpoint can make this a no-op.
-    catalog.authorize(AuthContext.of(user), Privilege.CREATE_RECIPIENT);
+    catalog.authorize(new AuthContext(serverId, user), Privilege.CREATE_RECIPIENT);
     if (request.authenticationType() == null) {
       throw ApiException.invalidParameter("authenticationType is required");
     }
@@ -93,7 +95,7 @@ public class RecipientService {
   public RecipientResponse get(UserContext user, String recipient, String activationBaseUrl) {
     RecipientEntity entity = recipients.getOrThrow(recipient);
     if (!Ownership.owns(user, entity.getOwnerId())) {
-      catalog.authorize(AuthContext.of(user), Privilege.USE_RECIPIENT);
+      catalog.authorize(new AuthContext(serverId, user), Privilege.USE_RECIPIENT);
     }
     return toResponse(entity, activationBaseUrl);
   }
@@ -166,7 +168,7 @@ public class RecipientService {
 
   private boolean holds(UserContext user, Privilege privilege) {
     try {
-      catalog.authorize(AuthContext.of(user), privilege);
+      catalog.authorize(new AuthContext(serverId, user), privilege);
       return true;
     } catch (CatalogAuthorizationException e) {
       return false;

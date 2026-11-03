@@ -32,7 +32,8 @@ class RecipientServiceTest {
             (proxy, method, args) -> {
               throw new UnsupportedOperationException();
             });
-    RecipientService recipients = new RecipientService(catalog, new RecipientStore(unused));
+    RecipientService recipients =
+        new RecipientService(catalog, null, new RecipientStore(unused));
     UserContext alice = UserContext.fromUserIdAndName("alice-id", "alice");
 
     assertThrows(

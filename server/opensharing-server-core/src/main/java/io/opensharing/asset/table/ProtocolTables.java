@@ -49,6 +49,7 @@ public class ProtocolTables {
   private static final Logger log = LoggerFactory.getLogger(ProtocolTables.class);
 
   private final CatalogConnector catalog;
+  private final String serverId;
   private final DeltaKernel kernel;
   private final DeltaTableMetadataReader metadataReader;
   private final DeltaTableQueryReader queryReader;
@@ -57,12 +58,14 @@ public class ProtocolTables {
 
   public ProtocolTables(
       CatalogConnector catalog,
+      String serverId,
       DeltaKernel kernel,
       DeltaTableMetadataReader metadataReader,
       DeltaTableQueryReader queryReader,
       ProtocolShares protocolShares,
       SharedDataObjectStore sharedObjects) {
     this.catalog = catalog;
+    this.serverId = serverId;
     this.kernel = kernel;
     this.metadataReader = metadataReader;
     this.queryReader = queryReader;
@@ -458,7 +461,7 @@ public class ProtocolTables {
   }
 
   /** The share's owner, whom every catalog call acts as. */
-  private static AuthContext owner(ShareEntity share) {
-    return AuthContext.of(UserContext.fromUserIdAndName(share.getOwnerId(), null));
+  private AuthContext owner(ShareEntity share) {
+    return new AuthContext(serverId, UserContext.fromUserIdAndName(share.getOwnerId(), null));
   }
 }

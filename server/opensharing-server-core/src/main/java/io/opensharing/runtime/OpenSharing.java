@@ -10,6 +10,7 @@ import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader;
 import io.opensharing.asset.table.signer.UrlSigners;
+import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientService;
@@ -36,21 +37,23 @@ public final class OpenSharing {
   private final ProtocolSchemas protocolSchemas;
   private final ProtocolTables protocolTables;
 
-  private OpenSharing(CatalogConnector catalog, Transactions tx) {
+  private OpenSharing(CatalogConnector catalog, String serverId, Transactions tx) {
     this.catalog = catalog;
     ShareStore shareStore = new ShareStore(tx);
     SharedDataObjectStore objectStore = new SharedDataObjectStore(tx);
     SharePermissionStore permissionStore = new SharePermissionStore(tx);
     RecipientStore recipientStore = new RecipientStore(tx);
     this.shares =
-        new ShareService(catalog, tx, shareStore, objectStore, permissionStore, recipientStore);
-    this.recipients = new RecipientService(catalog, recipientStore);
+        new ShareService(
+            catalog, serverId, tx, shareStore, objectStore, permissionStore, recipientStore);
+    this.recipients = new RecipientService(catalog, serverId, recipientStore);
     this.protocolShares = new ProtocolShares(shareStore, permissionStore);
     this.protocolSchemas = new ProtocolSchemas(protocolShares, objectStore);
     DeltaKernel kernel = new DeltaKernel(catalog);
     this.protocolTables =
         new ProtocolTables(
             catalog,
+            serverId,
             kernel,
             new DeltaTableMetadataReader(kernel),
             new DeltaTableQueryReader(kernel, new UrlSigners()),
@@ -102,6 +105,7 @@ public final class OpenSharing {
   public static final class Builder {
 
     private CatalogConnector catalog;
+    private String serverId;
     private Transactions transactions;
 
     private Builder() {}
@@ -109,6 +113,16 @@ public final class OpenSharing {
     /** The host's catalog integration (required). */
     public Builder catalog(CatalogConnector catalog) {
       this.catalog = catalog;
+      return this;
+    }
+
+    /**
+     * The identity OpenSharing names itself by in every catalog call, as {@link
+     * AuthContext#serverId}, for catalogs that trust it to act for the users it calls for. A host
+     * that runs OpenSharing inside its catalog leaves it unset.
+     */
+    public Builder serverId(String serverId) {
+      this.serverId = serverId;
       return this;
     }
 
@@ -129,7 +143,7 @@ public final class OpenSharing {
       if (transactions == null) {
         throw new IllegalStateException("OpenSharing requires Transactions from the host");
       }
-      return new OpenSharing(catalog, transactions);
+      return new OpenSharing(catalog, serverId, transactions);
     }
   }
 }
