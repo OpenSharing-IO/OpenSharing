@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
@@ -221,6 +222,47 @@ class DeltaTableQueryReaderTest {
   }
 
   @Test
+  void startingVersionChecksLaterProtocolsBeforeTheResponseBegins() throws IOException {
+    writeChanges();
+    // Parquet cannot carry the deletion vector protocol committed at version 3.
+    assertEquals(
+        "The table requires reader features that are only available in delta format",
+        rejectedBeforeBegin(
+                sink ->
+                    reader.readChanges(
+                        table,
+                        null,
+                        new DeltaTableQueryReader.ResponseOptions(null, null, false),
+                        sink,
+                        1L,
+                        null,
+                        false))
+            .getMessage());
+  }
+
+  @Test
+  void changeDataFeedChecksEveryVersionBeforeTheResponseBegins() throws IOException {
+    writeChangeDataFeed();
+    assertEquals(
+        "Error getting change data for range [0, 4] as change data was not recorded for version"
+            + " [4]",
+        rejectedBeforeBegin(
+                sink ->
+                    reader.readChangeDataFeed(
+                        table,
+                        null,
+                        new DeltaTableQueryReader.ResponseOptions(null, null, false),
+                        sink,
+                        0L,
+                        null,
+                        null,
+                        null,
+                        false,
+                        false))
+            .getMessage());
+  }
+
+  @Test
   void changeDataFeedPrefersCdcFilesAndSkipsNoOpMerges() throws IOException {
     writeChangeDataFeed();
     List<String> lines = changeDataFeed(0L, null, 3L, null, null, false);
@@ -363,6 +405,27 @@ class DeltaTableQueryReaderTest {
         endingVersion,
         historicalProtocol);
     return List.of(lines.ndjson.toString().split("\n"));
+  }
+
+  /** The rejection of {@code query}, which must come before the response begins. */
+  private static ApiException rejectedBeforeBegin(
+      Consumer<DeltaTableQueryReader.ResponseSink> query) {
+    List<String> written = new ArrayList<>();
+    DeltaTableQueryReader.ResponseSink sink =
+        new DeltaTableQueryReader.ResponseSink() {
+          @Override
+          public void begin(long version, ResponseFormat format) {
+            written.add("begin");
+          }
+
+          @Override
+          public void line(String line) {
+            written.add(line);
+          }
+        };
+    ApiException rejected = assertThrows(ApiException.class, () -> query.accept(sink));
+    assertEquals(List.of(), written);
+    return rejected;
   }
 
   /** "add d 1": action, file name, and version; metaData and protocol lines show their version. */

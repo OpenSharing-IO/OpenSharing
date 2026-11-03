@@ -96,6 +96,10 @@ public class DeltaTableQueryReader {
                   .add(
                       "operationMetrics",
                       new MapType(StringType.STRING, StringType.STRING, true)));
+  private static final StructType PROTOCOL_AND_METADATA_SCHEMA =
+      new StructType()
+          .add(DeltaAction.PROTOCOL.colName, DeltaAction.PROTOCOL.schema)
+          .add(DeltaAction.METADATA.colName, DeltaAction.METADATA.schema);
 
   private final DeltaKernel kernel;
   private final UrlSigners signers;
@@ -316,6 +320,7 @@ public class DeltaTableQueryReader {
                 + " to "
                 + range.end());
       }
+      requireReadable(session, out, range, commitFiles);
 
       // The protocol reports the starting version as the table version of a change response.
       out.begin(range.start());
@@ -333,10 +338,10 @@ public class DeltaTableQueryReader {
         for (FileStatus file : commitFiles) {
           if (range.changeDataFeed()) {
             Commit commit = new Commit(file);
-            readCommit(session, file, commit::add);
+            readCommit(session, file, CHANGE_SCHEMA, commit::add);
             write(out, range, commit);
           } else {
-            readCommit(session, file, new CommitWriter(out, range, file)::write);
+            readCommit(session, file, CHANGE_SCHEMA, new CommitWriter(out, range, file)::write);
           }
         }
       } catch (IOException e) {
@@ -350,18 +355,52 @@ public class DeltaTableQueryReader {
   }
 
   /**
+   * Checks every protocol and metaData in {@code commitFiles} before the response begins, as its
+   * status can't change after: a later protocol can need reader features the client did not
+   * declare, and the Change Data Feed must stay recorded through the range.
+   */
+  private static void requireReadable(
+      DeltaKernel.Session session,
+      ResponseWriter out,
+      ChangeRange range,
+      List<FileStatus> commitFiles) {
+    try {
+      for (FileStatus file : commitFiles) {
+        long version = FileNames.deltaVersion(file.getPath());
+        readCommit(
+            session,
+            file,
+            PROTOCOL_AND_METADATA_SCHEMA,
+            (row, columns) -> {
+              if (!row.isNullAt(columns.protocol())) {
+                out.requireReaderFeatures(Protocol.fromRow(row.getStruct(columns.protocol())));
+              } else if (range.changeDataFeed()
+                  && !row.isNullAt(columns.metadata())
+                  && !changeDataFeedEnabled(Metadata.fromRow(row.getStruct(columns.metadata())))) {
+                throw changeDataNotRecorded(version, range.start(), range.end());
+              }
+            });
+      }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  /**
    * Reads one commit file, which holds every action of its version, in log order. Kernel can split
    * a large file across several batches, each with its own schema ordinals.
    */
   private static void readCommit(
-      DeltaKernel.Session session, FileStatus file, BiConsumer<Row, ChangeColumns> action)
+      DeltaKernel.Session session,
+      FileStatus file,
+      StructType schema,
+      BiConsumer<Row, ChangeColumns> action)
       throws IOException {
     try (CloseableIterator<ColumnarBatch> batches =
         session
             .engine()
             .getJsonHandler()
-            .readJsonFiles(
-                Utils.singletonCloseableIterator(file), CHANGE_SCHEMA, Optional.empty())) {
+            .readJsonFiles(Utils.singletonCloseableIterator(file), schema, Optional.empty())) {
       while (batches.hasNext()) {
         ColumnarBatch batch = batches.next();
         ChangeColumns columns = ChangeColumns.of(batch.getSchema());
@@ -379,20 +418,14 @@ public class DeltaTableQueryReader {
     long version = commit.version;
     // The header already covers the starting version's protocol and metaData.
     boolean later = version > range.start();
-    if (commit.protocol != null) {
-      // A later protocol can need reader features the client did not declare.
-      out.requireReaderFeatures(commit.protocol);
-      if (range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA && later) {
-        out.protocol(commit.protocol, version);
-      }
+    if (commit.protocol != null
+        && range.includeHistoricalProtocol()
+        && out.format == ResponseFormat.DELTA
+        && later) {
+      out.protocol(commit.protocol, version);
     }
-    if (commit.metadata != null) {
-      if (!changeDataFeedEnabled(commit.metadata)) {
-        throw changeDataNotRecorded(version, range.start(), range.end());
-      }
-      if (range.includeHistoricalMetadata() && later) {
-        out.metadata(commit.metadata, version, null);
-      }
+    if (commit.metadata != null && range.includeHistoricalMetadata() && later) {
+      out.metadata(commit.metadata, version, null);
     }
     List<ChangeFile> files = commit.files;
     if (!commit.cdcFiles.isEmpty()) {
@@ -776,11 +809,8 @@ public class DeltaTableQueryReader {
     // Each line of a commit file holds exactly one action, so one column of the row is set.
     void write(Row row, ChangeColumns columns) {
       if (!row.isNullAt(columns.protocol())) {
-        Protocol protocol = Protocol.fromRow(row.getStruct(columns.protocol()));
-        // A later protocol can need reader features the client did not declare.
-        out.requireReaderFeatures(protocol);
         if (range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA && later) {
-          out.protocol(protocol, version);
+          out.protocol(Protocol.fromRow(row.getStruct(columns.protocol())), version);
         }
       } else if (!row.isNullAt(columns.metadata())) {
         if (later) {
