@@ -182,6 +182,31 @@ class DeltaTableQueryReaderTest {
   }
 
   @Test
+  void startingVersionResolvesLogPathsUnderARootWithASpace() throws IOException {
+    Path root = dir.resolve("with space");
+    Files.createDirectories(root.resolve("_delta_log"));
+    Files.copy(
+        dir.resolve("_delta_log/00000000000000000000.json"),
+        root.resolve("_delta_log/00000000000000000000.json"));
+    Files.writeString(
+        root.resolve("_delta_log/00000000000000000001.json"),
+        add("d", "2021-01-03", 31, 40) + "\n");
+    Lines lines = new Lines();
+    // A catalog location reaches Kernel unchanged, so it is a decoded path here too.
+    reader(root, "file:" + root)
+        .readChanges(
+            table(root),
+            null,
+            new DeltaTableQueryReader.ResponseOptions(null, null, false),
+            lines,
+            1L,
+            null,
+            false);
+    List<String> ndjson = List.of(lines.ndjson.toString().split("\n"));
+    assertEquals(List.of("add d 1"), describe(ndjson.subList(2, ndjson.size())));
+  }
+
+  @Test
   void rejectsVersionsAfterTheLatestVersion() throws IOException {
     writeChanges();
     assertThrows(ApiException.class, () -> changes(5L, null, null, false));
@@ -373,7 +398,10 @@ class DeltaTableQueryReaderTest {
   }
 
   private static DeltaTableQueryReader reader(Path root) {
-    String location = root.toUri().toString();
+    return reader(root, root.toUri().toString());
+  }
+
+  private static DeltaTableQueryReader reader(Path root, String location) {
     StorageCredentials credentials =
         new StorageCredentials(location, CloudProvider.AWS, Map.of(), Instant.MAX);
     DeltaKernel kernel =

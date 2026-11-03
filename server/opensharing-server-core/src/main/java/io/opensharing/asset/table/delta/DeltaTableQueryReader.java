@@ -531,13 +531,13 @@ public class DeltaTableQueryReader {
       return new Path(HadoopStorageConfiguration.kernelPath(location)).toString();
     }
 
-    // Log paths are URI-encoded and usually relative to the table root; resolving an absolute
-    // path against the root keeps it unchanged.
+    // Log paths are URI-encoded and usually relative to the table root, while Kernel's table path
+    // is a decoded Hadoop path. Resolving an absolute log path against the root keeps it unchanged.
     private String absolutePath(String path) {
       if (tableRoot == null) {
         tableRoot = session.table().getPath(session.engine());
       }
-      return new Path(new Path(URI.create(tableRoot)), new Path(URI.create(path))).toString();
+      return new Path(new Path(tableRoot), new Path(URI.create(path))).toString();
     }
   }
 
