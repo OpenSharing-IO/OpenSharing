@@ -49,7 +49,10 @@ final class JsonPredicateHints {
   /** Largest hint accepted, in characters; larger hints are ignored rather than parsed. */
   static final int MAX_SIZE = 1024 * 1024;
 
-  /** Deepest Kernel predicate accepted, bounding the recursion in {@link #convert} and Kernel. */
+  /**
+   * Deepest Kernel predicate accepted, as {@link #depth} counts it. Kernel recurses once per level
+   * while it skips files, so a deeper hint is ignored rather than allowed to overflow the stack.
+   */
   static final int MAX_DEPTH = 100;
 
   private static final ObjectMapper JSON = new ObjectMapper();
@@ -102,9 +105,11 @@ final class JsonPredicateHints {
   }
 
   /**
-   * Kernel's And and Or are binary, and Kernel recurses through them, so {@code operands} are
-   * paired into a tree only as deep as the log of their number. The left half takes the extra
-   * operand, so three of them nest as {@code (a AND b) AND c}.
+   * Joins {@code operands} with Kernel's And or Or, which take exactly two operands. Chaining them,
+   * as in {@code ((a OR b) OR c) OR d}, nests one level per operand, so an {@code or} of a few
+   * thousand comparisons would overflow the stack when Kernel recurses through it. Splitting them
+   * in halves instead, as in {@code (a OR b) OR (c OR d)}, nests only ceil(log2 n) levels: 5,000
+   * operands take 13. The left half takes the odd operand, so three nest as {@code (a OR b) OR c}.
    */
   private static Predicate balanced(String op, List<Predicate> operands, int from, int to) {
     if (to - from == 1) {
@@ -241,9 +246,10 @@ final class JsonPredicateHints {
   }
 
   /**
-   * Depth of the Kernel predicate the op tree becomes, counting a leaf as 1 and a node of n
-   * children as the ceil(log2 n) levels {@link #balanced} nests them in; checked before {@link
-   * #convert} recurses.
+   * Depth of the Kernel predicate {@code node} becomes, counting a leaf as 1. It differs from the
+   * depth of the JSON: an {@code and} or {@code or} with n children is one level of JSON, but
+   * {@link #balanced} nests its children in ceil(log2 n) levels. Checked before {@link #convert}
+   * recurses.
    */
   private static int depth(JsonNode node) {
     JsonNode children = node.get("children");
@@ -255,6 +261,7 @@ final class JsonPredicateHints {
       deepest = Math.max(deepest, depth(child));
     }
     int count = children.size();
+    // For count >= 2, the bit length of count - 1 is ceil(log2 count).
     return deepest + (count == 1 ? 1 : Integer.SIZE - Integer.numberOfLeadingZeros(count - 1));
   }
 }
