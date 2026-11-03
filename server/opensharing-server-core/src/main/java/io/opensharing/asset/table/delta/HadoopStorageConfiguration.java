@@ -91,8 +91,7 @@ final class HadoopStorageConfiguration {
   }
 
   /**
-   * S3 settings at the R2 account's endpoint, the host its r2:// location names. S3A reserves the
-   * region name auto, so R2's alias for it, us-east-1, is set instead.
+   * S3 settings at the R2 account's endpoint, the host its r2:// location names, in region auto.
    */
   private static void configureR2(
       Configuration configuration, StorageCredentials credentials, String location) {
@@ -102,7 +101,7 @@ final class HadoopStorageConfiguration {
     }
     configureS3(configuration, credentials);
     configuration.set("fs.s3a.endpoint", "https://" + StorageLocations.r2Object(location).host());
-    configuration.set("fs.s3a.endpoint.region", "us-east-1");
+    configuration.set("fs.s3a.endpoint.region", "auto");
     configuration.set("fs.s3a.path.style.access", "true");
   }
 

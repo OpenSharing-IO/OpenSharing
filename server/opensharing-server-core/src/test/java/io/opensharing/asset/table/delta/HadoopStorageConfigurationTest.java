@@ -31,7 +31,7 @@ class HadoopStorageConfigurationTest {
         "s3a://bucket/",
         HadoopStorageConfiguration.kernelPath("r2://bucket@account.r2.cloudflarestorage.com"));
     assertEquals("https://account.r2.cloudflarestorage.com", configuration.get("fs.s3a.endpoint"));
-    assertEquals("us-east-1", configuration.get("fs.s3a.endpoint.region"));
+    assertEquals("auto", configuration.get("fs.s3a.endpoint.region"));
     assertEquals("true", configuration.get("fs.s3a.path.style.access"));
     assertEquals("r2key", configuration.get("fs.s3a.access.key"));
     assertEquals("session", configuration.get("fs.s3a.session.token"));
