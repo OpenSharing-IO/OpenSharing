@@ -379,19 +379,19 @@ public class DeltaTableQueryReader {
     long version = commit.version;
     // The header already covers the starting version's protocol and metaData.
     boolean later = version > range.start();
-    for (Protocol protocol : commit.protocols) {
+    if (commit.protocol != null) {
       // A later protocol can need reader features the client did not declare.
-      out.requireReaderFeatures(protocol);
+      out.requireReaderFeatures(commit.protocol);
       if (range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA && later) {
-        out.protocol(protocol, version);
+        out.protocol(commit.protocol, version);
       }
     }
-    for (Metadata metadata : commit.metadata) {
-      if (!changeDataFeedEnabled(metadata)) {
+    if (commit.metadata != null) {
+      if (!changeDataFeedEnabled(commit.metadata)) {
         throw changeDataNotRecorded(version, range.start(), range.end());
       }
       if (range.includeHistoricalMetadata() && later) {
-        out.metadata(metadata, version, null);
+        out.metadata(commit.metadata, version, null);
       }
     }
     List<ChangeFile> files = commit.files;
@@ -809,8 +809,9 @@ public class DeltaTableQueryReader {
   private static final class Commit {
     final long version;
     long timestamp;
-    final List<Protocol> protocols = new ArrayList<>();
-    final List<Metadata> metadata = new ArrayList<>();
+    // A version has at most one protocol and one metaData.
+    Protocol protocol;
+    Metadata metadata;
     final List<ChangeFile> files = new ArrayList<>();
     final List<ChangeFile> cdcFiles = new ArrayList<>();
     Row commitInfo;
@@ -824,9 +825,9 @@ public class DeltaTableQueryReader {
     // Each line of a commit file holds exactly one action, so one column of the row is set.
     void add(Row row, ChangeColumns columns) {
       if (!row.isNullAt(columns.protocol())) {
-        protocols.add(Protocol.fromRow(row.getStruct(columns.protocol())));
+        protocol = Protocol.fromRow(row.getStruct(columns.protocol()));
       } else if (!row.isNullAt(columns.metadata())) {
-        metadata.add(Metadata.fromRow(row.getStruct(columns.metadata())));
+        metadata = Metadata.fromRow(row.getStruct(columns.metadata()));
       } else if (!row.isNullAt(columns.add())) {
         files.add(ChangeFile.of(ChangeType.ADD, row.getStruct(columns.add())));
       } else if (!row.isNullAt(columns.remove())) {
