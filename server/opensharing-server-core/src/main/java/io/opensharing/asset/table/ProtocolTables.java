@@ -193,7 +193,8 @@ public class ProtocolTables {
    * {@code version}, or an ISO-8601 {@code timestamp} in {@code request}, with presigned file
    * URLs, written to {@code sink}. A latest-snapshot query can ask for a refresh token, and a later
    * query can pass it back to re-sign the same version. jsonPredicateHints and limitHint narrow the
-   * files returned. startingVersion queries are not implemented.
+   * files returned. {@code startingVersion}, with an optional {@code endingVersion}, returns the
+   * data change files committed in that range instead.
    */
   public void query(
       RecipientPrincipal recipient,
@@ -212,7 +213,8 @@ public class ProtocolTables {
     }
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     if (body.startingVersion() != null || body.endingVersion() != null) {
-      throw ApiException.notImplemented("startingVersion queries are not supported");
+      queryChanges(body, catalogTable, share, options, sink);
+      return;
     }
     boolean historical = body.version() != null || body.timestamp() != null;
     boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
@@ -238,6 +240,46 @@ public class ProtocolTables {
         includeRefreshToken,
         body.jsonPredicateHints(),
         limitHint(body));
+  }
+
+  /**
+   * Reads the data change files from {@code startingVersion} into {@code sink}. Predicate and limit
+   * hints apply to snapshot files only, so they are ignored here.
+   */
+  private void queryChanges(
+      QueryTableRequest body,
+      ResolvedAsset table,
+      ShareEntity share,
+      DeltaTableQueryReader.ResponseOptions options,
+      DeltaTableQueryReader.ResponseSink sink) {
+    Long startingVersion = body.startingVersion();
+    Long endingVersion = body.endingVersion();
+    if (startingVersion == null) {
+      throw ApiException.invalidParameter("endingVersion requires startingVersion");
+    }
+    if (body.version() != null || body.timestamp() != null) {
+      throw ApiException.invalidParameter(
+          "Only one of version, timestamp, and startingVersion can be set");
+    }
+    if (Boolean.TRUE.equals(body.includeRefreshToken()) || body.refreshToken() != null) {
+      throw ApiException.invalidParameter(
+          "includeRefreshToken and refreshToken cannot be used with startingVersion");
+    }
+    if (startingVersion < 0) {
+      throw ApiException.invalidParameter("startingVersion must be non-negative");
+    }
+    if (endingVersion != null && endingVersion < startingVersion) {
+      throw ApiException.invalidParameter(
+          "endingVersion must be greater than or equal to startingVersion");
+    }
+    queryReader.readChanges(
+        table,
+        owner(share),
+        options,
+        sink,
+        startingVersion,
+        endingVersion,
+        Boolean.TRUE.equals(body.includeHistoricalProtocol()));
   }
 
   /**
