@@ -1,5 +1,6 @@
 package io.opensharing.asset.table.delta;
 
+import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.exception.CatalogException;
 import java.net.URI;
@@ -18,16 +19,30 @@ final class HadoopStorageConfiguration {
   static Configuration from(StorageCredentials credentials, String location) {
     Configuration configuration = new Configuration();
     switch (credentials.provider()) {
-      case AWS, R2 -> configureS3(configuration, credentials);
+      case AWS -> configureS3(configuration, credentials);
+      case R2 -> configureR2(configuration, credentials, location);
       case AZURE -> configureAzure(configuration, credentials, location);
       case GCP -> configureGcs(configuration, credentials);
     }
     return configuration;
   }
 
-  /** Hadoop's S3 connector is s3a://; catalogs typically return s3://. */
+  /**
+   * Hadoop's S3 connector is s3a://, which catalogs typically return as s3://, and it reads R2
+   * buckets too. Hadoop reads WASB locations through ABFS.
+   */
   static String kernelPath(String location) {
-    return location.startsWith("s3://") ? "s3a://" + location.substring(5) : location;
+    if (location.startsWith("s3://")) {
+      return "s3a://" + location.substring(5);
+    }
+    if (location.startsWith("r2://")) {
+      StorageLocations.R2Object r2 = StorageLocations.r2Object(location);
+      return "s3a://" + r2.bucket() + "/" + r2.key();
+    }
+    if (location.startsWith("wasb://") || location.startsWith("wasbs://")) {
+      return "abfss://" + location.substring(location.indexOf("://") + 3);
+    }
+    return location;
   }
 
   /**
@@ -51,7 +66,26 @@ final class HadoopStorageConfiguration {
     }
   }
 
-  /** The catalog's SAS token for every request to the storage account. */
+  /**
+   * S3 settings at the R2 account's endpoint, the host its r2:// location names. S3A reserves the
+   * region name auto, so R2's alias for it, us-east-1, is set instead.
+   */
+  private static void configureR2(
+      Configuration configuration, StorageCredentials credentials, String location) {
+    if (!location.startsWith("r2://")) {
+      throw new CatalogException(
+          "the catalog returned R2 credentials for a table location that is not r2://");
+    }
+    configureS3(configuration, credentials);
+    configuration.set("fs.s3a.endpoint", "https://" + StorageLocations.r2Object(location).host());
+    configuration.set("fs.s3a.endpoint.region", "us-east-1");
+    configuration.set("fs.s3a.path.style.access", "true");
+  }
+
+  /**
+   * The catalog's SAS token for every request to the storage account. ABFS reads a blob host, which
+   * WASB locations name, only for an account declared to have no hierarchical namespace.
+   */
   private static void configureAzure(
       Configuration configuration, StorageCredentials credentials, String location) {
     String host = URI.create(location).getHost();
@@ -61,6 +95,9 @@ final class HadoopStorageConfiguration {
     configuration.set("fs.azure.account.auth.type." + host, "SAS");
     configuration.set(
         "fs.azure.sas.fixed.token." + host, credentials.require(StorageCredentials.SAS_TOKEN));
+    if (host.contains(".blob.")) {
+      configuration.set("fs.azure.account.hns.enabled." + host, "false");
+    }
   }
 
   /**

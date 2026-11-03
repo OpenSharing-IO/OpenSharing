@@ -15,7 +15,7 @@ public class UrlSigners {
 
   private final Map<String, UrlSigner> byScheme = new HashMap<>();
 
-  /** Signs S3, Azure, and GCS paths. */
+  /** Signs S3, R2, Azure, and GCS paths. */
   public UrlSigners() {
     this(List.of(new S3UrlSigner(), new AzureSasUrlSigner(), new GcsUrlSigner()));
   }

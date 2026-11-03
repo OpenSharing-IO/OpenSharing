@@ -47,6 +47,25 @@ public final class StorageLocations {
         rest.substring(0, at), rest.substring(at + 1, slash), rest.substring(slash + 1));
   }
 
+  /**
+   * An R2 path, {@code r2://bucket@account.r2.cloudflarestorage.com/key}, whose host is the
+   * account's S3 endpoint. The key is empty at the bucket root.
+   */
+  public static R2Object r2Object(String path) {
+    String rest = afterScheme(path);
+    int slash = rest.indexOf('/');
+    String authority = slash < 0 ? rest : rest.substring(0, slash);
+    int at = authority.indexOf('@');
+    if (at <= 0 || at == authority.length() - 1) {
+      throw new IllegalStateException(
+          "'" + path + "' is not an R2 path of the form r2://bucket@account.host/key");
+    }
+    return new R2Object(
+        authority.substring(0, at),
+        authority.substring(at + 1),
+        slash < 0 ? "" : rest.substring(slash + 1));
+  }
+
   public static String encodePath(String key) {
     StringBuilder path = new StringBuilder();
     for (String segment : key.split("/", -1)) {
@@ -87,4 +106,6 @@ public final class StorageLocations {
   }
 
   public record AzureBlob(String container, String host, String blob) {}
+
+  public record R2Object(String bucket, String host, String key) {}
 }
