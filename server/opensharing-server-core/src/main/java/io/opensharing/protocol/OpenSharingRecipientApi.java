@@ -30,7 +30,7 @@ public final class OpenSharingRecipientApi {
       String protocolBasePath,
       String activationBasePath,
       OpenSharing openSharing) {
-    ApiExceptionHandler errors = new ApiExceptionHandler();
+    ApiExceptionHandler errors = ApiExceptionHandler.forRecipients();
     RecipientTokenDecorator tokens = new RecipientTokenDecorator(openSharing.recipients());
     protocol(builder, protocolBasePath, errors, tokens)
         .build(

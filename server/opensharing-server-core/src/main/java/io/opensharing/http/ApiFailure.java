@@ -36,10 +36,7 @@ public record ApiFailure(int status, String errorCode, String message) {
           new ApiFailure(401, ErrorCodes.UNAUTHENTICATED, rejected.getMessage());
       case CatalogAuthorizationException refused ->
           new ApiFailure(403, ErrorCodes.PERMISSION_DENIED, refused.getMessage());
-      case CatalogException failed -> {
-        log.error("Catalog request failed", failed);
-        yield new ApiFailure(502, ErrorCodes.CATALOG_ERROR, failed.getMessage());
-      }
+      case CatalogException failed -> catalogFailure(failed);
       case JsonProcessingException unreadable -> describe(unreadable);
       case IllegalArgumentException illegal ->
           new ApiFailure(400, ErrorCodes.INVALID_PARAMETER_VALUE, illegal.getMessage());
@@ -55,6 +52,22 @@ public record ApiFailure(int status, String errorCode, String message) {
         yield new ApiFailure(500, ErrorCodes.INTERNAL_ERROR, "internal server error");
       }
     };
+  }
+
+  /**
+   * Maps a failure of a recipient's request. The server calls the catalog as the share's owner on
+   * the recipient's behalf, so what the catalog reports, such as who the owner is, stays in the
+   * log.
+   */
+  public static ApiFailure ofRecipientRequest(Exception e) {
+    return e instanceof CatalogException failed ? catalogFailure(failed) : of(e);
+  }
+
+  // A catalog's message can name its configuration, such as an environment variable, so it stays
+  // in the log.
+  private static ApiFailure catalogFailure(CatalogException failed) {
+    log.error("Catalog request failed", failed);
+    return new ApiFailure(502, ErrorCodes.CATALOG_ERROR, "the catalog failed to serve the request");
   }
 
   /** An unknown enum value is a bad parameter, not a malformed body. */

@@ -22,13 +22,18 @@ import java.util.Map;
     uniqueConstraints = @UniqueConstraint(name = "uk_shares_name", columnNames = "name"))
 public class ShareEntity extends BaseEntity {
 
+  static final int MAX_DISPLAY_NAME_LENGTH = 255;
+  static final int MAX_COMMENT_LENGTH = 8192;
+  static final int MAX_PROPERTY_KEY_LENGTH = 255;
+  static final int MAX_PROPERTY_VALUE_LENGTH = 1000;
+
   @Column(nullable = false, length = 255)
   private String name;
 
-  @Column(name = "display_name", length = 255)
+  @Column(name = "display_name", length = MAX_DISPLAY_NAME_LENGTH)
   private String displayName;
 
-  @Column(length = 8192)
+  @Column(length = MAX_COMMENT_LENGTH)
   private String comment;
 
   /**
@@ -50,8 +55,8 @@ public class ShareEntity extends BaseEntity {
           @UniqueConstraint(
               name = "uk_share_properties",
               columnNames = {"share_id", "property_key"}))
-  @MapKeyColumn(name = "property_key", length = 255)
-  @Column(name = "property_value", length = 1000)
+  @MapKeyColumn(name = "property_key", length = MAX_PROPERTY_KEY_LENGTH)
+  @Column(name = "property_value", length = MAX_PROPERTY_VALUE_LENGTH)
   private Map<String, String> properties = new LinkedHashMap<>();
 
   public String getName() {

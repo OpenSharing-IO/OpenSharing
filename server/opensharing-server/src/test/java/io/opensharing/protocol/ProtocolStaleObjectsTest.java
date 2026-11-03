@@ -57,6 +57,22 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
         "table 'sales.customers' does not exist in share 'stale-tables'");
   }
 
+  @Test
+  void reportsTablesTheOwnerMayNoLongerShareAsMissing() {
+    createShare("revoked-tables");
+    addObject("revoked-tables", "TABLE", "main.finance.ledger", "finance.ledger");
+    String recipientToken = createAndActivateRecipient("revoked-tables-partner");
+    grant("revoked-tables", "revoked-tables-partner");
+    String ledgerPath = PROTOCOL + "/shares/revoked-tables/schemas/finance/tables/ledger";
+    assertEquals(200, server.get(ledgerPath, recipientToken).status());
+
+    handToOwner("revoked-tables", "catalog-bob-id");
+    // The catalog refuses the new owner, which recipients see as the table missing, by alias.
+    String missing = "table 'finance.ledger' does not exist in share 'revoked-tables'";
+    assertNotFound(server.get(ledgerPath, recipientToken), missing);
+    assertNotFound(server.post(ledgerPath + "/query", recipientToken, "{}"), missing);
+  }
+
   /** A hidden table gets the protocol's not-found error, by its alias. */
   private static void assertNotFound(Response response, String message) {
     assertEquals(404, response.status());
