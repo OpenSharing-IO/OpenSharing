@@ -49,7 +49,7 @@ final class JsonPredicateHints {
   /** Largest hint accepted, in characters; larger hints are ignored rather than parsed. */
   static final int MAX_SIZE = 1024 * 1024;
 
-  /** Deepest op tree accepted, which also bounds the recursion in {@link #convert}. */
+  /** Deepest Kernel predicate accepted, bounding the recursion in {@link #convert} and Kernel. */
   static final int MAX_DEPTH = 100;
 
   private static final ObjectMapper JSON = new ObjectMapper();
@@ -73,7 +73,6 @@ final class JsonPredicateHints {
       }
       return Optional.of(asPredicate(convert(root, schema), schema));
     } catch (Exception unsupported) {
-      // Bad JSON, unknown ops or types, schema mismatches and unparsable literals all land here.
       return Optional.empty();
     }
   }
@@ -92,17 +91,29 @@ final class JsonPredicateHints {
       case "greaterThan" -> comparison(">", node, schema);
       case "greaterThanOrEqual" -> comparison(">=", node, schema);
       case "and", "or" -> {
-        // Kernel's And and Or are binary, so fold two or more children from the left.
-        List<JsonNode> children = children(node, -1);
-        Predicate result = asPredicate(convert(children.get(0), schema), schema);
-        for (JsonNode child : children.subList(1, children.size())) {
-          Predicate next = asPredicate(convert(child, schema), schema);
-          result = op.equals("and") ? new And(result, next) : new Or(result, next);
+        List<Predicate> operands = new ArrayList<>();
+        for (JsonNode child : children(node, -1)) {
+          operands.add(asPredicate(convert(child, schema), schema));
         }
-        yield result;
+        yield balanced(op, operands, 0, operands.size());
       }
       default -> throw new IllegalArgumentException("unsupported op " + op);
     };
+  }
+
+  /**
+   * Kernel's And and Or are binary, and Kernel recurses through them, so {@code operands} are
+   * paired into a tree only as deep as the log of their number. The left half takes the extra
+   * operand, so three of them nest as {@code (a AND b) AND c}.
+   */
+  private static Predicate balanced(String op, List<Predicate> operands, int from, int to) {
+    if (to - from == 1) {
+      return operands.get(from);
+    }
+    int middle = from + (to - from + 1) / 2;
+    Predicate left = balanced(op, operands, from, middle);
+    Predicate right = balanced(op, operands, middle, to);
+    return op.equals("and") ? new And(left, right) : new Or(left, right);
   }
 
   /** A binary comparison. Both sides must declare the same valueType; nothing is coerced. */
@@ -229,15 +240,21 @@ final class JsonPredicateHints {
     return value.asText();
   }
 
-  /** Depth of the op tree, counting a leaf as 1; checked before {@link #convert} recurses. */
+  /**
+   * Depth of the Kernel predicate the op tree becomes, counting a leaf as 1 and a node of n
+   * children as the ceil(log2 n) levels {@link #balanced} nests them in; checked before {@link
+   * #convert} recurses.
+   */
   private static int depth(JsonNode node) {
-    int deepest = 0;
     JsonNode children = node.get("children");
-    if (children != null) {
-      for (JsonNode child : children) {
-        deepest = Math.max(deepest, depth(child));
-      }
+    if (children == null || children.isEmpty()) {
+      return 1;
     }
-    return deepest + 1;
+    int deepest = 0;
+    for (JsonNode child : children) {
+      deepest = Math.max(deepest, depth(child));
+    }
+    int count = children.size();
+    return deepest + (count == 1 ? 1 : Integer.SIZE - Integer.numberOfLeadingZeros(count - 1));
   }
 }

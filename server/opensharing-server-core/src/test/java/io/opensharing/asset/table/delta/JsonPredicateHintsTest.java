@@ -3,6 +3,7 @@ package io.opensharing.asset.table.delta;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.delta.kernel.expressions.Expression;
 import io.delta.kernel.expressions.Predicate;
 import io.delta.kernel.types.BooleanType;
 import io.delta.kernel.types.DateType;
@@ -13,6 +14,7 @@ import io.delta.kernel.types.LongType;
 import io.delta.kernel.types.StringType;
 import io.delta.kernel.types.StructType;
 import io.delta.kernel.types.TimestampType;
+import java.util.Arrays;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -90,6 +92,36 @@ class JsonPredicateHintsTest {
             op("equal", ID, literal("1", "long")),
             op("equal", ID, literal("2", "long")),
             op("equal", ID, literal("3", "long"))));
+  }
+
+  @Test
+  void pairsManyChildrenIntoABalancedTree() {
+    assertConverts(
+        "(((column(`id`) = 1) OR (column(`id`) = 2))"
+            + " OR ((column(`id`) = 3) OR (column(`id`) = 4)))",
+        op(
+            "or",
+            op("equal", ID, literal("1", "long")),
+            op("equal", ID, literal("2", "long")),
+            op("equal", ID, literal("3", "long")),
+            op("equal", ID, literal("4", "long"))));
+
+    // 5,000 comparisons nest under ceil(log2 5000) = 13 levels of Or, not 4,999.
+    String[] equalities = new String[5_000];
+    for (int i = 0; i < equalities.length; i++) {
+      equalities[i] = op("equal", ID, literal(Integer.toString(i), "long"));
+    }
+    Optional<Predicate> wide = JsonPredicateHints.toPredicate(op("or", equalities), SCHEMA);
+    assertTrue(wide.isPresent());
+    assertEquals(15, depth(wide.get()));
+  }
+
+  @Test
+  void countsTheLevelsManyChildrenNestInTowardTheDepthLimit() {
+    // 512 children nest in 9 levels, so 90 nots around them reach the limit of 100 exactly.
+    assertTrue(JsonPredicateHints.toPredicate(nots(90, wideAnd(512)), SCHEMA).isPresent());
+    // 513 children need a tenth level.
+    assertSkipped(nots(90, wideAnd(513)));
   }
 
   @Test
@@ -185,6 +217,29 @@ class JsonPredicateHintsTest {
 
   private static String op(String op, String... children) {
     return "{\"op\":\"" + op + "\",\"children\":[" + String.join(",", children) + "]}";
+  }
+
+  private static String wideAnd(int children) {
+    String[] literals = new String[children];
+    Arrays.fill(literals, literal("true", "bool"));
+    return op("and", literals);
+  }
+
+  private static String nots(int count, String child) {
+    String result = child;
+    for (int i = 0; i < count; i++) {
+      result = op("not", result);
+    }
+    return result;
+  }
+
+  /** The depth of {@code expression}, counting a leaf as 1. */
+  private static int depth(Expression expression) {
+    int deepest = 0;
+    for (Expression child : expression.getChildren()) {
+      deepest = Math.max(deepest, depth(child));
+    }
+    return deepest + 1;
   }
 
   private static void assertConverts(String expected, String json) {

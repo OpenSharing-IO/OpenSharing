@@ -124,6 +124,21 @@ class DeltaTableQueryReaderTest {
   }
 
   @Test
+  void jsonPredicateHintsWithThousandsOfChildrenStillSkipFiles() {
+    // id = 1000 or ... or id = 5999 matches none of the files, whose ids run from 1 to 30.
+    StringBuilder equalities = new StringBuilder();
+    for (int id = 1_000; id < 6_000; id++) {
+      equalities
+          .append(equalities.isEmpty() ? "" : ",")
+          .append("{\"op\":\"equal\",\"children\":[{\"op\":\"column\",\"name\":\"id\",")
+          .append("\"valueType\":\"long\"},{\"op\":\"literal\",\"value\":\"")
+          .append(id)
+          .append("\",\"valueType\":\"long\"}]}");
+    }
+    assertEquals(List.of(), files("{\"op\":\"or\",\"children\":[" + equalities + "]}", null));
+  }
+
+  @Test
   void limitHintStopsOnceFilesCoverTheLimit() {
     // limitHint counts stats.numRecords, which file actions carry through.
     assertTrue(ndjson(null, null).contains("\\\"numRecords\\\":10"));
