@@ -13,8 +13,7 @@ import java.util.Optional;
 /**
  * Persists catalog objects included in a share. Callers resolve the object in the catalog and parse
  * its alias first; the store only enforces the share's alias rules. Adds and removes run in the
- * caller's transaction, so a batch of them commits or rolls back together. A schema-level row has
- * an empty {@code shared_as_table}.
+ * caller's transaction, so a batch of them commits or rolls back together.
  */
 public class SharedDataObjectStore {
 
@@ -24,11 +23,7 @@ public class SharedDataObjectStore {
     this.tx = tx;
   }
 
-  /**
-   * Includes an object in the share. Fails when the alias or the object is already in the share,
-   * when a table is added under an already included schema, or when a schema is added while tables
-   * under it are already included.
-   */
+  /** Includes an object in the share. Fails when its alias or the object is already in it. */
   public SharedDataObjectEntity add(
       EntityManager em,
       ShareEntity share,
@@ -38,26 +33,18 @@ public class SharedDataObjectStore {
       String sharedAsSchema,
       String sharedAsTable) {
     if (findByAlias(em, share, sharedAsSchema, sharedAsTable).isPresent()) {
-      String alias =
-          sharedAsTable.isEmpty() ? sharedAsSchema : sharedAsSchema + "." + sharedAsTable;
       throw ApiException.alreadyExists(
-          "alias '" + alias + "' already exists in share '" + share.getName() + "'");
+          "alias '"
+              + sharedAsSchema
+              + "."
+              + sharedAsTable
+              + "' already exists in share '"
+              + share.getName()
+              + "'");
     }
     if (findByFullName(em, share, fullName).isPresent()) {
       throw ApiException.alreadyExists(
           "'" + fullName + "' is already included in share '" + share.getName() + "'");
-    }
-    if (!sharedAsTable.isEmpty() && schemaIncluded(em, share, sharedAsSchema)) {
-      throw ApiException.conflict(
-          "schema '" + sharedAsSchema + "' is already included in share '" + share.getName() + "'");
-    }
-    if (sharedAsTable.isEmpty() && tablesIncluded(em, share, sharedAsSchema)) {
-      throw ApiException.conflict(
-          "tables under schema '"
-              + sharedAsSchema
-              + "' are already included in share '"
-              + share.getName()
-              + "'");
     }
 
     SharedDataObjectEntity object = new SharedDataObjectEntity();
@@ -105,7 +92,7 @@ public class SharedDataObjectStore {
                 .getResultList());
   }
 
-  /** The object {@code share} shares under the alias; an empty table alias finds a schema. */
+  /** The object {@code share} shares under the alias. */
   public Optional<SharedDataObjectEntity> findByAlias(
       ShareEntity share, String sharedAsSchema, String sharedAsTable) {
     return tx.inTransaction(true, em -> findByAlias(em, share, sharedAsSchema, sharedAsTable));
@@ -133,10 +120,9 @@ public class SharedDataObjectStore {
       AssetType type,
       String sharedAsSchema,
       String sharedAsTable) {
-    String alias = sharedAsTable.isEmpty() ? sharedAsSchema : sharedAsSchema + "." + sharedAsTable;
     SharedDataObjectEntity object =
         findByAlias(em, share, sharedAsSchema, sharedAsTable)
-            .orElseThrow(() -> notIncluded(share, alias));
+            .orElseThrow(() -> notIncluded(share, sharedAsSchema + "." + sharedAsTable));
     requireType(object, type, share);
     em.remove(object);
   }
@@ -173,34 +159,6 @@ public class SharedDataObjectStore {
         .setParameter("table", sharedAsTable)
         .getResultStream()
         .findFirst();
-  }
-
-  /** Whether {@code share} includes all of {@code schema}. */
-  private static boolean schemaIncluded(EntityManager em, ShareEntity share, String schema) {
-    return !em.createQuery(
-            "select o.id from SharedDataObjectEntity o where o.share.id = :shareId"
-                + " and o.sharedAsSchema = :schema and o.type = :type and o.sharedAsTable = ''",
-            String.class)
-        .setParameter("shareId", share.getId())
-        .setParameter("schema", schema)
-        .setParameter("type", AssetType.SCHEMA)
-        .setMaxResults(1)
-        .getResultList()
-        .isEmpty();
-  }
-
-  /** Whether {@code share} includes any single table of {@code schema}. */
-  private static boolean tablesIncluded(EntityManager em, ShareEntity share, String schema) {
-    return !em.createQuery(
-            "select o.id from SharedDataObjectEntity o where o.share.id = :shareId"
-                + " and o.sharedAsSchema = :schema and o.type = :type and o.sharedAsTable <> ''",
-            String.class)
-        .setParameter("shareId", share.getId())
-        .setParameter("schema", schema)
-        .setParameter("type", AssetType.TABLE)
-        .setMaxResults(1)
-        .getResultList()
-        .isEmpty();
   }
 
   // An object of another type under the same name or alias counts as not included.

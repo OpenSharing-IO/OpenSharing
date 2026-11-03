@@ -87,25 +87,6 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     assertDeltaMetadata(parquet.text());
   }
 
-  @Test
-  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
-  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
-  void queriesMetadataThroughASchemaGrant() {
-    createShare("schema-metadata");
-    addObject("schema-metadata", "SCHEMA", "main.sales", "sales");
-    String bearer = createAndActivateRecipient("schema-metadata-partner");
-    grant("schema-metadata", "schema-metadata-partner");
-
-    // A SCHEMA grant can Query Table Metadata for catalog children (table1).
-    Response metadata =
-        metadata(
-            PROTOCOL + "/shares/schema-metadata/schemas/SALES/tables/TABLE1/metadata",
-            bearer,
-            null);
-    assertVersion("2", metadata);
-    assertParquetMetadata(metadata.text());
-  }
-
   private static void assertParquetMetadata(String ndjson) {
     assertTrue(ndjson.contains("\"protocol\""), ndjson);
     assertTrue(ndjson.contains("\"metaData\""), ndjson);

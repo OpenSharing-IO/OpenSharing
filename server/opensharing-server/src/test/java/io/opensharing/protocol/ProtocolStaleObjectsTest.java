@@ -37,34 +37,6 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
   }
 
   @Test
-  void listsTablesUnderASharedSchemaFromTheCatalog() {
-    createShare("listed-schemas");
-    addObject("listed-schemas", "SCHEMA", "main.hr", "hr");
-    addObject("listed-schemas", "SCHEMA", "main.legal", "legal");
-    addObject("listed-schemas", "TABLE", "main.sales.orders", "sales.orders");
-    String recipientToken = createAndActivateRecipient("listed-schemas-partner");
-    grant("listed-schemas", "listed-schemas-partner");
-    String allTablesPath = PROTOCOL + "/shares/listed-schemas/all-tables";
-    assertEquals(4, server.get(allTablesPath, recipientToken).body().path("items").size());
-
-    replaceInCatalog("listed-schemas", "main.hr");
-    dropFromCatalog("listed-schemas", "main.legal");
-    String schemasPath = PROTOCOL + "/shares/listed-schemas/schemas/";
-
-    // The replaced schema lists the catalog's tables under its name.
-    Response hrTables = server.get(schemasPath + "hr/tables", recipientToken);
-    assertEquals(2, hrTables.body().path("items").size());
-
-    // The dropped schema lists no tables.
-    Response legalTables = server.get(schemasPath + "legal/tables", recipientToken);
-    assertEquals(200, legalTables.status());
-    assertEquals(0, legalTables.body().path("items").size());
-
-    // All Tables lists the replaced schema's tables and the shared table, but not the dropped one.
-    assertEquals(3, server.get(allTablesPath, recipientToken).body().path("items").size());
-  }
-
-  @Test
   void getTableReportsReplacedOrDroppedTablesAsMissing() {
     createShare("stale-tables");
     addObject("stale-tables", "TABLE", "main.sales.orders", "sales.orders");
@@ -83,28 +55,6 @@ class ProtocolStaleObjectsTest extends ProtocolApiSupport {
     assertNotFound(
         server.get(salesTablesPath + "customers", recipientToken),
         "table 'sales.customers' does not exist in share 'stale-tables'");
-  }
-
-  @Test
-  void getTableReportsTablesUnderAReplacedOrDroppedSchemaAsMissing() {
-    createShare("stale-schemas");
-    addObject("stale-schemas", "SCHEMA", "main.hr", "hr");
-    addObject("stale-schemas", "SCHEMA", "main.legal", "legal");
-    String recipientToken = createAndActivateRecipient("stale-schemas-partner");
-    grant("stale-schemas", "stale-schemas-partner");
-    String schemasPath = PROTOCOL + "/shares/stale-schemas/schemas/";
-    assertEquals(200, server.get(schemasPath + "hr/tables/salaries", recipientToken).status());
-
-    // The replaced schema lists the catalog's tables under its name.
-    replaceInCatalog("stale-schemas", "main.hr");
-    dropFromCatalog("stale-schemas", "main.legal");
-    // Get Table checks the schema before looking up its table, so both tables are missing.
-    assertNotFound(
-        server.get(schemasPath + "hr/tables/salaries", recipientToken),
-        "table 'hr.salaries' does not exist in share 'stale-schemas'");
-    assertNotFound(
-        server.get(schemasPath + "legal/tables/contracts", recipientToken),
-        "table 'legal.contracts' does not exist in share 'stale-schemas'");
   }
 
   /** A hidden table gets the protocol's not-found error, by its alias. */

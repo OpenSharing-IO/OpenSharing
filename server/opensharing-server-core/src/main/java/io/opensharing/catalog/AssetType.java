@@ -1,6 +1,6 @@
 package io.opensharing.catalog;
 
-/** Kinds of asset a share can hold. */
+/** Kinds of catalog asset. A share holds only tables; schemas are their parents in the catalog. */
 public enum AssetType {
   TABLE,
   SCHEMA

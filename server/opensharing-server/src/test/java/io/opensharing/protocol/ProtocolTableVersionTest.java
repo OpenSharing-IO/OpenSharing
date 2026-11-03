@@ -17,7 +17,7 @@ class ProtocolTableVersionTest extends LocalDeltaTableSupport {
   void queriesAGrantedTableVersion() {
     createShare("table-version");
     addObject("table-version", "TABLE", "main.sales.orders", "sales.orders");
-    addObject("table-version", "SCHEMA", "main.hr", "hr");
+    addObject("table-version", "TABLE", "main.hr.salaries", "hr.salaries");
     createShare("hidden-version");
     addObject("hidden-version", "TABLE", "main.sales.customers", "sales.customers");
     String bearer = createAndActivateRecipient("table-version-partner");
@@ -30,7 +30,7 @@ class ProtocolTableVersionTest extends LocalDeltaTableSupport {
     assertEquals("2", latest.headers().get("Delta-Table-Version"));
     assertTrue(latest.body().isMissingNode());
 
-    // A table under a shared schema: the earliest version committed at or after the timestamp.
+    // With a timestamp, the earliest version committed at or after it.
     String salaries = PROTOCOL + "/shares/table-version/schemas/hr/tables/SALARIES/version";
     assertVersion("0", version(salaries, bearer, "2023-12-31T00:00:00Z"));
     assertVersion("1", version(salaries, bearer, "2024-01-01T01:00:00Z"));

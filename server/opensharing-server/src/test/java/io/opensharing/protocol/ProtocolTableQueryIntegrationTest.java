@@ -71,26 +71,6 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
   @Test
   @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
   @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
-  void queriesFilesThroughASchemaGrant() {
-    createShare("schema-query");
-    addObject("schema-query", "SCHEMA", "main.sales", "sales");
-    String bearer = createAndActivateRecipient("schema-query-partner");
-    grant("schema-query", "schema-query-partner");
-
-    // A SCHEMA grant can Query Table for catalog children (table1).
-    Response response =
-        query(
-            PROTOCOL + "/shares/schema-query/schemas/SALES/tables/TABLE1/query",
-            bearer,
-            "{}",
-            null);
-    assertVersion("2", response);
-    assertParquetQuery(response.text());
-  }
-
-  @Test
-  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
-  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
   void queriesDeltaFilesForDeletionVectorsTable() {
     String bearer = shareTable("dv-query", "main.sales.deletionvectors", "sales.deletionvectors");
     String endpoint = PROTOCOL + "/shares/dv-query/schemas/sales/tables/deletionvectors/query";
