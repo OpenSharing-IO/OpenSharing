@@ -75,6 +75,52 @@ class ShareAdminServiceTest {
   }
 
   @Test
+  void rejectsFieldsLongerThanTheirColumns() {
+    // Every field at its column's length is stored.
+    Response full =
+        create(
+            "alice-token",
+            ("{\"name\":\"long\",\"displayName\":\"%s\",\"comment\":\"%s\","
+                    + "\"properties\":{\"%s\":\"%s\"}}")
+                .formatted("d".repeat(255), "c".repeat(8192), "k".repeat(255), "v".repeat(1000)));
+    assertEquals(201, full.status());
+    assertEquals(8192, full.body().path("comment").asText().length());
+
+    // One character more is rejected on create.
+    assertTooLong(
+        create("alice-token", "{\"name\":\"longer\",\"displayName\":\"" + "d".repeat(256) + "\"}"),
+        "displayName must not exceed 255 characters");
+    assertTooLong(
+        create("alice-token", "{\"name\":\"longer\",\"comment\":\"" + "c".repeat(8193) + "\"}"),
+        "comment must not exceed 8192 characters");
+    assertTooLong(
+        create(
+            "alice-token",
+            "{\"name\":\"longer\",\"properties\":{\"" + "k".repeat(256) + "\":\"v\"}}"),
+        "property key must not exceed 255 characters");
+    assertTooLong(
+        create(
+            "alice-token",
+            "{\"name\":\"longer\",\"properties\":{\"team\":\"" + "v".repeat(1001) + "\"}}"),
+        "property 'team' must not exceed 1000 characters");
+
+    // And on update, which leaves the share as it was.
+    assertTooLong(
+        patch("long", "{\"displayName\":\"" + "d".repeat(256) + "\"}"),
+        "displayName must not exceed 255 characters");
+    assertTooLong(
+        patch("long", "{\"comment\":\"" + "c".repeat(8193) + "\"}"),
+        "comment must not exceed 8192 characters");
+    assertTooLong(
+        patch("long", "{\"properties\":{\"team\":\"" + "v".repeat(1001) + "\"}}"),
+        "property 'team' must not exceed 1000 characters");
+    Response unchanged = server.get(SHARES + "/long", "alice-token");
+    assertEquals(200, unchanged.status());
+    assertEquals(255, unchanged.body().path("displayName").asText().length());
+    assertEquals(8192, unchanged.body().path("comment").asText().length());
+  }
+
+  @Test
   void updatesOnlyTheFieldsInTheBody() {
     // Owner creates a share with every field set.
     Response created =
@@ -306,5 +352,10 @@ class ShareAdminServiceTest {
   private static void assertInvalid(Response response) {
     assertEquals(400, response.status());
     assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, response.errorCode());
+  }
+
+  private static void assertTooLong(Response response, String message) {
+    assertInvalid(response);
+    assertEquals(message, response.body().path("message").asText());
   }
 }

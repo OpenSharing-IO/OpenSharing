@@ -207,11 +207,10 @@ public class RecipientStore {
             token.setActivationCode(null);
             if (!token.isActivated() || grace.isZero() || grace.isNegative()) {
               token.setExpiresAt(now);
-            } else {
-              Instant deadline = now.plus(grace);
-              if (token.getExpiresAt().isAfter(deadline)) {
-                token.setExpiresAt(deadline);
-              }
+            } else if (grace.compareTo(Duration.between(now, token.getExpiresAt())) < 0) {
+              // Compared as durations, since now plus a grace window near Long.MAX_VALUE seconds
+              // overflows.
+              token.setExpiresAt(now.plus(grace));
             }
           }
           RecipientTokenEntity replacement = new RecipientTokenEntity();
