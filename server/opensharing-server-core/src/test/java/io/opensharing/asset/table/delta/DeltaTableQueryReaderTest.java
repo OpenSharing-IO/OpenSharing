@@ -182,28 +182,34 @@ class DeltaTableQueryReaderTest {
   }
 
   @Test
-  void startingVersionResolvesLogPathsUnderARootWithASpace() throws IOException {
-    Path root = dir.resolve("with space");
+  void startingVersionDecodesLogPathsButNotTheTableRoot() throws IOException {
+    // The root holds a literal %20, which decoding it would turn into a second space.
+    Path root = dir.resolve("a b%20c");
     Files.createDirectories(root.resolve("_delta_log"));
     Files.copy(
         dir.resolve("_delta_log/00000000000000000000.json"),
         root.resolve("_delta_log/00000000000000000000.json"));
     Files.writeString(
         root.resolve("_delta_log/00000000000000000001.json"),
-        add("d", "2021-01-03", 31, 40) + "\n");
-    Lines lines = new Lines();
+        add("d%20e", "2021-01-03", 31, 40) + "\n");
+    List<String> signed = new ArrayList<>();
     // A catalog location reaches Kernel unchanged, so it is a decoded path here too.
-    reader(root, "file:" + root)
+    reader(
+            root,
+            "file:" + root,
+            (path, ttl) -> {
+              signed.add(path);
+              return new SignedUrl("https://signed/d", Instant.ofEpochMilli(4102444800000L));
+            })
         .readChanges(
             table(root),
             null,
             new DeltaTableQueryReader.ResponseOptions(null, null, false),
-            lines,
+            new Lines(),
             1L,
             null,
             false);
-    List<String> ndjson = List.of(lines.ndjson.toString().split("\n"));
-    assertEquals(List.of("add d 1"), describe(ndjson.subList(2, ndjson.size())));
+    assertEquals(List.of("file:" + root + "/date=2021-01-03/d e.parquet"), signed);
   }
 
   @Test
@@ -398,10 +404,17 @@ class DeltaTableQueryReaderTest {
   }
 
   private static DeltaTableQueryReader reader(Path root) {
-    return reader(root, root.toUri().toString());
+    return reader(
+        root,
+        root.toUri().toString(),
+        (path, ttl) ->
+            new SignedUrl(
+                "https://signed/" + path.substring(path.lastIndexOf('/') + 1),
+                Instant.ofEpochMilli(4102444800000L)));
   }
 
-  private static DeltaTableQueryReader reader(Path root, String location) {
+  private static DeltaTableQueryReader reader(
+      Path root, String location, SigningSession signer) {
     StorageCredentials credentials =
         new StorageCredentials(location, CloudProvider.AWS, Map.of(), Instant.MAX);
     DeltaKernel kernel =
@@ -418,10 +431,7 @@ class DeltaTableQueryReaderTest {
         new UrlSigners() {
           @Override
           public SigningSession open(StorageCredentials credentials) {
-            return (path, ttl) ->
-                new SignedUrl(
-                    "https://signed/" + path.substring(path.lastIndexOf('/') + 1),
-                    Instant.ofEpochMilli(4102444800000L));
+            return signer;
           }
         };
     return new DeltaTableQueryReader(kernel, signers);
