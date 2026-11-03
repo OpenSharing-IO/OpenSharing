@@ -1,0 +1,19 @@
+# The github-actions updates also bump the commit-SHA pins in .github/workflows and their
+# version comments.
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /server
+    schedule:
+      interval: weekly
+    groups:
+      maven-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

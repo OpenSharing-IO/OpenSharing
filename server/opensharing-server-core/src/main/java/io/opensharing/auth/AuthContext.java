@@ -16,7 +16,7 @@ public record AuthContext(String serverId, UserContext user) {
     Objects.requireNonNull(user, "user");
   }
 
-  /** For embedded mode, where OpenSharing runs inside the catalog and needs no separate identity. */
+  /** For embedded mode, where OpenSharing runs in the catalog and needs no separate identity. */
   public static AuthContext of(UserContext user) {
     return new AuthContext(null, user);
   }

@@ -9,6 +9,9 @@ Report suspected vulnerabilities privately through GitHub's
 (the **Security → Advisories → Report a vulnerability** button on this
 repository). This opens a private channel with the maintainers.
 
+If you cannot use GitHub's reporting, email the Maintainers listed in
+[MAINTAINERS.md](./MAINTAINERS.md), who handle all security reports.
+
 Please include, where possible:
 
 - a description of the issue and its impact,
@@ -21,10 +24,6 @@ Please include, where possible:
 - We aim to **acknowledge** a report within 5 business days.
 - We will work with you on an assessment and a coordinated disclosure timeline.
 - We will credit reporters who wish to be acknowledged.
-
-<!-- TODO(maintainers): once the LF AI & Data security mailing list is provisioned
-     and a security contact/team is named, add them here as an alternate reporting
-     channel. -->
 
 ## Supported versions
 
