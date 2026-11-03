@@ -186,10 +186,12 @@ mvn -f server/pom.xml verify
 `verify` compiles, runs unit and integration tests, and (for
 `opensharing-server`) checks third-party licenses.
 
-A single test class:
+A single test class. `-am` also builds `opensharing-server-core`, which has no
+test of that name, so Surefire must be told not to fail there:
 
 ```bash
-mvn -f server/pom.xml -pl opensharing-server -am test -Dtest=ProtocolTablesTest
+mvn -f server/pom.xml -pl opensharing-server -am test -Dtest=ProtocolTablesTest \
+  -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
 Cloud listing tests against S3, Azure, and GCS run only when the matching
