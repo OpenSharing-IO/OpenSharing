@@ -3,14 +3,30 @@ package io.opensharing.asset.table.delta;
 import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.exception.CatalogException;
+import io.opensharing.http.ApiException;
 import java.net.URI;
 import java.time.Instant;
+import java.util.Locale;
+import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 
 /** Builds a Hadoop {@link Configuration} from catalog-vended storage credentials. */
 final class HadoopStorageConfiguration {
 
+  /** File URLs are signed only for abfs:// and abfss://, so WASB locations are not read. */
+  private static final Set<String> UNSUPPORTED_SCHEMES = Set.of("wasb", "wasbs");
+
   private HadoopStorageConfiguration() {}
+
+  /** Rejects a location in storage this build does not read. */
+  static void requireSupported(String location) {
+    int separator = location.indexOf("://");
+    String scheme = separator < 0 ? "" : location.substring(0, separator).toLowerCase(Locale.ROOT);
+    if (UNSUPPORTED_SCHEMES.contains(scheme)) {
+      throw ApiException.notImplemented(
+          "this build cannot read tables in '" + scheme + "' storage");
+    }
+  }
 
   /**
    * Settings to read {@code location} with {@code credentials}. Azure settings are keyed by the
@@ -29,7 +45,7 @@ final class HadoopStorageConfiguration {
 
   /**
    * Hadoop's S3 connector is s3a://, which catalogs typically return as s3://, and it reads R2
-   * buckets too. Hadoop reads WASB locations through ABFS.
+   * buckets too.
    */
   static String kernelPath(String location) {
     if (location.startsWith("s3://")) {
@@ -38,9 +54,6 @@ final class HadoopStorageConfiguration {
     if (location.startsWith("r2://")) {
       StorageLocations.R2Object r2 = StorageLocations.r2Object(location);
       return "s3a://" + r2.bucket() + "/" + r2.key();
-    }
-    if (location.startsWith("wasb://") || location.startsWith("wasbs://")) {
-      return "abfss://" + location.substring(location.indexOf("://") + 3);
     }
     return location;
   }
@@ -82,10 +95,7 @@ final class HadoopStorageConfiguration {
     configuration.set("fs.s3a.path.style.access", "true");
   }
 
-  /**
-   * The catalog's SAS token for every request to the storage account. ABFS reads a blob host, which
-   * WASB locations name, only for an account declared to have no hierarchical namespace.
-   */
+  /** The catalog's SAS token for every request to the storage account. */
   private static void configureAzure(
       Configuration configuration, StorageCredentials credentials, String location) {
     String host = URI.create(location).getHost();
@@ -95,9 +105,6 @@ final class HadoopStorageConfiguration {
     configuration.set("fs.azure.account.auth.type." + host, "SAS");
     configuration.set(
         "fs.azure.sas.fixed.token." + host, credentials.require(StorageCredentials.SAS_TOKEN));
-    if (host.contains(".blob.")) {
-      configuration.set("fs.azure.account.hns.enabled." + host, "false");
-    }
   }
 
   /**

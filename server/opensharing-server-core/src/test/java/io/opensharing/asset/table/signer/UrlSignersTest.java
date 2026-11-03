@@ -73,6 +73,40 @@ class UrlSignersTest {
   }
 
   @Test
+  void signsAzurePathsOnlyInAbfsForm() {
+    StorageCredentials sas =
+        new StorageCredentials(
+            "abfss://container@account.dfs.core.windows.net/",
+            CloudProvider.AZURE,
+            Map.of(StorageCredentials.SAS_TOKEN, "sv=2020-12-06&sig=catalog"),
+            Instant.now().plus(Duration.ofHours(1)));
+
+    for (String scheme : List.of("abfs", "abfss")) {
+      SignedUrl signed =
+          sign(
+              scheme + "://container@account.dfs.core.windows.net/table/part.parquet",
+              sas,
+              Duration.ofMinutes(5));
+      assertTrue(
+          signed.url().startsWith("https://account.blob.core.windows.net/container/table/"),
+          signed.url());
+    }
+    for (String scheme : List.of("wasb", "wasbs")) {
+      ApiException rejected =
+          assertThrows(
+              ApiException.class,
+              () ->
+                  sign(
+                      scheme + "://container@account.blob.core.windows.net/table/part.parquet",
+                      sas,
+                      Duration.ofMinutes(5)));
+      assertEquals(501, rejected.getStatus());
+      assertEquals(
+          "this build cannot sign urls for '" + scheme + "' storage", rejected.getMessage());
+    }
+  }
+
+  @Test
   void opensEachSignerOnceAndClosesItWithTheSession() {
     List<String> events = new ArrayList<>();
     UrlSigner recording =
