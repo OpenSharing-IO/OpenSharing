@@ -6,27 +6,32 @@ import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import java.net.URI;
 import java.time.Instant;
-import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.hadoop.conf.Configuration;
 
 /** Builds a Hadoop {@link Configuration} from catalog-vended storage credentials. */
 final class HadoopStorageConfiguration {
 
-  /**
-   * Storage that tables are read from, a path with no scheme being a local file. Hadoop no longer
-   * reads s3n://, and Azure file URLs are signed only for abfs:// and abfss://, not WASB.
-   */
+  /** Local tables, at file:// or a path with no scheme, are read but their URLs are not signed. */
+  private static final Set<String> LOCAL_SCHEMES = Set.of("file");
+
   private static final Set<String> SUPPORTED_SCHEMES =
-      Set.of("s3", "s3a", "r2", "gs", "abfs", "abfss", "file");
+      Stream.of(
+              StorageLocations.S3_SCHEMES,
+              StorageLocations.AZURE_SCHEMES,
+              StorageLocations.GCS_SCHEMES,
+              StorageLocations.R2_SCHEMES,
+              LOCAL_SCHEMES)
+          .flatMap(Set::stream)
+          .collect(Collectors.toUnmodifiableSet());
 
   private HadoopStorageConfiguration() {}
 
   /** Rejects a location in storage this build does not read. */
   static void requireSupported(String location) {
-    int separator = location.indexOf("://");
-    String scheme =
-        separator < 0 ? "file" : location.substring(0, separator).toLowerCase(Locale.ROOT);
+    String scheme = StorageLocations.scheme(location);
     if (!SUPPORTED_SCHEMES.contains(scheme)) {
       throw ApiException.notImplemented(
           "this build cannot read tables in '" + scheme + "' storage");
@@ -49,14 +54,15 @@ final class HadoopStorageConfiguration {
   }
 
   /**
-   * Hadoop's S3 connector is s3a://, which catalogs typically return as s3://, and it reads R2
-   * buckets too.
+   * Hadoop reads S3 and R2 only through its s3a:// connector. Catalogs typically return S3
+   * locations as s3://, and Hadoop no longer reads s3n://.
    */
   static String kernelPath(String location) {
-    if (location.startsWith("s3://")) {
-      return "s3a://" + location.substring(5);
+    String scheme = StorageLocations.scheme(location);
+    if (StorageLocations.S3_SCHEMES.contains(scheme)) {
+      return "s3a" + location.substring(scheme.length());
     }
-    if (location.startsWith("r2://")) {
+    if (StorageLocations.R2_SCHEMES.contains(scheme)) {
       StorageLocations.R2Object r2 = StorageLocations.r2Object(location);
       return "s3a://" + r2.bucket() + "/" + r2.key();
     }

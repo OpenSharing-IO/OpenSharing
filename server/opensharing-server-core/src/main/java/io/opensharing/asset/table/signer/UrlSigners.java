@@ -1,5 +1,6 @@
 package io.opensharing.asset.table.signer;
 
+import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ErrorCodes;
@@ -62,17 +63,12 @@ public class UrlSigners {
   }
 
   private UrlSigner signerFor(String path) {
-    String scheme = scheme(path);
+    String scheme = StorageLocations.scheme(path);
     UrlSigner signer = byScheme.get(scheme);
     if (signer == null) {
       throw ApiException.notImplemented("this build cannot sign urls for '" + scheme + "' storage");
     }
     return signer;
-  }
-
-  static String scheme(String path) {
-    int separator = path.indexOf("://");
-    return separator < 0 ? "file" : path.substring(0, separator).toLowerCase(Locale.ROOT);
   }
 
   private static Duration capped(StorageCredentials credentials, Duration ttl) {

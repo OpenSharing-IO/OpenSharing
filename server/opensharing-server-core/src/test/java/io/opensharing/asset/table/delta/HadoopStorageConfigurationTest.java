@@ -44,6 +44,7 @@ class HadoopStorageConfigurationTest {
         List.of(
             "s3://bucket/table",
             "S3A://bucket/table",
+            "s3n://bucket/table",
             "r2://bucket@account.r2.cloudflarestorage.com/table",
             "gs://bucket/table",
             "abfs://container@account.dfs.core.windows.net/table",
@@ -52,7 +53,7 @@ class HadoopStorageConfigurationTest {
             "/tmp/table")) {
       assertDoesNotThrow(() -> HadoopStorageConfiguration.requireSupported(location), location);
     }
-    for (String scheme : List.of("wasb", "wasbs", "s3n", "hdfs")) {
+    for (String scheme : List.of("wasb", "wasbs", "hdfs")) {
       ApiException rejected =
           assertThrows(
               ApiException.class,
@@ -60,6 +61,18 @@ class HadoopStorageConfigurationTest {
       assertEquals(501, rejected.getStatus());
       assertEquals(
           "this build cannot read tables in '" + scheme + "' storage", rejected.getMessage());
+    }
+  }
+
+  @Test
+  void readsEveryS3SchemeThroughS3A() throws IOException {
+    Configuration configuration = new Configuration();
+    configuration.set("fs.s3a.endpoint.region", "us-west-2");
+
+    for (String scheme : List.of("s3", "s3a", "s3n")) {
+      String location = scheme + "://bucket/table";
+      assertEquals("s3a://bucket/table", HadoopStorageConfiguration.kernelPath(location));
+      assertOpens("org.apache.hadoop.fs.s3a.S3AFileSystem", location, configuration);
     }
   }
 

@@ -2,6 +2,7 @@ package io.opensharing.asset.table;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Hadoop-style storage locations, such as {@code s3://bucket/key}, compared regardless of trailing
@@ -9,7 +10,22 @@ import java.util.Locale;
  */
 public final class StorageLocations {
 
+  public static final Set<String> S3_SCHEMES = Set.of("s3", "s3a", "s3n");
+
+  /** Azure file URLs are signed only for abfs:// and abfss://, so WASB tables are not read. */
+  public static final Set<String> AZURE_SCHEMES = Set.of("abfs", "abfss");
+
+  public static final Set<String> GCS_SCHEMES = Set.of("gs");
+
+  public static final Set<String> R2_SCHEMES = Set.of("r2");
+
   private StorageLocations() {}
+
+  /** The lowercase scheme of {@code location}, which is a local file when it has none. */
+  public static String scheme(String location) {
+    int separator = location.indexOf("://");
+    return separator < 0 ? "file" : location.substring(0, separator).toLowerCase(Locale.ROOT);
+  }
 
   /** Whether {@code prefix} is {@code location} or a directory above it. */
   public static boolean covers(String prefix, String location) {

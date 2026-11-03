@@ -7,6 +7,8 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -20,9 +22,13 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 /** AWS SDK GET presigning for S3 and R2 object URLs. */
 final class S3UrlSigner implements UrlSigner {
 
+  private static final Set<String> SCHEMES =
+      Stream.concat(StorageLocations.S3_SCHEMES.stream(), StorageLocations.R2_SCHEMES.stream())
+          .collect(Collectors.toUnmodifiableSet());
+
   @Override
   public Set<String> schemes() {
-    return Set.of("s3", "s3a", "s3n", "r2");
+    return SCHEMES;
   }
 
   @Override
