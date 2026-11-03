@@ -23,7 +23,6 @@ public record LocalCatalogFile(
 
   public enum CredentialMode {
     FAKE,
-    STATIC,
     ENV
   }
 
@@ -39,17 +38,15 @@ public record LocalCatalogFile(
     }
   }
 
-  public record Credentials(
-      CloudProvider provider, CredentialMode mode, Integer ttlSeconds, Map<String, String> values) {
+  public record Credentials(CloudProvider provider, CredentialMode mode, Integer ttlSeconds) {
 
     public Credentials {
       provider = provider == null ? CloudProvider.AWS : provider;
       mode = mode == null ? CredentialMode.FAKE : mode;
-      values = values == null ? Map.of() : Map.copyOf(values);
     }
 
     public static Credentials defaults() {
-      return new Credentials(CloudProvider.AWS, CredentialMode.FAKE, null, Map.of());
+      return new Credentials(CloudProvider.AWS, CredentialMode.FAKE, null);
     }
   }
 
