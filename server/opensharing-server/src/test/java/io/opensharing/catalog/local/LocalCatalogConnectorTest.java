@@ -32,6 +32,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+
 class LocalCatalogConnectorTest {
 
   private static final String TABLE1 =
@@ -332,6 +333,28 @@ class LocalCatalogConnectorTest {
         """;
 
     assertThrows(CatalogException.class, () -> connector(yaml));
+  }
+
+  @Test
+  void rejectsTheRemovedStaticCredentials() {
+    String mode =
+        """
+        credentials:
+          mode: STATIC
+        """;
+    String values =
+        """
+        credentials:
+          values:
+            accessKeyId: configured
+        """;
+
+    String modeError =
+        assertThrows(CatalogException.class, () -> connector(mode)).getCause().getMessage();
+    assertTrue(modeError.contains("\"STATIC\""), modeError);
+    String valuesError =
+        assertThrows(CatalogException.class, () -> connector(values)).getCause().getMessage();
+    assertTrue(valuesError.contains("\"values\""), valuesError);
   }
 
   @Test
