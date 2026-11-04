@@ -64,12 +64,14 @@ public final class OpenSharingServer implements AutoCloseable {
    */
   public static OpenSharingServer start(ServerProperties properties) {
     String publicUrl = properties.getPublicUrl();
+    String serverId = properties.get(Property.SERVER_ID);
     CatalogConnector catalog = catalog(properties);
     JpaTransactions transactions = new JpaTransactions(OpenSharing.entities());
     try {
       OpenSharing openSharing =
           OpenSharing.builder()
               .catalog(catalog)
+              .serverId(serverId)
               .transactions(transactions)
               .build();
       ApiExceptionHandler errors = new ApiExceptionHandler();
@@ -86,7 +88,7 @@ public final class OpenSharingServer implements AutoCloseable {
                   List.of(errors))
               .serviceUnder("/", notFound.decorate(errors));
       String providerPath = properties.get(Property.PROVIDER_BASE_PATH);
-      ProviderTokenDecorator providerToken = new ProviderTokenDecorator(catalog);
+      ProviderTokenDecorator providerToken = new ProviderTokenDecorator(catalog, serverId);
       mountProvider(
           builder,
           providerPath,

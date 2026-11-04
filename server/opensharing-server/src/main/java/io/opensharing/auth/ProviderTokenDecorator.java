@@ -21,9 +21,11 @@ public final class ProviderTokenDecorator implements DecoratingHttpServiceFuncti
       AttributeKey.valueOf(ProviderTokenDecorator.class, "user");
 
   private final CatalogConnector catalog;
+  private final String serverId;
 
-  public ProviderTokenDecorator(CatalogConnector catalog) {
+  public ProviderTokenDecorator(CatalogConnector catalog, String serverId) {
     this.catalog = catalog;
+    this.serverId = serverId;
   }
 
   @Override
@@ -61,6 +63,6 @@ public final class ProviderTokenDecorator implements DecoratingHttpServiceFuncti
   // Asks the catalog who owns the token, with no privilege so that only the token is checked. The
   // catalog's userId becomes the caller's identity, such as the owner of the shares they create.
   private UserContext authenticate(String token) {
-    return catalog.authorize(new AuthContext(null, new UserContext(null, token, null)), null);
+    return catalog.authorize(new AuthContext(serverId, new UserContext(null, token, null)), null);
   }
 }

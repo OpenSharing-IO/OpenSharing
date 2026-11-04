@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 class ProviderTokenDecoratorTest {
 
   private static final UserContext ALICE = UserContext.fromUserIdAndName("alice-id", "alice");
+  private static final String SERVER_ID = "sharing-server-1";
 
   private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -92,6 +93,22 @@ class ProviderTokenDecoratorTest {
     assertEquals(Arrays.asList((Privilege) null), privileges);
   }
 
+  @Test
+  void namesThisServerWhenItAuthenticatesTheToken() {
+    List<AuthContext> calls = new ArrayList<>();
+    CatalogConnector catalog =
+        catalog(
+            args -> {
+              calls.add((AuthContext) args[0]);
+              return ALICE;
+            });
+
+    assertEquals(200, serve(catalog, "token").status().code());
+    assertEquals(1, calls.size());
+    assertEquals(SERVER_ID, calls.get(0).serverId());
+    assertEquals("token", calls.get(0).user().userAuthToken());
+  }
+
   private static AggregatedHttpResponse serve(CatalogConnector catalog, String token) {
     return serve((ctx, req) -> HttpResponse.of(HttpStatus.OK), catalog, HttpMethod.GET, token);
   }
@@ -105,7 +122,7 @@ class ProviderTokenDecoratorTest {
     HttpRequest request = HttpRequest.of(headers);
     HttpService decorated =
         service
-            .decorate(new ProviderTokenDecorator(catalog))
+            .decorate(new ProviderTokenDecorator(catalog, SERVER_ID))
             .decorate(new ApiExceptionHandler());
     try {
       return decorated.serve(ServiceRequestContext.of(request), request).aggregate().join();

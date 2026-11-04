@@ -37,6 +37,7 @@ class ShareServiceTest {
     ShareService shares =
         new ShareService(
             catalog,
+            null,
             unused,
             new ShareStore(unused),
             new SharedDataObjectStore(unused),

@@ -37,6 +37,7 @@ import java.util.stream.Stream;
 public class ShareService {
 
   private final CatalogConnector catalog;
+  private final String serverId;
   private final Transactions tx;
   private final ShareStore shares;
   private final SharedDataObjectStore objects;
@@ -45,12 +46,14 @@ public class ShareService {
 
   public ShareService(
       CatalogConnector catalog,
+      String serverId,
       Transactions tx,
       ShareStore shares,
       SharedDataObjectStore objects,
       SharePermissionStore permissions,
       RecipientStore recipients) {
     this.catalog = catalog;
+    this.serverId = serverId;
     this.tx = tx;
     this.shares = shares;
     this.objects = objects;
@@ -62,7 +65,7 @@ public class ShareService {
   public ShareResponse create(UserContext user, CreateShareRequest request) {
     // The host has already authenticated the caller. A host that also checks CREATE_SHARE at its
     // endpoint can make this a no-op.
-    catalog.authorize(AuthContext.of(user), Privilege.CREATE_SHARE);
+    catalog.authorize(new AuthContext(serverId, user), Privilege.CREATE_SHARE);
     return ShareResponse.from(
         shares.create(
             user,
@@ -208,14 +211,15 @@ public class ShareService {
   private ShareEntity requireReadable(UserContext user, String share) {
     ShareEntity entity = shares.getOrThrow(share);
     if (!Ownership.owns(user, entity.getOwnerId())) {
-      catalog.authorize(AuthContext.of(user), Privilege.USE_SHARE);
+      catalog.authorize(new AuthContext(serverId, user), Privilege.USE_SHARE);
     }
     return entity;
   }
 
   // Resolves an included object as the share's owner, whom recipients read it as.
   private void requireStillShared(ShareEntity share, SharedDataObjectEntity sharedObject) {
-    AuthContext owner = AuthContext.of(UserContext.fromUserIdAndName(share.getOwnerId(), null));
+    AuthContext owner =
+        new AuthContext(serverId, UserContext.fromUserIdAndName(share.getOwnerId(), null));
     if (SharedAssetResolver.resolve(catalog, sharedObject, owner).isEmpty()) {
       throw ApiException.conflict(
           sharedObject.getType().name().toLowerCase(Locale.ROOT)
@@ -229,7 +233,7 @@ public class ShareService {
 
   private boolean holds(UserContext user, Privilege privilege) {
     try {
-      catalog.authorize(AuthContext.of(user), privilege);
+      catalog.authorize(new AuthContext(serverId, user), privilege);
       return true;
     } catch (CatalogAuthorizationException e) {
       return false;
@@ -246,7 +250,8 @@ public class ShareService {
     Alias alias = parseAlias(dataObject.sharedAs(), name);
     // The catalog is responsible for checking that the caller holds SELECT on the asset. A host
     // that already checks it at its endpoint can skip that check in resolveAsset.
-    ResolvedAsset resolved = catalog.resolveAsset(new Asset(type, name), AuthContext.of(user));
+    ResolvedAsset resolved =
+        catalog.resolveAsset(new Asset(type, name), new AuthContext(serverId, user));
     if (resolved.type() != type) {
       throw new CatalogException(
           "catalog resolved '" + name + "' as " + resolved.type() + " instead of " + type);
