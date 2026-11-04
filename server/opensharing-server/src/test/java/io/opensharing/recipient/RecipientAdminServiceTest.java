@@ -175,6 +175,115 @@ class RecipientAdminServiceTest {
     assertFalse(expired.isAfter(Instant.now()));
   }
 
+  @Test
+  void rejectsACommentLongerThanItsColumn() {
+    // A comment at the column's length is stored.
+    Response created =
+        server.post(
+            RECIPIENTS,
+            "alice-token",
+            "{\"name\":\"Commented\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":1,"
+                + "\"comment\":\""
+                + "c".repeat(65536)
+                + "\"}");
+    assertEquals(201, created.status());
+
+    // One character more is rejected on create and on update.
+    String tooLong = "comment must not exceed 65536 characters";
+    assertInvalid(
+        server.post(
+            RECIPIENTS,
+            "alice-token",
+            "{\"name\":\"Overlong\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":1,"
+                + "\"comment\":\""
+                + "c".repeat(65537)
+                + "\"}"),
+        tooLong);
+    assertInvalid(
+        server.patch(
+            RECIPIENTS + "/commented",
+            "alice-token",
+            "{\"comment\":\"" + "c".repeat(65537) + "\"}"),
+        tooLong);
+  }
+
+  @Test
+  void rejectsTokenLifetimesEndingAfterTheYear9999() {
+    String tooLong = "tokenExpirationDays must not expire the token after 9999-12-31T23:59:59.999Z";
+
+    // Create rejects them.
+    for (long days : new long[] {3_000_000, Long.MAX_VALUE}) {
+      assertInvalid(
+          server.post(
+              RECIPIENTS,
+              "alice-token",
+              "{\"name\":\"Forever\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":"
+                  + days
+                  + "}"),
+          tooLong);
+    }
+
+    // So does rotation.
+    Response created =
+        server.post(
+            RECIPIENTS,
+            "alice-token",
+            "{\"name\":\"Forever\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":1}");
+    assertEquals(201, created.status());
+    assertInvalid(
+        server.post(
+            RECIPIENTS + "/forever/rotate-token",
+            "alice-token",
+            "{\"tokenExpirationDays\":" + Long.MAX_VALUE + "}"),
+        tooLong);
+  }
+
+  @Test
+  void keepsTheExpirationOfATokenThatEndsWithinTheGraceWindow() {
+    // Activate a recipient's first token.
+    Response created =
+        server.post(
+            RECIPIENTS,
+            "alice-token",
+            "{\"name\":\"Graceful\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":30}");
+    assertEquals(201, created.status());
+    Response profile = server.get(activationPath(created), null);
+    assertEquals(200, profile.status());
+    String bearer = profile.body().path("bearerToken").asText();
+    Instant expiresAt = activatedTokenExpiresAt("graceful");
+
+    // The longest grace window leaves the token working until it expired before.
+    Response rotated =
+        server.post(
+            RECIPIENTS + "/graceful/rotate-token",
+            "alice-token",
+            "{\"tokenExpirationDays\":1,\"existingTokenExpireInSeconds\":" + Long.MAX_VALUE + "}");
+    assertEquals(201, rotated.status());
+    assertEquals(expiresAt, activatedTokenExpiresAt("graceful"));
+    assertEquals(200, server.get("/api/1.0/opensharing/shares", bearer).status());
+  }
+
+  private static Instant activatedTokenExpiresAt(String recipient) {
+    return server
+        .server()
+        .transactions()
+        .inTransaction(
+            true,
+            em ->
+                em.createQuery(
+                        "select t.expiresAt from RecipientTokenEntity t"
+                            + " where t.recipient.name = :name and t.activated = true",
+                        Instant.class)
+                    .setParameter("name", recipient)
+                    .getSingleResult());
+  }
+
+  private static void assertInvalid(Response response, String message) {
+    assertEquals(400, response.status());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, response.errorCode());
+    assertEquals(message, response.body().path("message").asText());
+  }
+
   private static Instant expiresAt(String tokenId) {
     return server
         .server()

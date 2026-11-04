@@ -14,6 +14,7 @@ import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.ExceptionHandlerFunction;
 import java.util.Locale;
 import java.util.concurrent.CompletionException;
+import java.util.function.Function;
 
 /**
  * Turns any failure into the protocol's {@code {errorCode, message}} JSON body. Armeria hands it
@@ -23,6 +24,24 @@ import java.util.concurrent.CompletionException;
  */
 public final class ApiExceptionHandler
     implements ExceptionHandlerFunction, DecoratingHttpServiceFunction {
+
+  private final Function<Exception, ApiFailure> failures;
+
+  /** Maps failures with {@link ApiFailure#of}. */
+  public ApiExceptionHandler() {
+    this(ApiFailure::of);
+  }
+
+  private ApiExceptionHandler(Function<Exception, ApiFailure> failures) {
+    this.failures = failures;
+  }
+
+  /**
+   * For the endpoints recipients call: maps failures with {@link ApiFailure#ofRecipientRequest}.
+   */
+  public static ApiExceptionHandler forRecipients() {
+    return new ApiExceptionHandler(ApiFailure::ofRecipientRequest);
+  }
 
   @Override
   public HttpResponse handleException(
@@ -40,7 +59,7 @@ public final class ApiExceptionHandler
   }
 
   /** Maps Armeria's own failures; everything else is mapped by {@link ApiFailure}. */
-  static ApiFailure failureOf(Throwable cause) {
+  ApiFailure failureOf(Throwable cause) {
     Throwable failure = cause instanceof CompletionException ? cause.getCause() : cause;
     return switch (failure) {
       case HttpStatusException status when status.httpStatus() == HttpStatus.NOT_FOUND ->
@@ -50,8 +69,8 @@ public final class ApiExceptionHandler
       case IllegalArgumentException illegal
           when illegal.getCause() instanceof JsonProcessingException json ->
           ApiFailure.of(json);
-      case Exception e -> ApiFailure.of(e);
-      default -> ApiFailure.of(new RuntimeException(failure));
+      case Exception e -> failures.apply(e);
+      default -> failures.apply(new RuntimeException(failure));
     };
   }
 

@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Protocol, metadata, and file NDJSON actions shared by Query Table Metadata and Query Table. */
+/** Protocol, metaData, file, change, and endStreamAction NDJSON lines of table responses. */
 public final class TableActions {
 
   private static final ObjectMapper JSON =
@@ -205,7 +205,7 @@ public final class TableActions {
     return new AddFile(withPath(add.toRow(), path, deletionVectorUrl));
   }
 
-  /** {@link #withPath(AddFile, String, String)} for an add or remove action row. */
+  /** {@link #withPath(AddFile, String, String)} for an add, remove, or cdc action row. */
   public static Row withPath(Row row, String path, String deletionVectorUrl) {
     Map<Integer, Object> overrides = new HashMap<>();
     overrides.put(row.getSchema().indexOf("path"), path);
@@ -255,7 +255,7 @@ public final class TableActions {
     return Map.of();
   }
 
-  /** Writes Kernel protocol/metadata rows as Delta log JSON. */
+  /** Writes a Kernel protocol, metaData, add, remove, or cdc action as Delta log JSON. */
   public static final class KernelActionSerializer extends JsonSerializer<Object> {
     @Override
     public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers)

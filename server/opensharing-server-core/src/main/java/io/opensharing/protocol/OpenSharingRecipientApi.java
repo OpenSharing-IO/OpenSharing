@@ -39,7 +39,7 @@ public final class OpenSharingRecipientApi {
     // Registered through annotatedService(String, Object, Function, Iterable) rather than the
     // fluent binding builder, whose setters erase to different return types across Armeria
     // releases: chained calls compiled against the version here fail on a host's newer Armeria.
-    ApiExceptionHandler errors = new ApiExceptionHandler();
+    ApiExceptionHandler errors = ApiExceptionHandler.forRecipients();
     RecipientTokenDecorator tokens = new RecipientTokenDecorator(openSharing.recipients());
     // The token check must sit inside the error decorator, so that its 401s get the protocol body.
     Function<? super HttpService, ? extends HttpService> protocolDecorators =

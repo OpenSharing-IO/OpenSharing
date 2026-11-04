@@ -2,10 +2,12 @@ package io.opensharing.asset.table.delta;
 
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.exceptions.KernelException;
+import io.delta.kernel.internal.SnapshotImpl;
+import io.delta.kernel.internal.checksum.CRCInfo;
 import io.opensharing.http.ApiException;
 import java.time.Instant;
 
-/** Opens a Kernel snapshot for a version, timestamp, or the latest log. */
+/** Opens a Kernel snapshot for a version, timestamp, or the latest log, and reads its checksum. */
 final class DeltaSnapshots {
 
   private DeltaSnapshots() {}
@@ -36,6 +38,17 @@ final class DeltaSnapshots {
       }
     }
     return latest;
+  }
+
+  /**
+   * The snapshot's checksum file, if it was written for exactly the snapshot's version. Its size
+   * and file count go into metaData; without it they are omitted rather than computed by a scan.
+   */
+  static CRCInfo crcFor(SnapshotImpl snapshot) {
+    return snapshot
+        .getCurrentCrcInfo()
+        .filter(crc -> crc.getVersion() == snapshot.getVersion())
+        .orElse(null);
   }
 
   /** An earlier snapshot can need a protocol Kernel cannot read even when the latest does not. */

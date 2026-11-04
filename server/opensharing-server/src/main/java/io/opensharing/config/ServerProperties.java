@@ -25,6 +25,7 @@ public class ServerProperties {
   public enum Property {
     PORT("server.port", "8080"),
     PUBLIC_URL("server.public-url", null),
+    SERVER_ID("server.id", "opensharing-server"),
     PROVIDER_BASE_PATH("provider.base-path", "/api/1.0/opensharing/provider"),
     ACTIVATION_BASE_PATH("activation.base-path", "/api/1.0/opensharing/activations"),
     PROTOCOL_BASE_PATH("protocol.base-path", "/api/1.0/opensharing"),

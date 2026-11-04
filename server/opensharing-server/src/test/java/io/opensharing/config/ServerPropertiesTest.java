@@ -78,6 +78,17 @@ class ServerPropertiesTest {
         "invalid value 'eighty' for server.port; expected a port number", invalid.getMessage());
   }
 
+  @Test
+  void namesTheServerOpenSharingServerUnlessConfigured() {
+    assertEquals(
+        "opensharing-server",
+        new ServerProperties(new Properties(), Map.of()).get(Property.SERVER_ID));
+    assertEquals(
+        "sharing-server-1",
+        new ServerProperties(props("server.id", "sharing-server-1"), Map.of())
+            .get(Property.SERVER_ID));
+  }
+
   private static Properties props(String key, String value) {
     Properties props = new Properties();
     props.setProperty(key, value);

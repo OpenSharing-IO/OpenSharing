@@ -14,6 +14,7 @@ import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader.ResponseOptions;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader.ResponseSink;
+import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.http.ApiException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CountDownLatch;
@@ -118,6 +119,26 @@ class NdjsonResponseTest {
         """
         {"a":1}
         {"endStreamAction":{"errorMessage":"change data was not recorded"}}
+        """,
+        response.contentUtf8());
+  }
+
+  @Test
+  void hidesCatalogFailuresInTheEndStreamAction() {
+    AggregatedHttpResponse response =
+        stream(
+                END_STREAM,
+                sink -> {
+                  sink.begin(1, ResponseFormat.PARQUET);
+                  throw new CatalogAuthorizationException("'owner-id' lacks SELECT");
+                })
+            .aggregate()
+            .join();
+
+    assertEquals(200, response.status().code());
+    assertEquals(
+        """
+        {"endStreamAction":{"errorMessage":"the catalog failed to serve the request"}}
         """,
         response.contentUtf8());
   }

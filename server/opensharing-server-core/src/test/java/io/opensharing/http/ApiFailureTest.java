@@ -76,8 +76,30 @@ class ApiFailureTest {
     assertFailure(
         502,
         ErrorCodes.CATALOG_ERROR,
-        "catalog unreachable",
+        "the catalog failed to serve the request",
         new CatalogException("catalog unreachable"));
+  }
+
+  @Test
+  void hidesEveryCatalogFailureFromRecipients() {
+    UserContext owner = UserContext.fromUserIdAndName("owner-id", null);
+    for (CatalogException failure :
+        List.of(
+            new AssetAccessDeniedException(MISSING, owner),
+            new AssetNotFoundException(MISSING),
+            new CatalogAuthenticationException("owner token expired"),
+            new CatalogAuthorizationException("'owner-id' lacks SELECT"),
+            new CatalogException("environment variable 'AWS_ACCESS_KEY_ID' is unset"))) {
+      assertEquals(
+          new ApiFailure(502, ErrorCodes.CATALOG_ERROR, "the catalog failed to serve the request"),
+          ApiFailure.ofRecipientRequest(failure));
+    }
+  }
+
+  @Test
+  void mapsOtherRecipientFailuresAsForAnyCaller() {
+    Exception missing = ApiException.notFound("table 'sales.orders' does not exist");
+    assertEquals(ApiFailure.of(missing), ApiFailure.ofRecipientRequest(missing));
   }
 
   @Test

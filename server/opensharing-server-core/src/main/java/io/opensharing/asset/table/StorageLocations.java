@@ -2,6 +2,7 @@ package io.opensharing.asset.table;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Hadoop-style storage locations, such as {@code s3://bucket/key}, compared regardless of trailing
@@ -9,7 +10,22 @@ import java.util.Locale;
  */
 public final class StorageLocations {
 
+  public static final Set<String> S3_SCHEMES = Set.of("s3", "s3a", "s3n");
+
+  /** Azure file URLs are signed only for abfs:// and abfss://, so WASB tables are not read. */
+  public static final Set<String> AZURE_SCHEMES = Set.of("abfs", "abfss");
+
+  public static final Set<String> GCS_SCHEMES = Set.of("gs");
+
+  public static final Set<String> R2_SCHEMES = Set.of("r2");
+
   private StorageLocations() {}
+
+  /** The lowercase scheme of {@code location}, which is a local file when it has none. */
+  public static String scheme(String location) {
+    int separator = location.indexOf("://");
+    return separator < 0 ? "file" : location.substring(0, separator).toLowerCase(Locale.ROOT);
+  }
 
   /** Whether {@code prefix} is {@code location} or a directory above it. */
   public static boolean covers(String prefix, String location) {
@@ -47,6 +63,25 @@ public final class StorageLocations {
         rest.substring(0, at), rest.substring(at + 1, slash), rest.substring(slash + 1));
   }
 
+  /**
+   * An R2 path, {@code r2://bucket@account.r2.cloudflarestorage.com/key}, whose host is the
+   * account's S3 endpoint. The key is empty at the bucket root.
+   */
+  public static R2Object r2Object(String path) {
+    String rest = afterScheme(path);
+    int slash = rest.indexOf('/');
+    String authority = slash < 0 ? rest : rest.substring(0, slash);
+    int at = authority.indexOf('@');
+    if (at <= 0 || at == authority.length() - 1) {
+      throw new IllegalStateException(
+          "'" + path + "' is not an R2 path of the form r2://bucket@account.host/key");
+    }
+    return new R2Object(
+        authority.substring(0, at),
+        authority.substring(at + 1),
+        slash < 0 ? "" : rest.substring(slash + 1));
+  }
+
   public static String encodePath(String key) {
     StringBuilder path = new StringBuilder();
     for (String segment : key.split("/", -1)) {
@@ -56,7 +91,11 @@ public final class StorageLocations {
   }
 
   private static String withoutTrailingSlash(String location) {
-    return location.replaceAll("/+$", "");
+    int end = location.length();
+    while (end > 0 && location.charAt(end - 1) == '/') {
+      end--;
+    }
+    return location.substring(0, end);
   }
 
   private static String afterScheme(String path) {
@@ -87,4 +126,6 @@ public final class StorageLocations {
   }
 
   public record AzureBlob(String container, String host, String blob) {}
+
+  public record R2Object(String bucket, String host, String key) {}
 }

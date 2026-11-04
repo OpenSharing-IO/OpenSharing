@@ -90,10 +90,6 @@ public class RecipientTokenEntity extends BaseEntity {
     this.expiresAt = expiresAt;
   }
 
-  public Instant getSupersededAt() {
-    return supersededAt;
-  }
-
   public void setSupersededAt(Instant supersededAt) {
     this.supersededAt = supersededAt;
   }

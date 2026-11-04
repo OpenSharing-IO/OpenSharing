@@ -32,7 +32,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 class LocalCatalogConnectorTest {
 
@@ -199,113 +198,6 @@ class LocalCatalogConnectorTest {
   }
 
   @Test
-  @EnabledIfEnvironmentVariable(named = "AWS_ACCESS_KEY_ID", matches = ".+")
-  @EnabledIfEnvironmentVariable(named = "AWS_SECRET_ACCESS_KEY", matches = ".+")
-  void vendsConfiguredAwsKeysForTheExchangeTestTable() {
-    String accessKey = System.getenv("AWS_ACCESS_KEY_ID");
-    String secret = System.getenv("AWS_SECRET_ACCESS_KEY");
-    String region = System.getenv().getOrDefault("AWS_REGION", "us-west-2");
-    LocalCatalogFile file =
-        new LocalCatalogFile(
-            new LocalCatalogFile.Credentials(
-                CloudProvider.AWS,
-                LocalCatalogFile.CredentialMode.STATIC,
-                900,
-                Map.of(
-                    StorageCredentials.ACCESS_KEY_ID, accessKey,
-                    StorageCredentials.SECRET_ACCESS_KEY, secret,
-                    StorageCredentials.REGION, region)),
-            List.of(
-                new LocalCatalogFile.Asset(
-                    "main.sales.table1",
-                    AssetType.TABLE,
-                    TABLE1,
-                    "delta",
-                    null,
-                    List.of(),
-                    List.of(),
-                    Map.of("subtype", "MANAGED"))));
-
-    StorageCredentials credentials =
-        new LocalCatalogConnector(file)
-            .getStorageCredentials(
-                new CredentialRequest(
-                    AssetType.TABLE,
-                    "main.sales.table1",
-                    null,
-                    TABLE1,
-                    StorageOperation.READ,
-                    Duration.ofMinutes(5)),
-                AuthContext.of(ALICE))
-            .get(0);
-
-    assertEquals(TABLE1, credentials.prefix());
-    assertEquals(CloudProvider.AWS, credentials.provider());
-    assertEquals(accessKey, credentials.require(StorageCredentials.ACCESS_KEY_ID));
-    assertEquals(region, credentials.credentials().get(StorageCredentials.REGION));
-  }
-
-  @Test
-  void vendsConfiguredStaticCredentials() {
-    String yaml =
-        """
-        credentials:
-          provider: AZURE
-          mode: STATIC
-          values:
-            sasToken: sv=2024-11-04&sig=configured
-        assets:
-          - identifier: main.sales.table1
-            type: TABLE
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-        """;
-
-    StorageCredentials credentials =
-        connector(yaml)
-            .getStorageCredentials(
-                new CredentialRequest(
-                    AssetType.TABLE,
-                    "main.sales.table1",
-                    null,
-                    TABLE1,
-                    StorageOperation.READ,
-                    null),
-                AuthContext.of(ALICE))
-            .get(0);
-
-    assertEquals(CloudProvider.AZURE, credentials.provider());
-    assertEquals(
-        "sv=2024-11-04&sig=configured", credentials.require(StorageCredentials.SAS_TOKEN));
-  }
-
-  @Test
-  void rejectsStaticModeWithMissingValues() {
-    String yaml =
-        """
-        credentials:
-          provider: GCP
-          mode: STATIC
-        assets:
-          - identifier: main.sales.table1
-            type: TABLE
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-        """;
-    LocalCatalogConnector connector = connector(yaml);
-    CredentialRequest request =
-        new CredentialRequest(
-            AssetType.TABLE,
-            "main.sales.table1",
-            null,
-            TABLE1,
-            StorageOperation.READ,
-            null);
-
-    assertThrows(
-        CatalogException.class,
-        () -> connector.getStorageCredentials(request, AuthContext.of(ALICE)));
-  }
-
-  @Test
   void listsTheTablesOneLevelBelowASchema() {
     String yaml =
         """
@@ -441,6 +333,28 @@ class LocalCatalogConnectorTest {
         """;
 
     assertThrows(CatalogException.class, () -> connector(yaml));
+  }
+
+  @Test
+  void rejectsTheRemovedStaticCredentials() {
+    String mode =
+        """
+        credentials:
+          mode: STATIC
+        """;
+    String values =
+        """
+        credentials:
+          values:
+            accessKeyId: configured
+        """;
+
+    String modeError =
+        assertThrows(CatalogException.class, () -> connector(mode)).getCause().getMessage();
+    assertTrue(modeError.contains("\"STATIC\""), modeError);
+    String valuesError =
+        assertThrows(CatalogException.class, () -> connector(values)).getCause().getMessage();
+    assertTrue(valuesError.contains("\"values\""), valuesError);
   }
 
   @Test
