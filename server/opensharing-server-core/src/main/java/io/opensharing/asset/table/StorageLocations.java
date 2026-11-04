@@ -56,7 +56,11 @@ public final class StorageLocations {
   }
 
   private static String withoutTrailingSlash(String location) {
-    return location.replaceAll("/+$", "");
+    int end = location.length();
+    while (end > 0 && location.charAt(end - 1) == '/') {
+      end--;
+    }
+    return location.substring(0, end);
   }
 
   private static String afterScheme(String path) {
