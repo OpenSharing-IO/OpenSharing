@@ -19,10 +19,12 @@ import jakarta.persistence.UniqueConstraint;
     uniqueConstraints = @UniqueConstraint(name = "uk_recipients_name", columnNames = "name"))
 public class RecipientEntity extends BaseEntity {
 
+  static final int MAX_COMMENT_LENGTH = 65536;
+
   @Column(nullable = false, length = 255)
   private String name;
 
-  @Column(length = 8192)
+  @Column(length = MAX_COMMENT_LENGTH)
   private String comment;
 
   /** userId of whoever created this recipient. Not a foreign key: there is no principal table. */

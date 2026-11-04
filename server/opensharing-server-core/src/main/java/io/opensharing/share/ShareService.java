@@ -70,8 +70,8 @@ public class ShareService {
         shares.create(
             user,
             ObjectNames.validateShareName(request.name()),
-            request.displayName(),
-            request.comment(),
+            validateDisplayName(request.displayName()),
+            validateComment(request.comment()),
             validateProperties(request.properties())));
   }
 
@@ -104,6 +104,8 @@ public class ShareService {
    */
   public ShareResponse update(UserContext user, String share, UpdateShareRequest request) {
     shares.getOwnedOrThrow(share, user);
+    String displayName = validateDisplayName(request.displayName());
+    String comment = validateComment(request.comment());
     Map<String, String> properties = validateProperties(request.properties());
     List<Removal> removals = new ArrayList<>();
     List<UpdateShareRequest.DataObject> adds = new ArrayList<>();
@@ -142,7 +144,7 @@ public class ShareService {
                     addition.alias().schema(),
                     addition.alias().table());
               }
-              shares.update(entity, request.displayName(), request.comment(), properties);
+              shares.update(entity, displayName, comment, properties);
               return entity;
             });
     return ShareResponse.from(updated);
@@ -307,16 +309,40 @@ public class ShareService {
     return value;
   }
 
+  private static String validateDisplayName(String displayName) {
+    return requireMaxLength(displayName, ShareEntity.MAX_DISPLAY_NAME_LENGTH, "displayName");
+  }
+
+  private static String validateComment(String comment) {
+    return requireMaxLength(comment, ShareEntity.MAX_COMMENT_LENGTH, "comment");
+  }
+
   private static Map<String, String> validateProperties(Map<String, String> properties) {
     if (properties != null) {
+      if (properties.size() > ShareEntity.MAX_PROPERTIES) {
+        throw ApiException.invalidParameter(
+            "properties must not exceed " + ShareEntity.MAX_PROPERTIES + " entries");
+      }
       for (Map.Entry<String, String> property : properties.entrySet()) {
+        requireMaxLength(property.getKey(), ShareEntity.MAX_PROPERTY_KEY_LENGTH, "property key");
         if (property.getValue() == null) {
           throw ApiException.invalidParameter(
               "property '" + property.getKey() + "' must not be null");
         }
+        requireMaxLength(
+            property.getValue(),
+            ShareEntity.MAX_PROPERTY_VALUE_LENGTH,
+            "property '" + property.getKey() + "'");
       }
     }
     return properties;
+  }
+
+  private static String requireMaxLength(String value, int maxLength, String field) {
+    if (value != null && value.length() > maxLength) {
+      throw ApiException.invalidParameter(field + " must not exceed " + maxLength + " characters");
+    }
+    return value;
   }
 
   private record Alias(String schema, String table) {}
