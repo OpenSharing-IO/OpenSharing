@@ -395,22 +395,20 @@ public class ProtocolTables {
       ShareEntity share, List<SharedDataObjectEntity> sharedObjects) {
     List<TableResponse> tables = new ArrayList<>();
     for (SharedDataObjectEntity sharedObject : sharedObjects) {
-      if (sharedObject.getType() == AssetType.TABLE) {
-        // The share recorded everything listed about an included table, so the catalog isn't
-        // called; Get Table resolves it.
-        tables.add(
-            new TableResponse(
-                sharedObject.getSharedAsTable(),
-                sharedObject.getSharedAsSchema(),
-                share.getName(),
-                share.getId(),
-                sharedObject.getSourceAssetId(),
-                sharedObject.getStorageLocation(),
-                sharedObject.getAuxiliaryLocations().isEmpty()
-                    ? null
-                    : sharedObject.getAuxiliaryLocations(),
-                TableAccessModes.forFormat(sharedObject.getSourceFormat())));
-      }
+      // The share recorded everything listed about a table, so the catalog isn't called; Get
+      // Table resolves it.
+      tables.add(
+          new TableResponse(
+              sharedObject.getSharedAsTable(),
+              sharedObject.getSharedAsSchema(),
+              share.getName(),
+              share.getId(),
+              sharedObject.getSourceAssetId(),
+              sharedObject.getStorageLocation(),
+              sharedObject.getAuxiliaryLocations().isEmpty()
+                  ? null
+                  : sharedObject.getAuxiliaryLocations(),
+              TableAccessModes.forFormat(sharedObject.getSourceFormat())));
     }
     tables.sort(Comparator.comparing(TableResponse::schema).thenComparing(TableResponse::name));
     return tables;

@@ -146,10 +146,9 @@ public class DeltaTableQueryReader {
       Long fileTimestamp = historical ? snapshot.getTimestamp(session.engine()) : null;
       out.begin(snapshot.getVersion());
       out.protocol(impl.getProtocol(), null);
-      out.metadata(impl.getMetadata(), fileVersion, crcFor(impl, snapshot.getVersion()));
+      out.metadata(impl.getMetadata(), fileVersion, DeltaSnapshots.crcFor(impl));
 
       long numRecords = 0;
-      // With a filter, Kernel prunes partitions and skips files whose min/max stats cannot match.
       ScanBuilder builder = snapshot.getScanBuilder();
       Optional<Predicate> filter =
           JsonPredicateHints.toPredicate(jsonPredicateHints, snapshot.getSchema());
@@ -309,7 +308,6 @@ public class DeltaTableQueryReader {
             DeltaLogActionUtils.getCommitFilesForVersionRange(
                 session.engine(), tablePath, range.start(), range.end());
       } catch (KernelException | IllegalArgumentException missing) {
-        // Kernel fails when a commit file in the range is missing, such as after log cleanup.
         throw ApiException.invalidParameter(
             "the table no longer has every commit from version "
                 + range.start()
@@ -324,11 +322,11 @@ public class DeltaTableQueryReader {
       out.protocol(
           header.getProtocol(),
           range.includeHistoricalProtocol()
-                  && out.format == ResponseFormat.DELTA
+                  && out.format() == ResponseFormat.DELTA
                   && header.getVersion() == range.start()
               ? header.getVersion()
               : null);
-      out.metadata(header.getMetadata(), header.getVersion(), crcFor(header, header.getVersion()));
+      out.metadata(header.getMetadata(), header.getVersion(), DeltaSnapshots.crcFor(header));
       try {
         for (FileStatus file : commitFiles) {
           if (range.changeDataFeed()) {
@@ -377,12 +375,10 @@ public class DeltaTableQueryReader {
   /** Writes a Change Data Feed commit once it is read whole. */
   private static void write(ResponseWriter out, ChangeRange range, Commit commit) {
     long version = commit.version;
-    // The header already covers the starting version's protocol and metaData.
-    boolean later = version > range.start();
+    boolean later = range.later(version);
     if (commit.protocol != null) {
-      // A later protocol can need reader features the client did not declare.
       out.requireReaderFeatures(commit.protocol);
-      if (range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA && later) {
+      if (range.includeHistoricalProtocol() && out.format() == ResponseFormat.DELTA && later) {
         out.protocol(commit.protocol, version);
       }
     }
@@ -458,17 +454,6 @@ public class DeltaTableQueryReader {
     }
   }
 
-  /**
-   * The snapshot's checksum file, if it was written for exactly {@code version}. Its size and
-   * file count go into metaData; without it they are omitted rather than computed by a scan.
-   */
-  private static CRCInfo crcFor(SnapshotImpl snapshot, long version) {
-    return snapshot
-        .getCurrentCrcInfo()
-        .filter(crc -> crc.getVersion() == version)
-        .orElse(null);
-  }
-
   /** Receives a response as it is read. */
   public interface ResponseSink {
 
@@ -500,13 +485,13 @@ public class DeltaTableQueryReader {
    */
   private final class ResponseWriter implements AutoCloseable {
 
-    ResponseFormat format;
     private final DeltaKernel.Session session;
     private final ResolvedAsset table;
     private final String capabilities;
     private final String fileIdHash;
     private final SigningSession signer;
     private final ResponseSink sink;
+    private ResponseFormat format;
     private Long minUrlExpirationTimestamp;
     private String tableRoot;
 
@@ -523,12 +508,20 @@ public class DeltaTableQueryReader {
       this.sink = sink;
     }
 
-    /** Picks the format from the first protocol, before any line is written, then checks each. */
+    /**
+     * Picks the format from the first protocol, before any line is written, then checks each, as a
+     * later protocol can need reader features the client did not declare.
+     */
     void requireReaderFeatures(Protocol protocol) {
       if (format == null) {
         format = DeltaSharingCapabilities.choose(capabilities, protocol.getMinReaderVersion());
       }
       DeltaSharingCapabilities.requireReaderFeatures(capabilities, format, protocol);
+    }
+
+    /** Null until {@link #requireReaderFeatures} picks it. */
+    ResponseFormat format() {
+      return format;
     }
 
     /** {@code version} is the response's table version, after the format is picked. */
@@ -733,9 +726,17 @@ public class DeltaTableQueryReader {
       return new ChangeRange(
           start, end, true, includeHistoricalMetadata, includeHistoricalProtocol);
     }
+
+    /** Whether {@code version} follows the start, whose protocol and metaData the header covers. */
+    boolean later(long version) {
+      return version > start;
+    }
   }
 
-  /** Ordinals of a commit file batch. */
+  /**
+   * Ordinals of a commit file batch. Each line of a commit file holds exactly one action, so one of
+   * these columns is set in each row.
+   */
   private record ChangeColumns(
       int protocol, int metadata, int add, int remove, int cdc, int commitInfo) {
 
@@ -755,31 +756,26 @@ public class DeltaTableQueryReader {
     private final ResponseWriter out;
     private final ChangeRange range;
     private final long version;
-    // The header already covers the starting version's protocol and metaData.
     private final boolean later;
     private long timestamp;
 
     /**
-     * The commit file's {@code modificationTime} is the timestamp unless commitInfo has an
-     * inCommitTimestamp, which tables with in-commit timestamps record because modification times
-     * change when the log is copied. Their commitInfo is the commit's first action, so it comes
-     * before any file.
+     * Tables with in-commit timestamps write commitInfo as the commit's first action, so the
+     * timestamp is known before any file.
      */
     CommitWriter(ResponseWriter out, ChangeRange range, FileStatus file) {
       this.out = out;
       this.range = range;
       this.version = FileNames.deltaVersion(file.getPath());
-      this.later = version > range.start();
+      this.later = range.later(version);
       this.timestamp = file.getModificationTime();
     }
 
-    // Each line of a commit file holds exactly one action, so one column of the row is set.
     void write(Row row, ChangeColumns columns) {
       if (!row.isNullAt(columns.protocol())) {
         Protocol protocol = Protocol.fromRow(row.getStruct(columns.protocol()));
-        // A later protocol can need reader features the client did not declare.
         out.requireReaderFeatures(protocol);
-        if (range.includeHistoricalProtocol() && out.format == ResponseFormat.DELTA && later) {
+        if (range.includeHistoricalProtocol() && out.format() == ResponseFormat.DELTA && later) {
           out.protocol(protocol, version);
         }
       } else if (!row.isNullAt(columns.metadata())) {
@@ -793,11 +789,7 @@ public class DeltaTableQueryReader {
         out.changeFile(
             ChangeFile.of(ChangeType.REMOVE, row.getStruct(columns.remove())), version, timestamp);
       } else if (!row.isNullAt(columns.commitInfo())) {
-        Row commitInfo = row.getStruct(columns.commitInfo());
-        int inCommitTimestamp = commitInfo.getSchema().indexOf("inCommitTimestamp");
-        if (!commitInfo.isNullAt(inCommitTimestamp)) {
-          timestamp = commitInfo.getLong(inCommitTimestamp);
-        }
+        timestamp = commitTimestamp(row.getStruct(columns.commitInfo()), timestamp);
       }
     }
   }
@@ -816,13 +808,11 @@ public class DeltaTableQueryReader {
     final List<ChangeFile> cdcFiles = new ArrayList<>();
     Row commitInfo;
 
-    /** The timestamp is chosen as in {@link CommitWriter}. */
     Commit(FileStatus file) {
       this.version = FileNames.deltaVersion(file.getPath());
       this.timestamp = file.getModificationTime();
     }
 
-    // Each line of a commit file holds exactly one action, so one column of the row is set.
     void add(Row row, ChangeColumns columns) {
       if (!row.isNullAt(columns.protocol())) {
         protocol = Protocol.fromRow(row.getStruct(columns.protocol()));
@@ -836,12 +826,20 @@ public class DeltaTableQueryReader {
         cdcFiles.add(ChangeFile.of(ChangeType.CDC, row.getStruct(columns.cdc())));
       } else if (!row.isNullAt(columns.commitInfo())) {
         commitInfo = row.getStruct(columns.commitInfo());
-        int inCommitTimestamp = commitInfo.getSchema().indexOf("inCommitTimestamp");
-        if (!commitInfo.isNullAt(inCommitTimestamp)) {
-          timestamp = commitInfo.getLong(inCommitTimestamp);
-        }
+        timestamp = commitTimestamp(commitInfo, timestamp);
       }
     }
+  }
+
+  /**
+   * commitInfo's inCommitTimestamp, or {@code modificationTime} without one. Tables with in-commit
+   * timestamps record it because modification times change when the log is copied.
+   */
+  private static long commitTimestamp(Row commitInfo, long modificationTime) {
+    int inCommitTimestamp = commitInfo.getSchema().indexOf("inCommitTimestamp");
+    return commitInfo.isNullAt(inCommitTimestamp)
+        ? modificationTime
+        : commitInfo.getLong(inCommitTimestamp);
   }
 
   /** The fields a change line needs from an add, remove, or cdc action in the log. */

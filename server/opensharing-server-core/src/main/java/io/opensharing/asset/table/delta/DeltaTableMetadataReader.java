@@ -38,7 +38,7 @@ public class DeltaTableMetadataReader {
       boolean historical = version != null || timestamp != null;
       ResponseFormat format =
           DeltaSharingCapabilities.choose(capabilities, impl.getProtocol().getMinReaderVersion());
-      CRCInfo crc = crcFor(impl, snapshot.getVersion());
+      CRCInfo crc = DeltaSnapshots.crcFor(impl);
       return new Result(
           snapshot.getVersion(),
           format,
@@ -51,13 +51,6 @@ public class DeltaTableMetadataReader {
                   crc == null ? null : crc.getNumFiles(),
                   format));
     }
-  }
-
-  private static CRCInfo crcFor(SnapshotImpl snapshot, long version) {
-    return snapshot
-        .getCurrentCrcInfo()
-        .filter(crc -> crc.getVersion() == version)
-        .orElse(null);
   }
 
   public record Result(long version, ResponseFormat format, String ndjson) {}
