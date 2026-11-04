@@ -37,15 +37,7 @@ public abstract class BaseEntity {
     return id;
   }
 
-  protected void setId(String id) {
-    this.id = id;
-  }
-
   public Instant getCreatedAt() {
     return createdAt;
-  }
-
-  public Instant getUpdatedAt() {
-    return updatedAt;
   }
 }
