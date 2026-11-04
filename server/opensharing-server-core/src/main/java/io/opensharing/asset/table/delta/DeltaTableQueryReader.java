@@ -307,7 +307,7 @@ public class DeltaTableQueryReader {
       try {
         commitFiles =
             DeltaLogActionUtils.getCommitFilesForVersionRange(
-                session.engine(), tablePath, range.start(), range.end());
+                session.engine(), tablePath, range.start(), Optional.of(range.end()));
       } catch (KernelException | IllegalArgumentException missing) {
         // Kernel fails when a commit file in the range is missing, such as after log cleanup.
         throw ApiException.invalidParameter(

@@ -74,7 +74,7 @@
     <slf4j.version>2.0.17</slf4j.version>
     <logback.version>1.5.18</logback.version>
     <junit.version>5.12.2</junit.version>
-    <delta-kernel.version>4.0.0</delta-kernel.version>
+    <delta-kernel.version>4.4.1</delta-kernel.version>
     <hadoop.version>3.4.3</hadoop.version>
     <aws-sdk.version>2.35.4</aws-sdk.version>
     <azure-storage-file-datalake.version>12.20.0</azure-storage-file-datalake.version>
