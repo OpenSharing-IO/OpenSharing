@@ -1,7 +1,8 @@
 package io.opensharing.protocol;
 
-import com.linecorp.armeria.server.AnnotatedServiceBindingBuilder;
 import com.linecorp.armeria.server.ServerBuilder;
+import com.linecorp.armeria.server.VirtualHostAnnotatedServiceBindingBuilder;
+import com.linecorp.armeria.server.VirtualHostBuilder;
 import com.linecorp.armeria.server.annotation.JacksonRequestConverterFunction;
 import com.linecorp.armeria.server.annotation.JacksonResponseConverterFunction;
 import io.opensharing.http.ApiExceptionHandler;
@@ -21,41 +22,42 @@ public final class OpenSharingRecipientApi {
    * recipient activation under {@code activationBasePath}, behind none. Both bring their own JSON
    * converters and error handling, which take precedence over the host's server-wide ones.
    *
+   * @param host the virtual host that serves the host's API: {@link
+   *     ServerBuilder#defaultVirtualHost()} on a server without virtual hosts. A request on a port
+   *     with a port-based virtual host is not served from the default one.
    * @param publicUrl the address recipients reach the host at, such as {@code
    *     https://sharing.example.com}, which profile files point recipients to
    */
   public static void mount(
-      ServerBuilder builder,
+      VirtualHostBuilder host,
       String publicUrl,
       String protocolBasePath,
       String activationBasePath,
       OpenSharing openSharing) {
     ApiExceptionHandler errors = new ApiExceptionHandler();
     RecipientTokenDecorator tokens = new RecipientTokenDecorator(openSharing.recipients());
-    protocol(builder, protocolBasePath, errors, tokens)
+    protocol(host, protocolBasePath, errors, tokens)
         .build(
             new OpenSharingProtocolService(
                 openSharing.protocolShares(),
                 openSharing.protocolSchemas(),
                 openSharing.protocolTables()));
-    protocol(builder, protocolBasePath, errors, tokens)
+    protocol(host, protocolBasePath, errors, tokens)
         .build(new DeltaSharingProtocolService(openSharing.protocolTables()));
-    builder
-        .annotatedService()
+    host.annotatedService()
         .pathPrefix(activationBasePath)
         .exceptionHandlers(errors)
         .decorator(errors)
         .build(new ActivationService(openSharing.recipients(), publicUrl + protocolBasePath));
   }
 
-  private static AnnotatedServiceBindingBuilder protocol(
-      ServerBuilder builder,
+  private static VirtualHostAnnotatedServiceBindingBuilder protocol(
+      VirtualHostBuilder host,
       String basePath,
       ApiExceptionHandler errors,
       RecipientTokenDecorator tokens) {
     // The token check must sit inside the error decorator, so that its 401s get the protocol body.
-    return builder
-        .annotatedService()
+    return host.annotatedService()
         .pathPrefix(basePath)
         .requestConverters(new JacksonRequestConverterFunction(ApiJson.MAPPER))
         .responseConverters(new JacksonResponseConverterFunction(ApiJson.MAPPER))

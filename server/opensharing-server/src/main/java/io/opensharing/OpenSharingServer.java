@@ -102,7 +102,7 @@ public final class OpenSharingServer implements AutoCloseable {
               openSharing.recipients(),
               publicUrl + properties.get(Property.ACTIVATION_BASE_PATH)));
       OpenSharingRecipientApi.mount(
-          builder,
+          builder.defaultVirtualHost(),
           publicUrl,
           properties.get(Property.PROTOCOL_BASE_PATH),
           properties.get(Property.ACTIVATION_BASE_PATH),
