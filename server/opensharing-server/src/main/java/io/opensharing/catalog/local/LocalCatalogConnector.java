@@ -12,22 +12,22 @@ import com.google.auth.oauth2.GoogleCredentials;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
-import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetLocation;
 import io.opensharing.catalog.AssetPage;
-import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
-import io.opensharing.exception.CatalogAuthenticationException;
-import io.opensharing.exception.CatalogAuthorizationException;
-import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
+import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.TableProperties;
-import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.exception.AssetAccessDeniedException;
+import io.opensharing.exception.AssetNotFoundException;
+import io.opensharing.exception.CatalogAuthenticationException;
+import io.opensharing.exception.CatalogAuthorizationException;
+import io.opensharing.exception.CatalogException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.io.IOException;
 import java.net.URI;
@@ -48,8 +48,7 @@ import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
 
 /**
- * File-backed catalog for local testing: YAML lookup and placeholder, static, or environment
- * credentials.
+ * File-backed catalog for local testing: YAML lookup and placeholder or environment credentials.
  */
 public final class LocalCatalogConnector implements CatalogConnector {
 
@@ -213,11 +212,8 @@ public final class LocalCatalogConnector implements CatalogConnector {
       return List.of(envCredentials(location, expiration));
     }
     CloudProvider provider = credentials.provider();
-    Map<String, String> values =
-        credentials.mode() == LocalCatalogFile.CredentialMode.STATIC
-            ? staticValues(provider)
-            : fakeValues(provider, expiration);
-    return List.of(new StorageCredentials(location, provider, values, expiration));
+    return List.of(
+        new StorageCredentials(location, provider, fakeValues(provider, expiration), expiration));
   }
 
   @Override
@@ -416,33 +412,6 @@ public final class LocalCatalogConnector implements CatalogConnector {
     return null;
   }
 
-  private Map<String, String> staticValues(CloudProvider provider) {
-    Map<String, String> values = new LinkedHashMap<>();
-    for (String key : requiredKeys(provider)) {
-      String value = credentials.values().get(key);
-      if (value == null || value.isBlank()) {
-        throw new CatalogException(
-            "local catalog credentials.mode is STATIC but credentials.values is missing '"
-                + key
-                + "' for provider "
-                + provider);
-      }
-      values.put(key, value);
-    }
-    if (provider == CloudProvider.AWS || provider == CloudProvider.R2) {
-      copyIfPresent(values, StorageCredentials.SESSION_TOKEN);
-      copyIfPresent(values, StorageCredentials.REGION);
-    }
-    return values;
-  }
-
-  private void copyIfPresent(Map<String, String> values, String key) {
-    String value = credentials.values().get(key);
-    if (value != null && !value.isBlank()) {
-      values.put(key, value);
-    }
-  }
-
   private Map<String, String> fakeValues(CloudProvider provider, Instant expiration) {
     Map<String, String> values = new HashMap<>();
     switch (provider) {
@@ -461,15 +430,6 @@ public final class LocalCatalogConnector implements CatalogConnector {
           values.put(StorageCredentials.OAUTH_TOKEN, "ya29.local-fake-" + randomString(32));
     }
     return values;
-  }
-
-  private static List<String> requiredKeys(CloudProvider provider) {
-    return switch (provider) {
-      case AWS, R2 ->
-          List.of(StorageCredentials.ACCESS_KEY_ID, StorageCredentials.SECRET_ACCESS_KEY);
-      case AZURE -> List.of(StorageCredentials.SAS_TOKEN);
-      case GCP -> List.of(StorageCredentials.OAUTH_TOKEN);
-    };
   }
 
   private String randomString(int length) {

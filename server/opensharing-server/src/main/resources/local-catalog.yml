@@ -1,5 +1,5 @@
 # Sample catalog for catalog.type=local.
-# FAKE credentials are placeholders. Use STATIC with credentials.values for real keys.
+# FAKE credentials are placeholders. ENV mode vends real ones from the environment.
 credentials:
   provider: AWS
   mode: FAKE
