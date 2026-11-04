@@ -1,0 +1,10 @@
+# Bumps the actions' commit-SHA pins in .github/workflows along with their version comments.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]

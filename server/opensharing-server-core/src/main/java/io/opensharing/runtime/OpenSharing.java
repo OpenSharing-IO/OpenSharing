@@ -24,8 +24,8 @@ import java.util.List;
 
 /**
  * OpenSharing assembled from what its host supplies. The standalone server builds one from its
- * settings. An embedding host, such as Unity Catalog, builds one directly, serves it through
- * its own HTTP stack, and authenticates callers itself.
+ * settings. An embedding host, such as a data catalog, builds one directly, serves it through its
+ * own HTTP stack, and authenticates callers itself.
  */
 public final class OpenSharing {
 

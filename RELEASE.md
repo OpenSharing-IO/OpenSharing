@@ -30,6 +30,3 @@ stable version and may change without a MAJOR bump until specified.
 
 Releases are made as the specification matures rather than on a fixed calendar
 cadence. The TSC may adopt a regular cadence and will document it here if so.
-
-<!-- TODO(maintainers): confirm the versioning scheme and cadence with the TSC and
-     finalize this document. -->

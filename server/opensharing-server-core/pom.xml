@@ -13,7 +13,7 @@
   <artifactId>opensharing-server-core</artifactId>
 
   <name>OpenSharing Server Core</name>
-  <description>Embeddable OpenSharing library for hosts such as Unity Catalog OSS</description>
+  <description>Embeddable OpenSharing library for hosts such as data catalogs</description>
 
   <dependencies>
     <dependency>

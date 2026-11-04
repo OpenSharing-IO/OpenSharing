@@ -15,9 +15,6 @@ Need help with OpenSharing? Here's where to go.
 - **Bugs in a connector or the spec** — open a GitHub Issue with steps to
   reproduce.
 
-<!-- TODO(maintainers): once the LF AI & Data collaboration tools are provisioned,
-     add the project mailing list and Slack channel here as the primary Q&A venues. -->
-
 ## Security
 
 For security reports, follow [SECURITY.md](./SECURITY.md) — do not use public

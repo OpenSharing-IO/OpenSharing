@@ -144,12 +144,14 @@ public final class LocalCatalogConnector implements CatalogConnector {
 
   private static boolean isChildOf(String identifier, String schemaPrefix) {
     String folded = identifier.toLowerCase(Locale.ROOT);
-    return folded.startsWith(schemaPrefix) && !folded.substring(schemaPrefix.length()).contains(".");
+    return folded.startsWith(schemaPrefix)
+        && !folded.substring(schemaPrefix.length()).contains(".");
   }
 
   private static ResolvedAsset resolved(LocalCatalogFile.Asset asset) {
     return ResolvedAsset.builder(asset.type(), asset.identifier())
-        .catalogAssetId(asset.catalogAssetId() != null ? asset.catalogAssetId() : asset.identifier())
+        .catalogAssetId(
+            asset.catalogAssetId() != null ? asset.catalogAssetId() : asset.identifier())
         .location(new AssetLocation(asset.storageLocation(), asset.auxiliaryLocations()))
         .additionalProperties(
             asset.type() == AssetType.TABLE
