@@ -7,6 +7,7 @@ import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.StorageCredentials;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -63,6 +64,33 @@ class S3UrlSignerTest {
 
     assertTrue(signed.url().startsWith("https://bucket.s3.us-west-2.amazonaws.com/key.parquet?"));
     assertFalse(signed.url().contains("X-Amz-Security-Token"));
+  }
+
+  @Test
+  void signsR2PathsAtTheAccountEndpoint() {
+    StorageCredentials credentials =
+        new StorageCredentials(
+            "r2://bucket@account.r2.cloudflarestorage.com/table",
+            CloudProvider.R2,
+            Map.of(
+                StorageCredentials.ACCESS_KEY_ID, "r2key",
+                StorageCredentials.SECRET_ACCESS_KEY, "r2secret",
+                StorageCredentials.SESSION_TOKEN, "session"),
+            Instant.now().plus(Duration.ofHours(1)));
+
+    for (String path :
+        List.of(
+            "s3a://bucket/table/part.parquet",
+            "r2://bucket@account.r2.cloudflarestorage.com/table/part.parquet")) {
+      SignedUrl signed = sign(path, credentials, Duration.ofMinutes(5));
+
+      assertTrue(
+          signed
+              .url()
+              .startsWith("https://account.r2.cloudflarestorage.com/bucket/table/part.parquet?"));
+      assertTrue(signed.url().contains("%2Fauto%2Fs3%2Faws4_request"));
+      assertTrue(signed.url().contains("X-Amz-Security-Token=session"));
+    }
   }
 
   private SignedUrl sign(String path, StorageCredentials credentials, Duration ttl) {

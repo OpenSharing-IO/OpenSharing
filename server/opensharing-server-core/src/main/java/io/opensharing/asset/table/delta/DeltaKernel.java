@@ -109,6 +109,7 @@ public class DeltaKernel {
       log.error("Catalog table '{}' has no storage location", table.fullName());
       throw new CatalogException("the catalog reported no storage location for the table");
     }
+    HadoopStorageConfiguration.requireSupported(location);
     List<StorageCredentials> credentials =
         catalog.getStorageCredentials(
             new CredentialRequest(

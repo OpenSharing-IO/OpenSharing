@@ -14,7 +14,7 @@ final class AzureSasUrlSigner implements UrlSigner {
 
   @Override
   public Set<String> schemes() {
-    return Set.of("abfs", "abfss", "wasb", "wasbs");
+    return StorageLocations.AZURE_SCHEMES;
   }
 
   @Override

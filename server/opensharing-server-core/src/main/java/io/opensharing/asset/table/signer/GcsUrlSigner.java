@@ -17,7 +17,7 @@ final class GcsUrlSigner implements UrlSigner {
 
   @Override
   public Set<String> schemes() {
-    return Set.of("gs");
+    return StorageLocations.GCS_SCHEMES;
   }
 
   @Override
