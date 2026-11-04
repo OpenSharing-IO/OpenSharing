@@ -8,6 +8,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
 import io.opensharing.http.ErrorCodes;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -118,6 +120,24 @@ class ShareAdminServiceTest {
     assertEquals(200, unchanged.status());
     assertEquals(255, unchanged.body().path("displayName").asText().length());
     assertEquals(65536, unchanged.body().path("comment").asText().length());
+  }
+
+  @Test
+  void rejectsMoreThanFiftyProperties() {
+    assertEquals(
+        201,
+        create("alice-token", "{\"name\":\"many\",\"properties\":" + properties(50) + "}")
+            .status());
+
+    assertTooLong(
+        create("alice-token", "{\"name\":\"more\",\"properties\":" + properties(51) + "}"),
+        "properties must not exceed 50 entries");
+    assertTooLong(
+        patch("many", "{\"properties\":" + properties(51) + "}"),
+        "properties must not exceed 50 entries");
+    Response unchanged = server.get(SHARES + "/many", "alice-token");
+    assertEquals(200, unchanged.status());
+    assertEquals(50, unchanged.body().path("properties").size());
   }
 
   @Test
@@ -317,6 +337,12 @@ class ShareAdminServiceTest {
 
   private static Response create(String token, String body) {
     return server.post(SHARES, token, body);
+  }
+
+  private static String properties(int count) {
+    return IntStream.range(0, count)
+        .mapToObj(i -> "\"key" + i + "\":\"value\"")
+        .collect(Collectors.joining(",", "{", "}"));
   }
 
   private static void createShare(String name) {

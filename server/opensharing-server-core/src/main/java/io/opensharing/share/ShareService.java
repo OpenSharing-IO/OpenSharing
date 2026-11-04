@@ -314,6 +314,10 @@ public class ShareService {
 
   private static Map<String, String> validateProperties(Map<String, String> properties) {
     if (properties != null) {
+      if (properties.size() > ShareEntity.MAX_PROPERTIES) {
+        throw ApiException.invalidParameter(
+            "properties must not exceed " + ShareEntity.MAX_PROPERTIES + " entries");
+      }
       for (Map.Entry<String, String> property : properties.entrySet()) {
         requireMaxLength(property.getKey(), ShareEntity.MAX_PROPERTY_KEY_LENGTH, "property key");
         if (property.getValue() == null) {

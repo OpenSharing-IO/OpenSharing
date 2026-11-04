@@ -26,6 +26,7 @@ public class ShareEntity extends BaseEntity {
   static final int MAX_COMMENT_LENGTH = 65536;
   static final int MAX_PROPERTY_KEY_LENGTH = 255;
   static final int MAX_PROPERTY_VALUE_LENGTH = 1000;
+  static final int MAX_PROPERTIES = 50;
 
   @Column(nullable = false, length = 255)
   private String name;
