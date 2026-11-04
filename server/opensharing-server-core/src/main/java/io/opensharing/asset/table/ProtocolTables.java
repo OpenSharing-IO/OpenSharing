@@ -18,6 +18,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
 import io.opensharing.catalog.TableProperties;
+import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
@@ -419,13 +420,24 @@ public class ProtocolTables {
 
   /**
    * Resolves {@code sharedObject} in the catalog, or logs an error and returns null once the
-   * catalog dropped or replaced it.
+   * catalog dropped or replaced it, or no longer lets the share's owner share it.
    */
   private ResolvedAsset resolveSharedAsset(ShareEntity share, SharedDataObjectEntity sharedObject) {
-    Optional<ResolvedAsset> catalogAsset =
-        SharedAssetResolver.resolve(catalog, sharedObject, owner(share));
+    String type = sharedObject.getType().name().toLowerCase(Locale.ROOT);
+    Optional<ResolvedAsset> catalogAsset;
+    try {
+      catalogAsset = SharedAssetResolver.resolve(catalog, sharedObject, owner(share));
+    } catch (AssetAccessDeniedException denied) {
+      log.error(
+          "Hiding {} '{}' in share '{}': the catalog no longer lets its owner share {} '{}'",
+          type,
+          sharedObject.getSharedAs(),
+          share.getName(),
+          type,
+          sharedObject.getFullName());
+      return null;
+    }
     if (catalogAsset.isEmpty()) {
-      String type = sharedObject.getType().name().toLowerCase(Locale.ROOT);
       log.error(
           "Hiding {} '{}' in share '{}': catalog {} '{}' was dropped or replaced since it was"
               + " shared",

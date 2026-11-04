@@ -17,7 +17,10 @@ import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.server.HttpService;
 import com.linecorp.armeria.server.HttpStatusException;
 import com.linecorp.armeria.server.ServiceRequestContext;
+import io.opensharing.auth.UserContext;
+import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
+import io.opensharing.exception.AssetAccessDeniedException;
 import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.Test;
 
@@ -29,19 +32,17 @@ class ApiExceptionHandlerTest {
   void mapsUnroutedRequestsAsNotFound() {
     assertEquals(
         new ApiFailure(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, "the endpoint does not exist"),
-        ApiExceptionHandler.failureOf(HttpStatusException.of(HttpStatus.NOT_FOUND)));
+        handler.failureOf(HttpStatusException.of(HttpStatus.NOT_FOUND)));
   }
 
   @Test
   void mapsOtherArmeriaStatusesByTheirReason() {
     assertEquals(
         new ApiFailure(415, ErrorCodes.MALFORMED_REQUEST, "unsupported media type"),
-        ApiExceptionHandler.failureOf(
-            HttpStatusException.of(HttpStatus.UNSUPPORTED_MEDIA_TYPE)));
+        handler.failureOf(HttpStatusException.of(HttpStatus.UNSUPPORTED_MEDIA_TYPE)));
     assertEquals(
         new ApiFailure(503, ErrorCodes.INTERNAL_ERROR, "service unavailable"),
-        ApiExceptionHandler.failureOf(
-            HttpStatusException.of(HttpStatus.SERVICE_UNAVAILABLE)));
+        handler.failureOf(HttpStatusException.of(HttpStatus.SERVICE_UNAVAILABLE)));
   }
 
   @Test
@@ -53,26 +54,42 @@ class ApiExceptionHandlerTest {
     assertEquals(
         new ApiFailure(
             400, ErrorCodes.INVALID_PARAMETER_VALUE, "type must be one of [TABLE, SCHEMA]"),
-        ApiExceptionHandler.failureOf(new IllegalArgumentException(invalid)));
+        handler.failureOf(new IllegalArgumentException(invalid)));
   }
 
   @Test
   void mapsInvalidParametersByTheirMessage() {
     assertEquals(
         new ApiFailure(400, ErrorCodes.INVALID_PARAMETER_VALUE, "maxResults is not a number"),
-        ApiExceptionHandler.failureOf(
-            new IllegalArgumentException("maxResults is not a number")));
+        handler.failureOf(new IllegalArgumentException("maxResults is not a number")));
   }
 
   @Test
   void leavesOtherFailuresToApiFailure() {
     assertEquals(
         new ApiFailure(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, "no share"),
-        ApiExceptionHandler.failureOf(
-            new CompletionException(ApiException.notFound("no share"))));
+        handler.failureOf(new CompletionException(ApiException.notFound("no share"))));
     assertEquals(
         new ApiFailure(500, ErrorCodes.INTERNAL_ERROR, "internal server error"),
-        ApiExceptionHandler.failureOf(new AssertionError("boom")));
+        handler.failureOf(new AssertionError("boom")));
+  }
+
+  @Test
+  void hidesCatalogFailuresFromRecipients() throws Exception {
+    UserContext owner = UserContext.fromUserIdAndName("owner-id", null);
+    AssetAccessDeniedException denied =
+        new AssetAccessDeniedException(new Asset(AssetType.TABLE, "main.sales.orders"), owner);
+    HttpRequest req = HttpRequest.of(HttpMethod.GET, "/");
+    AggregatedHttpResponse response =
+        ApiExceptionHandler.forRecipients()
+            .handleException(ServiceRequestContext.of(req), req, new CompletionException(denied))
+            .aggregate()
+            .join();
+
+    assertEquals(502, response.status().code());
+    JsonNode body = new ObjectMapper().readTree(response.contentUtf8());
+    assertEquals(ErrorCodes.CATALOG_ERROR, body.get("errorCode").asText());
+    assertEquals("the catalog failed to serve the request", body.get("message").asText());
   }
 
   @Test
