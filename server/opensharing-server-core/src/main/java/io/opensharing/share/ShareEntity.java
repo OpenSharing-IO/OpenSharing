@@ -23,7 +23,7 @@ import java.util.Map;
 public class ShareEntity extends BaseEntity {
 
   static final int MAX_DISPLAY_NAME_LENGTH = 255;
-  static final int MAX_COMMENT_LENGTH = 8192;
+  static final int MAX_COMMENT_LENGTH = 65536;
   static final int MAX_PROPERTY_KEY_LENGTH = 255;
   static final int MAX_PROPERTY_VALUE_LENGTH = 1000;
 

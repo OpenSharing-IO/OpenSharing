@@ -184,26 +184,26 @@ class RecipientAdminServiceTest {
             "alice-token",
             "{\"name\":\"Commented\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":1,"
                 + "\"comment\":\""
-                + "c".repeat(8192)
+                + "c".repeat(65536)
                 + "\"}");
     assertEquals(201, created.status());
 
     // One character more is rejected on create and on update.
-    String tooLong = "comment must not exceed 8192 characters";
+    String tooLong = "comment must not exceed 65536 characters";
     assertInvalid(
         server.post(
             RECIPIENTS,
             "alice-token",
             "{\"name\":\"Overlong\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":1,"
                 + "\"comment\":\""
-                + "c".repeat(8193)
+                + "c".repeat(65537)
                 + "\"}"),
         tooLong);
     assertInvalid(
         server.patch(
             RECIPIENTS + "/commented",
             "alice-token",
-            "{\"comment\":\"" + "c".repeat(8193) + "\"}"),
+            "{\"comment\":\"" + "c".repeat(65537) + "\"}"),
         tooLong);
   }
 

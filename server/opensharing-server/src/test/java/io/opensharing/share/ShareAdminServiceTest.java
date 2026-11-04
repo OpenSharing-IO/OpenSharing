@@ -82,17 +82,17 @@ class ShareAdminServiceTest {
             "alice-token",
             ("{\"name\":\"long\",\"displayName\":\"%s\",\"comment\":\"%s\","
                     + "\"properties\":{\"%s\":\"%s\"}}")
-                .formatted("d".repeat(255), "c".repeat(8192), "k".repeat(255), "v".repeat(1000)));
+                .formatted("d".repeat(255), "c".repeat(65536), "k".repeat(255), "v".repeat(1000)));
     assertEquals(201, full.status());
-    assertEquals(8192, full.body().path("comment").asText().length());
+    assertEquals(65536, full.body().path("comment").asText().length());
 
     // One character more is rejected on create.
     assertTooLong(
         create("alice-token", "{\"name\":\"longer\",\"displayName\":\"" + "d".repeat(256) + "\"}"),
         "displayName must not exceed 255 characters");
     assertTooLong(
-        create("alice-token", "{\"name\":\"longer\",\"comment\":\"" + "c".repeat(8193) + "\"}"),
-        "comment must not exceed 8192 characters");
+        create("alice-token", "{\"name\":\"longer\",\"comment\":\"" + "c".repeat(65537) + "\"}"),
+        "comment must not exceed 65536 characters");
     assertTooLong(
         create(
             "alice-token",
@@ -109,15 +109,15 @@ class ShareAdminServiceTest {
         patch("long", "{\"displayName\":\"" + "d".repeat(256) + "\"}"),
         "displayName must not exceed 255 characters");
     assertTooLong(
-        patch("long", "{\"comment\":\"" + "c".repeat(8193) + "\"}"),
-        "comment must not exceed 8192 characters");
+        patch("long", "{\"comment\":\"" + "c".repeat(65537) + "\"}"),
+        "comment must not exceed 65536 characters");
     assertTooLong(
         patch("long", "{\"properties\":{\"team\":\"" + "v".repeat(1001) + "\"}}"),
         "property 'team' must not exceed 1000 characters");
     Response unchanged = server.get(SHARES + "/long", "alice-token");
     assertEquals(200, unchanged.status());
     assertEquals(255, unchanged.body().path("displayName").asText().length());
-    assertEquals(8192, unchanged.body().path("comment").asText().length());
+    assertEquals(65536, unchanged.body().path("comment").asText().length());
   }
 
   @Test
