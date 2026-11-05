@@ -211,9 +211,9 @@ Package the executable JAR, then start it. `server.public-url` is required so
 activation links and profile endpoints are absolute:
 
 ```bash
-mvn -f server/pom.xml -pl opensharing-server -am package -DskipTests
+mvn -f server/pom.xml -pl opensharing-server -am clean package -DskipTests
 java -Dserver.public-url=http://127.0.0.1:8080 \
-  -jar server/opensharing-server/target/opensharing-server-0.1.0-SNAPSHOT-exec.jar
+  -jar server/opensharing-server/target/opensharing-server-*-exec.jar
 ```
 
 Settings come from `server/opensharing-server/src/main/resources/server.properties`.
