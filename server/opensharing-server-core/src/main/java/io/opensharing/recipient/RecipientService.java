@@ -94,6 +94,17 @@ public class RecipientService {
     return Pagination.page(maxResults, pageToken, slice, r -> toResponse(r, activationBaseUrl));
   }
 
+  /**
+   * Lists one page of every recipient by name, checking nothing, for a host that decides per
+   * recipient which ones the caller may see. The host must filter each page before returning it,
+   * since unused activation links are in it.
+   */
+  public ListResponse<RecipientResponse> listAll(
+      Integer maxResults, String pageToken, String activationBaseUrl) {
+    return Pagination.page(
+        maxResults, pageToken, recipients::list, r -> toResponse(r, activationBaseUrl));
+  }
+
   /** Gets a recipient by name in any case. Owner or USE_RECIPIENT. */
   public RecipientResponse get(UserContext user, String recipient, String activationBaseUrl) {
     RecipientEntity entity = recipients.getOrThrow(recipient);

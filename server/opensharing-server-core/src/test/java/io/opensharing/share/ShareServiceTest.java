@@ -51,6 +51,38 @@ class ShareServiceTest {
     assertEquals(List.of(Privilege.CREATE_SHARE), privileges);
   }
 
+  @Test
+  void listsEveryShareWithoutAskingTheCatalog() {
+    CatalogConnector catalog =
+        proxy(
+            CatalogConnector.class,
+            (proxy, method, args) -> {
+              throw new AssertionError("asked the catalog");
+            });
+    List<ShareEntity> rows = List.of(share("alice_share", "alice-id"), share("bob_share", "bob"));
+    Transactions tx = proxy(Transactions.class, (proxy, method, args) -> rows);
+    ShareService shares =
+        new ShareService(
+            catalog,
+            null,
+            tx,
+            new ShareStore(tx),
+            new SharedDataObjectStore(tx),
+            new SharePermissionStore(tx),
+            new RecipientStore(tx));
+
+    assertEquals(
+        List.of("alice_share", "bob_share"),
+        shares.listAll(null, null).items().stream().map(ShareResponse::name).toList());
+  }
+
+  private static ShareEntity share(String name, String owner) {
+    ShareEntity share = new ShareEntity();
+    share.setName(name);
+    share.setOwnerId(owner);
+    return share;
+  }
+
   private static <T> T proxy(Class<T> type, InvocationHandler handler) {
     return type.cast(
         Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] {type}, handler));
