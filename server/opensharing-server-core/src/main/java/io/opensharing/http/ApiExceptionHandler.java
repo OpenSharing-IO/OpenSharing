@@ -61,17 +61,17 @@ public final class ApiExceptionHandler
   /** Maps Armeria's own failures; everything else is mapped by {@link ApiFailure}. */
   ApiFailure failureOf(Throwable cause) {
     Throwable failure = cause instanceof CompletionException ? cause.getCause() : cause;
-    return switch (failure) {
-      case HttpStatusException status when status.httpStatus() == HttpStatus.NOT_FOUND ->
-          new ApiFailure(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, "the endpoint does not exist");
-      case HttpStatusException status -> statusFailure(status.httpStatus());
-      // Armeria reports an unreadable body as an IllegalArgumentException around Jackson's failure.
-      case IllegalArgumentException illegal
-          when illegal.getCause() instanceof JsonProcessingException json ->
-          ApiFailure.of(json);
-      case Exception e -> failures.apply(e);
-      default -> failures.apply(new RuntimeException(failure));
-    };
+    if (failure instanceof HttpStatusException status) {
+      return status.httpStatus() == HttpStatus.NOT_FOUND
+          ? new ApiFailure(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, "the endpoint does not exist")
+          : statusFailure(status.httpStatus());
+    }
+    // Armeria reports an unreadable body as an IllegalArgumentException around Jackson's failure.
+    if (failure instanceof IllegalArgumentException illegal
+        && illegal.getCause() instanceof JsonProcessingException json) {
+      return ApiFailure.of(json);
+    }
+    return failures.apply(failure instanceof Exception e ? e : new RuntimeException(failure));
   }
 
   private static ApiFailure statusFailure(HttpStatus status) {

@@ -117,7 +117,7 @@ If you are unsure of compatibility implications, ask in the issue or on the PR.
 
 There is no separate formatter required in CI. Match the surrounding code:
 
-- Java 21, package `io.opensharing`
+- Java 17, package `io.opensharing`
 - JUnit 5 for tests
 - Prefer small, named types and comments that explain *why*, not a restatement
   of the code
@@ -172,7 +172,7 @@ The standalone server and embeddable library are Maven modules under
 
 Requirements:
 
-- [JDK 21](https://adoptium.net/) (Temurin or equivalent)
+- [JDK 17](https://adoptium.net/) or newer (Temurin or equivalent)
 - [Apache Maven](https://maven.apache.org/download.cgi) 3.9+
 
 ### Running tests

@@ -85,7 +85,7 @@ class LocalCatalogEnvCredentialsIntegrationTest {
                 StorageOperation.READ,
                 Duration.ofMinutes(15)),
             AUTH)
-        .getFirst();
+        .get(0);
   }
 
   private static String directory(URI location) {
