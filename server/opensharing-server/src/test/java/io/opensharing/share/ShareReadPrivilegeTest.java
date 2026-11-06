@@ -37,6 +37,16 @@ class ShareReadPrivilegeTest {
   }
 
   @Test
+  void listAllIncludesOthersSharesForCallersWithoutUseShare() {
+    assertEquals(List.of("carol_share"), names(server.get(SHARES, "carol-token")));
+    assertEquals(
+        List.of("alice_share", "carol_share"),
+        server.server().openSharing().shares().listAll(null, null).items().stream()
+            .map(ShareResponse::name)
+            .toList());
+  }
+
+  @Test
   void readsOthersSharesOnlyWithUseShare() {
     assertEquals(200, server.get(SHARES + "/carol_share", "carol-token").status());
     assertEquals(200, server.get(SHARES + "/carol_share/permissions", "carol-token").status());
