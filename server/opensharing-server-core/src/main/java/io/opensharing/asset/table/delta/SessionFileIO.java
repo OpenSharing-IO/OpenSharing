@@ -84,6 +84,12 @@ final class SessionFileIO implements FileIO, Closeable {
 
   /** Unsupported: shared tables are read-only. */
   @Override
+  public void copyFileAtomically(String from, String to, boolean overwrite) {
+    throw new UnsupportedOperationException("shared tables are read-only");
+  }
+
+  /** Unsupported: shared tables are read-only. */
+  @Override
   public boolean delete(String path) {
     throw new UnsupportedOperationException("shared tables are read-only");
   }

@@ -74,7 +74,7 @@
     <slf4j.version>2.0.17</slf4j.version>
     <logback.version>1.5.18</logback.version>
     <junit.version>5.12.2</junit.version>
-    <delta-kernel.version>4.0.0</delta-kernel.version>
+    <delta-kernel.version>4.4.1</delta-kernel.version>
     <hadoop.version>3.4.3</hadoop.version>
     <!-- Spark e2e only. Spark 4.2 needs Netty 4.2 IoHandler; this JVM has Armeria's 4.1.126.
          The connector artifact in opensharing-spark-e2e names Spark's minor version, so it
