@@ -306,7 +306,7 @@ public class DeltaTableQueryReader {
       try {
         commitFiles =
             DeltaLogActionUtils.getCommitFilesForVersionRange(
-                session.engine(), tablePath, range.start(), range.end());
+                session.engine(), tablePath, range.start(), Optional.of(range.end()));
       } catch (KernelException | IllegalArgumentException missing) {
         throw ApiException.invalidParameter(
             "the table no longer has every commit from version "

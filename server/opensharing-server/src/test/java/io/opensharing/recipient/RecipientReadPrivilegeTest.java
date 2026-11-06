@@ -38,6 +38,17 @@ class RecipientReadPrivilegeTest {
   }
 
   @Test
+  void listAllIncludesOthersRecipientsForCallersWithoutUseRecipient() {
+    assertEquals(List.of("carol_recipient"), names(server.get(RECIPIENTS, "carol-token")));
+    RecipientService recipients = server.server().openSharing().recipients();
+    assertEquals(
+        List.of("alice_recipient", "carol_recipient"),
+        recipients.listAll(null, null, "http://host/activations").items().stream()
+            .map(RecipientResponse::name)
+            .toList());
+  }
+
+  @Test
   void readsOthersRecipientsOnlyWithUseRecipient() {
     assertEquals(200, server.get(RECIPIENTS + "/carol_recipient", "carol-token").status());
     assertEquals(200, server.get(RECIPIENTS + "/carol_recipient", "bob-token").status());

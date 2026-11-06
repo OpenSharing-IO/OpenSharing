@@ -85,6 +85,14 @@ public class ShareService {
   }
 
   /**
+   * Lists one page of every share by name, checking nothing, for a host that decides per share
+   * which ones the caller may see. The host must filter each page before returning it.
+   */
+  public ListResponse<ShareResponse> listAll(Integer maxResults, String pageToken) {
+    return Pagination.page(maxResults, pageToken, shares::list, ShareResponse::from);
+  }
+
+  /**
    * Gets a share by name in any case, with the objects in it when {@code includeSharedData}. Owner
    * or USE_SHARE.
    */
