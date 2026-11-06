@@ -82,7 +82,7 @@ class UrlSignerCloudIntegrationTest {
                     StorageOperation.READ,
                     Duration.ofMinutes(15)),
                 AUTH)
-            .getFirst();
+            .get(0);
     SignedUrl signed;
     try (SigningSession signer = signers.open(credentials)) {
       signed = signer.sign(path, Duration.ofMinutes(5));

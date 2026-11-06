@@ -15,11 +15,6 @@
   <name>OpenSharing Server Core</name>
   <description>Embeddable OpenSharing library for hosts such as data catalogs</description>
 
-  <properties>
-    <!-- Hosts such as Unity Catalog build and run on Java 17. -->
-    <maven.compiler.release>17</maven.compiler.release>
-  </properties>
-
   <dependencies>
     <dependency>
       <groupId>jakarta.persistence</groupId>
