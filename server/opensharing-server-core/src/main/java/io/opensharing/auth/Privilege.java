@@ -6,6 +6,9 @@ public enum Privilege {
   CREATE_RECIPIENT,
   /** Lists and reads every share, not only the caller's own. */
   USE_SHARE,
-  /** Lists and reads every recipient, not only the caller's own. */
+  /**
+   * Lists and reads every recipient, not only the caller's own, and grants the caller's shares to
+   * them.
+   */
   USE_RECIPIENT
 }

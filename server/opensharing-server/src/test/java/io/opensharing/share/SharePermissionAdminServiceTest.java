@@ -4,7 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
+import io.opensharing.Transactions;
 import io.opensharing.http.ErrorCodes;
+import io.opensharing.recipient.RecipientEntity;
+import io.opensharing.recipient.RecipientStore;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -99,15 +102,62 @@ class SharePermissionAdminServiceTest {
     }
   }
 
+  /** In the local catalog, bob holds USE_RECIPIENT and carol does not. */
+  @Test
+  void grantsToOthersRecipientsOnlyWithUseRecipient() {
+    assertEquals(201, server.post(SHARES, "carol-token", "{\"name\":\"carol_sales\"}").status());
+    assertEquals(201, server.post(SHARES, "bob-token", "{\"name\":\"bob_sales\"}").status());
+    createRecipient("alice-token", "globex");
+    createRecipient("carol-token", "initech");
+
+    Response denied =
+        permissions(
+            "carol_sales",
+            "carol-token",
+            "{\"changes\":["
+                + "{\"recipientName\":\"initech\",\"add\":[\"SELECT\"]},"
+                + "{\"recipientName\":\"globex\",\"add\":[\"SELECT\"]}]}");
+    assertEquals(403, denied.status());
+    assertEquals(ErrorCodes.PERMISSION_DENIED, denied.errorCode());
+    Response none = server.get(SHARES + "/carol_sales/permissions", "carol-token");
+    assertEquals(0, none.body().path("items").size());
+
+    assertEquals(200, permissions("carol_sales", "carol-token", select("initech", "add")).status());
+    assertEquals(200, permissions("bob_sales", "bob-token", select("globex", "add")).status());
+
+    // A grant carol made while she still held USE_RECIPIENT.
+    Transactions tx = server.server().transactions();
+    ShareEntity share = new ShareStore(tx).getOrThrow("carol_sales");
+    RecipientEntity globex = new RecipientStore(tx).getOrThrow("globex");
+    tx.inTransaction(
+        false,
+        em -> {
+          new SharePermissionStore(tx).grant(em, share, globex, SharePrivilege.SELECT);
+          return null;
+        });
+    Response revoked = permissions("carol_sales", "carol-token", select("globex", "remove"));
+    assertEquals(200, revoked.status());
+    assertEquals("initech", revoked.body().path("items").get(0).path("recipientName").asText());
+    assertEquals(1, revoked.body().path("items").size());
+  }
+
+  private static void createRecipient(String token, String name) {
+    String recipient =
+        "{\"name\":\"" + name + "\",\"authenticationType\":\"TOKEN\",\"tokenExpirationDays\":30}";
+    assertEquals(201, server.post(RECIPIENTS, token, recipient).status());
+  }
+
   private static Response permissions(String share, String token, String body) {
     return server.patch(SHARES + "/" + share + "/permissions", token, body);
   }
 
   // Adds or removes SELECT for one recipient as the owner.
   private static Response change(String share, String recipient, String list) {
-    return permissions(
-        share,
-        "alice-token",
-        "{\"changes\":[{\"recipientName\":\"" + recipient + "\",\"" + list + "\":[\"SELECT\"]}]}");
+    return permissions(share, "alice-token", select(recipient, list));
+  }
+
+  private static String select(String recipient, String list) {
+    return "{\"changes\":[{\"recipientName\":\"%s\",\"%s\":[\"SELECT\"]}]}"
+        .formatted(recipient, list);
   }
 }

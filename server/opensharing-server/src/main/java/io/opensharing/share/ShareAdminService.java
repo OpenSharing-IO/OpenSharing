@@ -94,7 +94,8 @@ public final class ShareAdminService {
 
   /**
    * {@code PATCH /shares/{share}/permissions}: grants and revokes privileges in order, all or
-   * nothing, then returns the first page of the share's permissions. Owner only.
+   * nothing, then returns the first page of the share's permissions. Owner only, and granting to a
+   * recipient the owner doesn't own also needs USE_RECIPIENT.
    */
   @Patch("/shares/{share}/permissions")
   public ListResponse<SharePermissionResponse> updatePermissions(
