@@ -260,15 +260,17 @@ public final class TableActions {
     @Override
     public void serialize(Object value, JsonGenerator gen, SerializerProvider serializers)
         throws IOException {
-      Row row =
-          switch (value) {
-            case Protocol protocol -> protocol.toRow();
-            case Metadata metadata -> metadata.toRow();
-            case Row action -> action;
-            default ->
-                throw new IllegalArgumentException(
-                    "unsupported Kernel action: " + value.getClass().getName());
-          };
+      Row row;
+      if (value instanceof Protocol protocol) {
+        row = protocol.toRow();
+      } else if (value instanceof Metadata metadata) {
+        row = metadata.toRow();
+      } else if (value instanceof Row action) {
+        row = action;
+      } else {
+        throw new IllegalArgumentException(
+            "unsupported Kernel action: " + value.getClass().getName());
+      }
       gen.writeRawValue(JsonUtils.rowToJson(row));
     }
   }

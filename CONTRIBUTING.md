@@ -117,7 +117,8 @@ If you are unsure of compatibility implications, ask in the issue or on the PR.
 
 There is no separate formatter required in CI. Match the surrounding code:
 
-- Java 21, package `io.opensharing`
+- Java 21, package `io.opensharing`, except `opensharing-server-core`, which
+  targets Java 17 because hosts such as Unity Catalog run on it
 - JUnit 5 for tests
 - Prefer small, named types and comments that explain *why*, not a restatement
   of the code

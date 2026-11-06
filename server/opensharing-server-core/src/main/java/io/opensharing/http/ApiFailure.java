@@ -23,35 +23,42 @@ public record ApiFailure(int status, String errorCode, String message) {
   private static final Logger log = LoggerFactory.getLogger(ApiFailure.class);
 
   public static ApiFailure of(Exception e) {
-    return switch (e) {
-      case ApiException api ->
-          new ApiFailure(api.getStatus(), api.getErrorCode(), api.getMessage());
-      case AssetNotFoundException missing ->
-          new ApiFailure(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, missing.getMessage());
-      case AssetAccessDeniedException denied ->
-          new ApiFailure(403, ErrorCodes.PERMISSION_DENIED, denied.getMessage());
-      case UnsupportedAssetTypeException unsupported ->
-          new ApiFailure(400, ErrorCodes.INVALID_PARAMETER_VALUE, unsupported.getMessage());
-      case CatalogAuthenticationException rejected ->
-          new ApiFailure(401, ErrorCodes.UNAUTHENTICATED, rejected.getMessage());
-      case CatalogAuthorizationException refused ->
-          new ApiFailure(403, ErrorCodes.PERMISSION_DENIED, refused.getMessage());
-      case CatalogException failed -> catalogFailure(failed);
-      case JsonProcessingException unreadable -> describe(unreadable);
-      case IllegalArgumentException illegal ->
-          new ApiFailure(400, ErrorCodes.INVALID_PARAMETER_VALUE, illegal.getMessage());
-      default -> {
-        if (violatesConstraint(e)) {
-          log.debug("Rejected request that violated a uniqueness constraint", e);
-          yield new ApiFailure(
-              409,
-              ErrorCodes.RESOURCE_ALREADY_EXISTS,
-              "the object already exists or conflicts with an existing object");
-        }
-        log.error("Unhandled server error", e);
-        yield new ApiFailure(500, ErrorCodes.INTERNAL_ERROR, "internal server error");
-      }
-    };
+    if (e instanceof ApiException api) {
+      return new ApiFailure(api.getStatus(), api.getErrorCode(), api.getMessage());
+    }
+    if (e instanceof AssetNotFoundException missing) {
+      return new ApiFailure(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, missing.getMessage());
+    }
+    if (e instanceof AssetAccessDeniedException denied) {
+      return new ApiFailure(403, ErrorCodes.PERMISSION_DENIED, denied.getMessage());
+    }
+    if (e instanceof UnsupportedAssetTypeException unsupported) {
+      return new ApiFailure(400, ErrorCodes.INVALID_PARAMETER_VALUE, unsupported.getMessage());
+    }
+    if (e instanceof CatalogAuthenticationException rejected) {
+      return new ApiFailure(401, ErrorCodes.UNAUTHENTICATED, rejected.getMessage());
+    }
+    if (e instanceof CatalogAuthorizationException refused) {
+      return new ApiFailure(403, ErrorCodes.PERMISSION_DENIED, refused.getMessage());
+    }
+    if (e instanceof CatalogException failed) {
+      return catalogFailure(failed);
+    }
+    if (e instanceof JsonProcessingException unreadable) {
+      return describe(unreadable);
+    }
+    if (e instanceof IllegalArgumentException illegal) {
+      return new ApiFailure(400, ErrorCodes.INVALID_PARAMETER_VALUE, illegal.getMessage());
+    }
+    if (violatesConstraint(e)) {
+      log.debug("Rejected request that violated a uniqueness constraint", e);
+      return new ApiFailure(
+          409,
+          ErrorCodes.RESOURCE_ALREADY_EXISTS,
+          "the object already exists or conflicts with an existing object");
+    }
+    log.error("Unhandled server error", e);
+    return new ApiFailure(500, ErrorCodes.INTERNAL_ERROR, "internal server error");
   }
 
   /**
