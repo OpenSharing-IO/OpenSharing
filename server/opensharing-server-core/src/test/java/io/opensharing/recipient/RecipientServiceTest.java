@@ -12,6 +12,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class RecipientServiceTest {
@@ -44,6 +45,36 @@ class RecipientServiceTest {
                 new CreateRecipientRequest("acme", null, AuthenticationType.TOKEN, 30L),
                 "http://host/activations"));
     assertEquals(List.of(Privilege.CREATE_RECIPIENT), privileges);
+  }
+
+  @Test
+  void listsEveryRecipientWithoutAskingTheCatalog() {
+    CatalogConnector catalog =
+        proxy(
+            CatalogConnector.class,
+            (proxy, method, args) -> {
+              throw new AssertionError("asked the catalog");
+            });
+    List<RecipientEntity> rows = List.of(recipient("acme", "alice-id"), recipient("bolt", "bob"));
+    AtomicInteger calls = new AtomicInteger();
+    // The first transaction reads the page; each after it reads one recipient's activation code.
+    Transactions tx =
+        proxy(
+            Transactions.class,
+            (proxy, method, args) -> calls.getAndIncrement() == 0 ? rows : "code");
+    RecipientService recipients = new RecipientService(catalog, null, new RecipientStore(tx));
+
+    List<RecipientResponse> items =
+        recipients.listAll(null, null, "http://host/activations").items();
+    assertEquals(List.of("acme", "bolt"), items.stream().map(RecipientResponse::name).toList());
+    assertEquals("http://host/activations/code", items.get(0).activationUrl());
+  }
+
+  private static RecipientEntity recipient(String name, String owner) {
+    RecipientEntity recipient = new RecipientEntity();
+    recipient.setName(name);
+    recipient.setOwnerId(owner);
+    return recipient;
   }
 
   private static <T> T proxy(Class<T> type, InvocationHandler handler) {
