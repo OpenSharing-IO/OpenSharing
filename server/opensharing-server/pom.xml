@@ -106,6 +106,15 @@
             </manifest>
           </archive>
         </configuration>
+        <executions>
+          <!-- opensharing-spark-e2e reuses the protocol test support; never published. -->
+          <execution>
+            <id>test-jar</id>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
       <!-- Builds the runnable opensharing-server-*-exec.jar with every dependency inside. -->
       <plugin>
@@ -227,6 +236,16 @@
             <executions>
               <execution>
                 <id>exec-jar</id>
+                <phase>none</phase>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-jar-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>test-jar</id>
                 <phase>none</phase>
               </execution>
             </executions>

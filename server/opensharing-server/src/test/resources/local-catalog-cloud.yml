@@ -43,6 +43,13 @@ assets:
     storageLocation: s3://delta-exchange-test/delta-exchange-test/cdf_table_cdf_enabled/
     format: delta
 
+  - identifier: main.sales.streamingcdf
+    type: TABLE
+    attributes:
+      subtype: MANAGED
+    storageLocation: s3://delta-exchange-test/delta-exchange-test/streaming_cdf_table/
+    format: delta
+
   - identifier: main.sales.azure
     type: TABLE
     attributes:
