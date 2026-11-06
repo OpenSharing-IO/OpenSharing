@@ -4,6 +4,7 @@ A table can be of different formats, both [Delta Lake](https://delta.io/) tables
 - [REST APIs](#rest-apis)
     - [List Tables in a Schema](#list-tables-in-a-schema)
     - [List all Tables in a Share](#list-all-tables-in-a-share)
+    - [Generate Temporary Table Credential](#generate-temporary-table-credential)
     - [Get Table](#get-table)
 - [Access Iceberg Tables](#access-iceberg-tables)
 - [Access Delta Tables](#access-delta-tables)
@@ -518,6 +519,269 @@ Example:
   ],
   "nextPageToken": "..."
 }
+```
+
+### Generate Temporary Table Credential
+
+This API returns Cloud Tokens, which are directory (prefix) based STS tokens that grant temporary read access to the table’s root directory. This approach bypasses the pre-signing workflow, and instead provides direct read only access to the table. The query engines that are capable of processing the delta log get direct access to it, and can optimize query performance by leveraging their custom metadata optimizations, caching and distributed metadata processing. The response follows the format of [GenerateTemporaryTableCredential](https://github.com/unitycatalog/unitycatalog/blob/main/api/Apis/TemporaryCredentialsApi.md#generatetemporarytablecredentials) in UC OSS. The `location` should be the location which the credentials are generated for. Clients that do not support reading from the cloud vendor this location belongs to can throw an error.
+
+<table>
+<tr>
+<th>HTTP Request</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Method</td>
+<td>
+
+`POST`
+</td>
+</tr>
+<tr>
+<td>Headers</td>
+<td>
+
+`Authorization: Bearer {token}`
+
+Optional: `Content-Type: application/json; charset=utf-8`
+</td>
+</tr>
+<tr>
+<td>URL</td>
+<td>
+
+`{prefix}/shares/{share}/schemas/{schema}/tables/{table}/temporary-table-credentials`
+</td>
+</tr>
+<tr>
+<td>URL Parameters</td>
+<td>
+
+**{share}**: The share name to query. It's case-insensitive.
+
+**{schema}**: The schema name to query. It's case-insensitive.
+
+**{table}**: The table name to query. It's case-insensitive.
+</td>
+</tr>
+<tr>
+<td>Request Body</td>
+<td>
+
+The `location` field is optional and specifies the location URL path to generate temporary credentials for. This API should be called for the root location as well as all the auxiliary locations. If a table has auxiliary locations and a client does not support reading from multiple locations, they should either fall back to url based access via [QueryTable](#read-data-from-a-table) API or throw an error. If this field is not provided, the response should contain credentials for the table's main location. 
+
+```json
+{
+  "location": "{scheme}://some/path/to/table"
+}
+```
+</td>
+</tr>
+<tr>
+<td>Response Body</td>
+<td>
+
+Only one of `awsTempCredentials`, `azureUserDelegationSas`, `gcpOauthToken` should be defined.
+
+```json
+{
+  "credentials": {
+    "location": "string",
+    "awsTempCredentials": {
+      "accessKeyId": "string",
+      "secretAccessKey": "string",
+      "sessionToken": "string"
+    },
+    "azureUserDelegationSas": {
+      "sasToken": "string"
+    },
+    "gcpOauthToken": {
+      "oauthToken": "string"
+    },
+    "expirationTime": 1234567890000
+  }
+}
+```
+
+</td>
+</tr>
+</table>
+<details>
+<summary><b>400: The request is malformed.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>401: The request is unauthenticated. The bearer token is missing or incorrect.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>403: The request is forbidden from being fulfilled.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>404: The requested resource does not exist.</b></summary>
+
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+<details>
+<summary><b>500: The request is not handled correctly due to a server error.</b></summary>
+<table>
+<tr>
+<th>HTTP Response</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Header</td>
+<td>
+
+`Content-Type: application/json`
+
+</td>
+</tr>
+<tr>
+<td>Body</td>
+<td>
+
+```json
+{
+  "errorCode": "string",
+  "message": "string"
+}
+```
+
+</td>
+</tr>
+</table>
+</details>
+
+`POST {prefix}/shares/share_name/schemas/schema_name/tables/table_name/temporary-table-credentials`
+
+
+```
+HTTP/2 200 
+content-type: application/x-ndjson; charset=utf-8
+```
+
+```json
+{
+  "credentials": {
+    "location": "s3://some/path/to/table",
+    "awsTempCredentials": {
+      "accessKeyId": "REDACTED_ACCESS_KEY_ID",
+      "secretAccessKey": "REDACTED_SECRET_ACCESS_KEY",
+      "sessionToken": "REDACTED_SESSION_TOKEN"
+    },
+    "expirationTime": 1718298900000
+  }
+}
+
 ```
 
 ### Get Table
