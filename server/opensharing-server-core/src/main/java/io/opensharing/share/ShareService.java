@@ -175,12 +175,15 @@ public class ShareService {
 
   /**
    * Applies the changes in order, each revoking then granting, all in one transaction: either every
-   * change commits or none does. Returns the first page of the share's permissions. Owner only.
+   * change commits or none does. Returns the first page of the share's permissions. Owner only, and
+   * granting to a recipient the owner doesn't own also needs USE_RECIPIENT; revoking doesn't, so an
+   * owner can always cut a recipient off.
    */
   public ListResponse<SharePermissionResponse> updatePermissions(
       UserContext user, String share, UpdateSharePermissionsRequest request) {
     shares.getOwnedOrThrow(share, user);
     List<RecipientChange> changes = new ArrayList<>();
+    boolean grantsToOthers = false;
     for (UpdateSharePermissionsRequest.Change change : request.changes()) {
       if (change == null) {
         throw ApiException.invalidParameter("changes must not contain null");
@@ -192,6 +195,10 @@ public class ShareService {
       RecipientEntity recipient =
           recipients.getOrThrow(requireText(change.recipientName(), "changes.recipientName"));
       changes.add(new RecipientChange(recipient, change));
+      grantsToOthers |= !change.add().isEmpty() && !Ownership.owns(user, recipient.getOwnerId());
+    }
+    if (grantsToOthers) {
+      catalog.authorize(new AuthContext(serverId, user), Privilege.USE_RECIPIENT);
     }
     tx.inTransaction(
         false,
