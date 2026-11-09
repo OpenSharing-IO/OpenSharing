@@ -181,8 +181,11 @@
               | Apache Software License - Version 2.0 | Apache 2.0 | Apache License, version 2.0
               | Apache License Version 2.0
             </licenseMerge>
-            <licenseMerge>BSD-2-Clause | BSD 2-Clause License</licenseMerge>
-            <licenseMerge>BSD-3-Clause | BSD New license | Go License</licenseMerge>
+            <!-- The BSD License: stax2-api, whose LICENSE file is the 2-clause text. -->
+            <licenseMerge>BSD-2-Clause | BSD 2-Clause License | The BSD License</licenseMerge>
+            <licenseMerge>
+              BSD-3-Clause | BSD New license | Go License | The Go license
+            </licenseMerge>
             <licenseMerge>CC0-1.0 | Public Domain, per Creative Commons CC0</licenseMerge>
             <licenseMerge>
               EDL-1.0 | Eclipse Distribution License v. 1.0 | Eclipse Distribution License - v 1.0
