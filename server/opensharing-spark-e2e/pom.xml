@@ -50,7 +50,7 @@
       <version>${spark.version}</version>
       <scope>test</scope>
       <exclusions>
-        <!-- Keep Kernel's Hadoop 3.4; Spark's copy lacks ConfigurationHelper.resolveEnum. -->
+        <!-- Keep core's unshaded Hadoop; Spark's copy lacks ConfigurationHelper.resolveEnum. -->
         <exclusion>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-client-api</artifactId>
@@ -62,6 +62,32 @@
         <exclusion>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-client</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <!-- Spark's MapReduce and HDFS classes, which hadoop-client-api used to carry. Their other
+         dependencies come from core's hadoop-common. -->
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-mapreduce-client-core</artifactId>
+      <version>${hadoop.version}</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-hdfs-client</artifactId>
+      <version>${hadoop.version}</version>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
