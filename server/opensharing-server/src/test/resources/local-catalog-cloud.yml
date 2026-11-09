@@ -12,9 +12,6 @@ principals:
     privileges: [CREATE_SHARE, CREATE_RECIPIENT, USE_SHARE, USE_RECIPIENT]
 
 assets:
-  - identifier: main.sales
-    type: SCHEMA
-
   - identifier: main.sales.table1
     type: TABLE
     attributes:

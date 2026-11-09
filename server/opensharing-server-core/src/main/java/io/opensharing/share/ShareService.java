@@ -311,9 +311,6 @@ public class ShareService {
     if (type == null) {
       throw ApiException.invalidParameter("dataObject.type is required");
     }
-    if (type != AssetType.TABLE) {
-      throw ApiException.invalidParameter("dataObject.type must be TABLE");
-    }
     return type;
   }
 

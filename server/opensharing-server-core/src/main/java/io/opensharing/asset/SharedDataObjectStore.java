@@ -55,7 +55,7 @@ public class SharedDataObjectStore {
     if (resolved.additionalProperties() instanceof TableProperties table) {
       object.setSourceFormat(table.dataSourceFormat());
     }
-    if (type == AssetType.TABLE && resolved.location() != null) {
+    if (resolved.location() != null) {
       object.setStorageLocation(resolved.location().storageLocation());
       object.setAuxiliaryLocations(resolved.location().auxiliaryLocations());
     }

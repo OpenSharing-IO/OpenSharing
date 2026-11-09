@@ -21,17 +21,11 @@ principals:
     privileges: [CREATE_SHARE, CREATE_RECIPIENT]
 
 assets:
-  - identifier: main.sales
-    type: SCHEMA
-
   - identifier: main.sales.table1
     attributes:
       subtype: MANAGED
     storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
     format: delta
-
-  - identifier: main.finance
-    type: SCHEMA
 
   # Only the listed user ids may share this table.
   - identifier: main.finance.ledger
@@ -54,9 +48,6 @@ assets:
     storageLocation: s3://test/main.sales.customers/
     format: delta
 
-  - identifier: main.hr
-    type: SCHEMA
-
   - identifier: main.hr.employees
     type: TABLE
     attributes:
@@ -77,9 +68,6 @@ assets:
       subtype: MANAGED
     storageLocation: s3://test/main.ops.people/
     format: delta
-
-  - identifier: main.legal
-    type: SCHEMA
 
   - identifier: main.legal.Contracts
     type: TABLE

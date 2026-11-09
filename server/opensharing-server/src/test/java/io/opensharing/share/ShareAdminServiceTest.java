@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
 import io.opensharing.http.ErrorCodes;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterAll;
@@ -266,19 +267,18 @@ class ShareAdminServiceTest {
 
   @Test
   void rejectsUnsupportedAssetTypes() {
-    // VOLUME is not a type a share can hold.
+    // A share holds only tables: not volumes, and not whole schemas.
     createShare("edge-volume");
-    Response volume =
-        update("edge-volume", "ADD", "{\"name\":\"main.sales.orders\",\"type\":\"VOLUME\"}");
-    assertInvalid(volume);
-    assertEquals(
-        "updates[0].dataObject.type must be one of [TABLE, SCHEMA]",
-        volume.body().path("message").asText());
-
-    // A share holds tables, not whole schemas.
-    Response schema = update("edge-volume", "ADD", "{\"name\":\"main.sales\",\"type\":\"SCHEMA\"}");
-    assertInvalid(schema);
-    assertEquals("dataObject.type must be TABLE", schema.body().path("message").asText());
+    for (String update :
+        List.of(
+            "{\"name\":\"main.sales.orders\",\"type\":\"VOLUME\"}",
+            "{\"name\":\"main.sales\",\"type\":\"SCHEMA\"}")) {
+      Response response = update("edge-volume", "ADD", update);
+      assertInvalid(response);
+      assertEquals(
+          "updates[0].dataObject.type must be one of [TABLE]",
+          response.body().path("message").asText());
+    }
   }
 
   @Test

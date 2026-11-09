@@ -116,7 +116,7 @@ class ApiFailureTest {
     assertFailure(
         400,
         ErrorCodes.INVALID_PARAMETER_VALUE,
-        "items[0].type must be one of [TABLE, SCHEMA]",
+        "items[0].type must be one of [TABLE]",
         unreadable("{\"items\":[{\"type\":\"VIEW\"}]}", Body.class));
   }
 
@@ -125,7 +125,7 @@ class ApiFailureTest {
     assertFailure(
         400,
         ErrorCodes.INVALID_PARAMETER_VALUE,
-        "value must be one of [TABLE, SCHEMA]",
+        "value must be one of [TABLE]",
         unreadable("\"VIEW\"", AssetType.class));
   }
 

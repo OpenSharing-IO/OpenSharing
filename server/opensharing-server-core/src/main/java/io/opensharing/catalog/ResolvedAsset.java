@@ -3,9 +3,8 @@ package io.opensharing.catalog;
 import java.util.Objects;
 
 /**
- * What the catalog knows about an asset, as returned by {@link CatalogConnector#resolveAsset} and
- * {@link CatalogConnector#listChildren}: its identity, where its data lives, and the attributes
- * that only apply to its type.
+ * What the catalog knows about an asset, as returned by {@link CatalogConnector#resolveAsset}: its
+ * identity, where its data lives, and the attributes that only apply to its type.
  *
  * @param type the asset's type
  * @param fullName the asset's full name in the catalog, such as {@code main.sales.orders}

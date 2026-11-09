@@ -30,8 +30,6 @@ class ProtocolUnsupportedStorageTest extends ProtocolApiSupport {
             userName: alice
             privileges: [CREATE_SHARE, CREATE_RECIPIENT, USE_SHARE, USE_RECIPIENT]
         assets:
-          - identifier: main.lake
-            type: SCHEMA
           - identifier: main.lake.wasb
             attributes:
               subtype: MANAGED

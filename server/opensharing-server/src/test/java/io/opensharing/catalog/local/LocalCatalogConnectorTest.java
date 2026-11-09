@@ -10,7 +10,6 @@ import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.Asset;
-import io.opensharing.catalog.AssetPage;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.exception.CatalogAuthenticationException;
@@ -22,7 +21,6 @@ import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
 import io.opensharing.catalog.TableProperties;
 import io.opensharing.catalog.DataSourceFormat;
-import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -195,113 +193,6 @@ class LocalCatalogConnectorTest {
     assertTrue(credentials.expiration().isAfter(java.time.Instant.now()));
     assertTrue(credentials.require(StorageCredentials.ACCESS_KEY_ID).startsWith("ASIA"));
     assertTrue(!credentials.require(StorageCredentials.SESSION_TOKEN).isBlank());
-  }
-
-  @Test
-  void listsTheTablesOneLevelBelowASchema() {
-    String yaml =
-        """
-        assets:
-          - identifier: main.sales
-            type: SCHEMA
-          - identifier: main.sales.table1
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-            format: delta
-          - identifier: main.sales.nested.extra
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-          - identifier: main.other.table1
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-        """;
-
-    List<ResolvedAsset> children =
-        connector(yaml)
-            .listChildren(
-                new Asset(AssetType.SCHEMA, "MAIN.SALES"),
-                100,
-                null,
-                AuthContext.of(ALICE))
-            .assets();
-
-    assertEquals(
-        List.of("main.sales.table1"),
-        children.stream().map(ResolvedAsset::fullName).toList(),
-        "a table two levels down belongs to another schema, and one elsewhere to none of it");
-    assertEquals(TABLE1, children.get(0).location().storageLocation());
-  }
-
-  @Test
-  void listChildrenOmitsTablesTheCallerMayNotShare() {
-    Asset finance = new Asset(AssetType.SCHEMA, "main.finance");
-    assertEquals(
-        List.of("main.finance.ledger"),
-        sample().listChildren(finance, 100, null, AuthContext.of(ALICE)).assets().stream()
-            .map(ResolvedAsset::fullName)
-            .toList());
-    assertEquals(
-        List.of(), sample().listChildren(finance, 100, null, AuthContext.of(BOB)).assets());
-  }
-
-
-  @Test
-  void refusesToListWhatIsNotAContainer() {
-    LocalCatalogConnector connector = sample();
-    Asset table = new Asset(AssetType.TABLE, "main.sales.table1");
-
-    assertThrows(
-        UnsupportedAssetTypeException.class,
-        () -> connector.listChildren(table, 100, null, AuthContext.of(ALICE)));
-  }
-
-  @Test
-  void refusesToListASchemaItDoesNotHave() {
-    LocalCatalogConnector connector = sample();
-    Asset schema = new Asset(AssetType.SCHEMA, "main.missing");
-
-    assertThrows(
-        AssetNotFoundException.class,
-        () -> connector.listChildren(schema, 100, null, AuthContext.of(ALICE)));
-  }
-
-  @Test
-  void pagesThroughTheTablesBelowASchema() {
-    String yaml =
-        """
-        assets:
-          - identifier: main.sales
-            type: SCHEMA
-          - identifier: main.sales.c
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-          - identifier: main.sales.a
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-          - identifier: main.sales.b
-            storageLocation: s3://delta-exchange-test/delta-exchange-test/table1/
-        """;
-    LocalCatalogConnector connector = connector(yaml);
-    Asset schema = new Asset(AssetType.SCHEMA, "main.sales");
-
-    AssetPage first = connector.listChildren(schema, 2, null, AuthContext.of(ALICE));
-    assertEquals(
-        List.of("main.sales.a", "main.sales.b"),
-        first.assets().stream().map(ResolvedAsset::fullName).toList());
-
-    AssetPage last =
-        connector.listChildren(schema, 2, first.nextPageToken(), AuthContext.of(ALICE));
-    assertEquals(
-        List.of("main.sales.c"), last.assets().stream().map(ResolvedAsset::fullName).toList());
-    assertNull(last.nextPageToken(), "the last page has no next page");
-  }
-
-  @Test
-  void rejectsPageTokensItDidNotIssue() {
-    LocalCatalogConnector connector = sample();
-    Asset schema = new Asset(AssetType.SCHEMA, "main.sales");
-
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> connector.listChildren(schema, 2, "not-a-token", AuthContext.of(ALICE)));
-    assertThrows(
-        IllegalArgumentException.class,
-        () -> connector.listChildren(schema, 0, null, AuthContext.of(ALICE)));
   }
 
   @Test

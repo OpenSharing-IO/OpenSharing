@@ -53,7 +53,7 @@ class ApiExceptionHandlerTest {
             () -> new ObjectMapper().readValue("{\"type\":\"VIEW\"}", Body.class));
     assertEquals(
         new ApiFailure(
-            400, ErrorCodes.INVALID_PARAMETER_VALUE, "type must be one of [TABLE, SCHEMA]"),
+            400, ErrorCodes.INVALID_PARAMETER_VALUE, "type must be one of [TABLE]"),
         handler.failureOf(new IllegalArgumentException(invalid)));
   }
 

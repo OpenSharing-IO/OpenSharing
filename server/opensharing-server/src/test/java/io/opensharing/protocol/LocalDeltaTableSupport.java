@@ -59,8 +59,6 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
             userName: alice
             privileges: [CREATE_SHARE, CREATE_RECIPIENT, USE_SHARE, USE_RECIPIENT]
         assets:
-          - identifier: main.sales
-            type: SCHEMA
           - identifier: main.sales.orders
             attributes:
               subtype: MANAGED
@@ -71,22 +69,16 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
               subtype: MANAGED
             storageLocation: %s
             format: delta
-          - identifier: main.hr
-            type: SCHEMA
           - identifier: main.hr.salaries
             attributes:
               subtype: MANAGED
             storageLocation: %s
             format: delta
-          - identifier: main.ops
-            type: SCHEMA
           - identifier: main.ops.events
             attributes:
               subtype: MANAGED
             storageLocation: %s
             format: delta
-          - identifier: main.lake
-            type: SCHEMA
           - identifier: main.lake.unwritten
             attributes:
               subtype: MANAGED
