@@ -90,12 +90,6 @@
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
-      <artifactId>sts</artifactId>
-      <version>${aws-sdk.version}</version>
-      <scope>runtime</scope>
-    </dependency>
-    <dependency>
-      <groupId>software.amazon.awssdk</groupId>
       <artifactId>apache-client</artifactId>
       <version>${aws-sdk.version}</version>
       <scope>runtime</scope>
