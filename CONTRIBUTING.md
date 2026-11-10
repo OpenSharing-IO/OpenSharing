@@ -10,6 +10,7 @@ and [Code of Conduct](./CODE_OF_CONDUCT.md).
 - [Governance](#governance)
 - [Maintainers](#maintainers)
 - [Contribution process](#contribution-process)
+  - [Automated AI review](#automated-ai-review)
 - [Contribution guidelines](#contribution-guidelines)
   - [Write designs for significant changes](#write-designs-for-significant-changes)
   - [Keep the protocol backwards compatible](#keep-the-protocol-backwards-compatible)
@@ -74,6 +75,16 @@ Per the Technical Charter (§2.c), unless otherwise documented:
 
 Once the PR is merged, the change is on `main` and is included in the next
 specification or server release. See [RELEASE.md](./RELEASE.md) for versioning.
+
+### Automated AI review
+
+Non-draft PRs from maintainers and explicitly allowlisted contributors receive
+an automated AI review. A maintainer can request a review on any open PR by
+posting `/review` as a comment. The reviewer reads the proposed diff and
+surrounding repository files but does not execute code from the PR.
+
+AI findings are advisory. Maintainers remain responsible for reviewing changes
+and deciding whether a finding needs to be addressed.
 
 ## Contribution guidelines
 

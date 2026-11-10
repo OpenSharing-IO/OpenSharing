@@ -1,0 +1,326 @@
+# AI PR review using OpenCodeReview.
+#
+# Required repository secrets:
+#   LLM_API_KEY       Token for an Anthropic-compatible model gateway.
+#   GATEWAY_BASE_URL  Gateway URL ending in /serving-endpoints.
+# Required repository variable:
+#   AI_REVIEW_MODEL   Model ID exposed by the gateway.
+# Optional repository variable:
+#   AI_REVIEW_ALLOWLIST  JSON array of GitHub logins allowed to trigger reviews.
+#
+# Dependency provenance: https://github.com/alibaba/open-code-review,
+# Apache-2.0, pinned below to an exact commit. The nested OCR package is also
+# pinned so changes require an explicit workflow update.
+name: AI PR Review
+
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number to review.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  authorize:
+    name: Authorize review request
+    if: >-
+      github.event_name != 'issue_comment' || (
+        github.event.issue.pull_request != null &&
+        contains(github.event.comment.body, '/review') &&
+        !endsWith(github.actor, '[bot]')
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      allowed: ${{ steps.request.outputs.allowed }}
+      base_ref: ${{ steps.request.outputs.base_ref }}
+      base_sha: ${{ steps.request.outputs.base_sha }}
+      head_sha: ${{ steps.request.outputs.head_sha }}
+      pr_number: ${{ steps.request.outputs.pr_number }}
+    steps:
+      - name: Resolve and authorize request
+        id: request
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          AI_REVIEW_ALLOWLIST: ${{ vars.AI_REVIEW_ALLOWLIST || '[]' }}
+          DISPATCH_PR: ${{ inputs.pr }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const allowlist = JSON.parse(process.env.AI_REVIEW_ALLOWLIST);
+            if (!Array.isArray(allowlist) || !allowlist.every((login) => typeof login === 'string')) {
+              throw new Error('AI_REVIEW_ALLOWLIST must be a JSON array of GitHub logins.');
+            }
+
+            let pullNumber;
+            let authorizationSubject;
+            if (context.eventName === 'pull_request_target') {
+              const pull = context.payload.pull_request;
+              if (pull.draft || pull.state !== 'open') return;
+              pullNumber = pull.number;
+              authorizationSubject = pull.user.login;
+            } else if (context.eventName === 'issue_comment') {
+              const command = context.payload.comment.body.match(/^[ \t]*\/review[ \t]*$/m);
+              if (!command) return;
+              pullNumber = context.payload.issue.number;
+              authorizationSubject = context.actor;
+            } else if (context.eventName === 'workflow_dispatch') {
+              if (context.ref !== `refs/heads/${context.payload.repository.default_branch}`) {
+                throw new Error('Run this workflow from the default branch.');
+              }
+              if (!/^[1-9][0-9]*$/.test(process.env.DISPATCH_PR || '')) {
+                throw new Error('The pr input must be a positive pull request number.');
+              }
+              pullNumber = Number(process.env.DISPATCH_PR);
+              authorizationSubject = context.actor;
+            } else {
+              return;
+            }
+
+            let permission = 'none';
+            try {
+              const response = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner,
+                repo,
+                username: authorizationSubject,
+              });
+              permission = response.data.permission;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            const hasWriteAccess = ['admin', 'maintain', 'write'].includes(permission);
+            const isAllowlisted = allowlist.some(
+              (login) => login.toLowerCase() === authorizationSubject.toLowerCase(),
+            );
+            if (!hasWriteAccess && !isAllowlisted) {
+              core.notice(`${authorizationSubject} is not authorized to trigger an AI review.`);
+              core.setOutput('allowed', 'false');
+              return;
+            }
+
+            const { data: pull } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pullNumber,
+            });
+            if (pull.draft || pull.state !== 'open') {
+              core.notice('Skipping a draft or closed pull request.');
+              core.setOutput('allowed', 'false');
+              return;
+            }
+
+            core.setOutput('allowed', 'true');
+            core.setOutput('base_ref', pull.base.ref);
+            core.setOutput('base_sha', pull.base.sha);
+            core.setOutput('head_sha', pull.head.sha);
+            core.setOutput('pr_number', String(pull.number));
+
+  review:
+    name: Generate AI PR Review
+    needs: authorize
+    if: needs.authorize.outputs.allowed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Validate model configuration
+        id: gateway
+        env:
+          GATEWAY_BASE_URL: ${{ secrets.GATEWAY_BASE_URL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          AI_REVIEW_MODEL: ${{ vars.AI_REVIEW_MODEL }}
+        run: |
+          set -euo pipefail
+          : "${GATEWAY_BASE_URL:?Set the GATEWAY_BASE_URL repository secret}"
+          : "${LLM_API_KEY:?Set the LLM_API_KEY repository secret}"
+          : "${AI_REVIEW_MODEL:?Set the AI_REVIEW_MODEL repository variable}"
+          case "$GATEWAY_BASE_URL" in
+            https://*) ;;
+            *) echo "::error::GATEWAY_BASE_URL must use HTTPS."; exit 1 ;;
+          esac
+          echo "::add-mask::$LLM_API_KEY"
+          echo "url=${GATEWAY_BASE_URL%/}/anthropic" >> "$GITHUB_OUTPUT"
+
+      - name: Generate findings without publication permission
+        id: ocr
+        continue-on-error: true
+        uses: alibaba/open-code-review@cf64e7080f600d507888a26785ad6a8b7a13ab6a
+        with:
+          pr_number: ${{ needs.authorize.outputs.pr_number }}
+          base_ref: ${{ needs.authorize.outputs.base_ref }}
+          head_sha: ${{ needs.authorize.outputs.head_sha }}
+          github_token: ${{ github.token }}
+          llm_url: ${{ steps.gateway.outputs.url }}
+          llm_auth_token: ${{ secrets.LLM_API_KEY }}
+          llm_auth_header: Authorization
+          llm_use_anthropic: 'true'
+          llm_model: ${{ vars.AI_REVIEW_MODEL }}
+          llm_extra_body: '{"thinking":{"type":"adaptive"},"output_config":{"effort":"medium"}}'
+          ocr_version: '1.12.0'
+          background: >-
+            Review OpenSharing changes for correctness, security, backwards
+            compatibility, and missing tests. Protocol documents under spec/
+            define the contract: flag server behavior that diverges from them,
+            and protocol changes that are not reflected in the Java reference
+            server where applicable. Pay special attention to credential
+            handling, authorization, signed URLs, pagination, concurrent
+            updates, and compatibility with existing Delta Sharing clients.
+            Verify findings against surrounding code. Omit cosmetic feedback
+            and issues already enforced by CI.
+          effort: medium
+          review_concurrency: '2'
+          review_task_timeout: '15'
+          max_tokens_budget: '400000'
+          incremental: 'true'
+          sticky_summary: 'true'
+          route_severity_below: low
+          stream_progress: 'true'
+          upload_artifacts: 'false'
+
+      - name: Validate and scan generated output
+        if: always()
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          OCR_STEP_OUTCOME: ${{ steps.ocr.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "${OCR_EXIT_CODE:-}" != "0" ]; then
+            echo "::error::OpenCodeReview generation failed (step outcome: ${OCR_STEP_OUTCOME})."
+            exit 1
+          fi
+          test -s /tmp/ocr-result.json
+          test -f /tmp/ocr-stderr.log
+          if grep -qF -- "$LLM_API_KEY" /tmp/ocr-result.json /tmp/ocr-stderr.log; then
+            echo "::error::AI review output contains the gateway credential; refusing to publish."
+            exit 1
+          fi
+          python3 - <<'PYEOF'
+          import pathlib
+          import re
+
+          patterns = (
+              re.compile(
+                  r"(?i)(?:authorization\s*[:=]\s*)(?:bearer\s+)?[A-Za-z0-9._~+/=-]{16,}"
+              ),
+              re.compile(
+                  r"(?i)(?:(?:x-)?api[-_ ]?key|access[-_ ]?token|client[-_ ]?secret)"
+                  r"\s*[:=]\s*['\"]?[A-Za-z0-9._~+/=-]{16,}"
+              ),
+              re.compile(r"\bdapi[A-Za-z0-9]{16,}\b"),
+          )
+          for filename in ("/tmp/ocr-result.json", "/tmp/ocr-stderr.log"):
+              text = pathlib.Path(filename).read_text(errors="replace")
+              if any(pattern.search(text) for pattern in patterns):
+                  raise SystemExit(
+                      f"::error::AI review output contains a credential-like value in {filename}; "
+                      "refusing to publish."
+                  )
+          PYEOF
+
+      - name: Upload validated review output
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ai-review-${{ needs.authorize.outputs.pr_number }}-${{ github.run_id }}
+          path: |
+            /tmp/ocr-result.json
+            /tmp/ocr-stderr.log
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    name: Publish AI PR Review
+    needs: [authorize, review]
+    if: needs.authorize.outputs.allowed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Download validated review output
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ai-review-${{ needs.authorize.outputs.pr_number }}-${{ github.run_id }}
+          path: /tmp/ai-review
+
+      - name: Check out pinned publication helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: alibaba/open-code-review
+          ref: cf64e7080f600d507888a26785ad6a8b7a13ab6a
+          path: .ocr-action
+          persist-credentials: false
+          sparse-checkout: scripts/github-actions/post-review-comments.js
+          sparse-checkout-cone-mode: false
+
+      - name: Verify reviewed PR revision is current
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { data: pull } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: Number(process.env.PR_NUMBER),
+            });
+            if (pull.state !== 'open' || pull.draft) {
+              throw new Error('The pull request is no longer open and ready for review.');
+            }
+            if (pull.base.sha !== process.env.EXPECTED_BASE_SHA ||
+                pull.head.sha !== process.env.EXPECTED_HEAD_SHA) {
+              throw new Error(
+                `The pull request changed during review; refusing to publish stale findings. ` +
+                `Expected ${process.env.EXPECTED_BASE_SHA}..${process.env.EXPECTED_HEAD_SHA}, ` +
+                `found ${pull.base.sha}..${pull.head.sha}.`,
+              );
+            }
+
+      - name: Publish validated findings
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const helper = path.join(
+              process.env.GITHUB_WORKSPACE,
+              '.ocr-action/scripts/github-actions/post-review-comments.js',
+            );
+            const { runPostReviewComments } = require(helper);
+            await runPostReviewComments({
+              github,
+              context,
+              core,
+              fs,
+              prNumber: Number(process.env.PR_NUMBER),
+              resultPath: '/tmp/ai-review/ocr-result.json',
+              stderrPath: '/tmp/ai-review/ocr-stderr.log',
+              stickySummary: true,
+              incremental: true,
+              routeSeverityBelow: 'low',
+            });
