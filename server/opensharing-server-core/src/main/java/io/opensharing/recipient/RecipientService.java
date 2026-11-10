@@ -8,7 +8,6 @@ import io.opensharing.auth.TokenHashes;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.exception.CatalogAuthorizationException;
-import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
@@ -127,34 +126,17 @@ public class RecipientService {
       String recipient,
       UpdateRecipientRequest request,
       String activationBaseUrl) {
-    // The catalog decides per call whether the caller is an admin; OpenSharing never takes that
-    // from the request body or from stored data.
-    boolean admin = catalog.authorize(new AuthContext(serverId, user), null).admin();
     RecipientEntity existing = recipients.getOrThrow(recipient);
     String newOwner = request.owner();
     boolean transfers = newOwner != null;
-    if (transfers) {
-      if (!transfersOwnership(request)) {
-        throw ApiException.invalidParameter(
-            "owner must be changed on its own, without other updates");
-      }
-      if (!admin) {
-        throw ApiException.permissionDenied(
-            "only an admin of the catalog may change the owner of recipient '"
-                + existing.getName()
-                + "'");
-      }
-      if (newOwner.isBlank()) {
-        throw ApiException.invalidParameter("owner must not be blank");
-      }
-      // Transferring to the current owner is a no-op; anything else must be a user of the catalog,
-      // so a typo cannot orphan the recipient.
-      if (!newOwner.equals(existing.getOwnerId())) {
-        requireCatalogUser(newOwner);
-      }
-    } else if (!Ownership.owns(user, existing.getOwnerId())) {
-      Ownership.check(user, existing.getOwnerId(), "recipient '" + existing.getName() + "'");
-    }
+    boolean admin =
+        Ownership.checkUpdate(
+            catalog,
+            new AuthContext(serverId, user),
+            "recipient '" + existing.getName() + "'",
+            existing.getOwnerId(),
+            newOwner,
+            otherChanges(request));
     String comment = validateComment(request.comment());
     return toResponse(
         recipients.update(user, recipient, comment, transfers ? newOwner : null, admin),
@@ -232,8 +214,8 @@ public class RecipientService {
 
   // Whether moving the recipient to a new owner is the request's only change, which a transfer
   // must be, whatever the caller's other rights.
-  private static boolean transfersOwnership(UpdateRecipientRequest request) {
-    return request.owner() != null && request.comment() == null;
+  private static boolean otherChanges(UpdateRecipientRequest request) {
+    return request.comment() != null;
   }
 
   private boolean holds(UserContext user, Privilege privilege) {
@@ -256,13 +238,4 @@ public class RecipientService {
     return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
   }
 
-  /** Rejects a new owner the catalog doesn't know, so a typo can't strand the recipient. */
-  private void requireCatalogUser(String userId) {
-    try {
-      catalog.authorize(
-          new AuthContext(serverId, UserContext.fromUserIdAndName(userId, null)), null);
-    } catch (CatalogException e) {
-      throw ApiException.invalidParameter("owner '" + userId + "' is not a user of the catalog");
-    }
-  }
 }

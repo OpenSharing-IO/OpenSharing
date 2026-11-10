@@ -115,34 +115,17 @@ public class ShareService {
    * every caller.
    */
   public ShareResponse update(UserContext user, String share, UpdateShareRequest request) {
-    // The catalog decides per call whether the caller is an admin; OpenSharing never takes that
-    // from the request body or from stored data.
-    boolean admin = catalog.authorize(new AuthContext(serverId, user), null).admin();
     ShareEntity existing = shares.getOrThrow(share);
     String newOwner = request.owner();
     boolean transfers = newOwner != null;
-    if (transfers) {
-      if (!transfersOwnership(request)) {
-        throw ApiException.invalidParameter(
-            "owner must be changed on its own, without other updates");
-      }
-      if (!admin) {
-        throw ApiException.permissionDenied(
-            "only an admin of the catalog may change the owner of share '"
-                + existing.getName()
-                + "'");
-      }
-      if (newOwner.isBlank()) {
-        throw ApiException.invalidParameter("owner must not be blank");
-      }
-      // Transferring to the current owner is a no-op; anything else must be a user of the catalog,
-      // so a typo cannot orphan the share.
-      if (!newOwner.equals(existing.getOwnerId())) {
-        requireCatalogUser(newOwner);
-      }
-    } else if (!Ownership.owns(user, existing.getOwnerId())) {
-      Ownership.check(user, existing.getOwnerId(), "share '" + existing.getName() + "'");
-    }
+    boolean admin =
+        Ownership.checkUpdate(
+            catalog,
+            new AuthContext(serverId, user),
+            "share '" + existing.getName() + "'",
+            existing.getOwnerId(),
+            newOwner,
+            otherChanges(request));
     String displayName = validateDisplayName(request.displayName());
     String comment = validateComment(request.comment());
     Map<String, String> properties = validateProperties(request.properties());
@@ -270,12 +253,11 @@ public class ShareService {
 
   // Whether moving the share to a new owner is the request's only change, which a transfer must
   // be, whatever the caller's other rights.
-  private static boolean transfersOwnership(UpdateShareRequest request) {
-    return request.owner() != null
-        && request.displayName() == null
-        && request.comment() == null
-        && request.properties() == null
-        && request.updates().isEmpty();
+  private static boolean otherChanges(UpdateShareRequest request) {
+    return request.displayName() != null
+        || request.comment() != null
+        || request.properties() != null
+        || !request.updates().isEmpty();
   }
 
   // Resolves an included object as the share's owner, whom recipients read it as.
@@ -406,16 +388,6 @@ public class ShareService {
   }
 
   private record Alias(String schema, String table) {}
-
-  /** Rejects a new owner the catalog doesn't know, so a typo can't strand the share. */
-  private void requireCatalogUser(String userId) {
-    try {
-      catalog.authorize(
-          new AuthContext(serverId, UserContext.fromUserIdAndName(userId, null)), null);
-    } catch (CatalogException e) {
-      throw ApiException.invalidParameter("owner '" + userId + "' is not a user of the catalog");
-    }
-  }
 
   private record Addition(String name, AssetType type, ResolvedAsset resolved, Alias alias) {}
 
