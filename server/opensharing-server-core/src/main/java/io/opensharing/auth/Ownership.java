@@ -24,17 +24,16 @@ public final class Ownership {
       String what,
       String newOwnerId,
       boolean otherChanges) {
-    // Only the catalog's answer for this call says who is an admin.
-    boolean admin = catalog.authorize(caller, null).admin();
     if (otherChanges) {
       throw ApiException.invalidParameter(
           "ownerId must be changed on its own, without other updates");
     }
-    if (!admin) {
+    // Only the catalog's answer for this call says who is an admin.
+    if (!catalog.authorize(caller, null).admin()) {
       throw ApiException.permissionDenied(
           "only an admin of the catalog may change the owner of " + what);
     }
-    if (newOwnerId.isBlank()) {
+    if (newOwnerId == null || newOwnerId.isBlank()) {
       throw ApiException.invalidParameter("ownerId must not be blank");
     }
   }
