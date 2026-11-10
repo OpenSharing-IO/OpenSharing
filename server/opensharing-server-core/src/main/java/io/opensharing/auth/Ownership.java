@@ -15,11 +15,9 @@ public final class Ownership {
   }
 
   /**
-   * Checks an update to an object {@code ownerId} owns, before any of it is applied, and returns
-   * whether the catalog calls the caller an admin. Setting {@code newOwner} transfers the object:
-   * it must be the request's only change, needs an admin of the catalog, and must name a user the
-   * catalog knows, so a typo can't strand the object. Any other update needs the owner. {@code
-   * what} names the object in errors, such as {@code share 'sales'}.
+   * Checks an update before it is applied and returns whether the caller is a catalog admin. A
+   * transfer to {@code newOwner} must be the only change and needs an admin; anything else needs
+   * the owner.
    */
   public static boolean checkUpdate(
       CatalogConnector catalog,
@@ -28,8 +26,7 @@ public final class Ownership {
       String ownerId,
       String newOwner,
       boolean otherChanges) {
-    // The catalog decides per call whether the caller is an admin; OpenSharing never takes that
-    // from the request body or from stored data.
+    // Only the catalog's answer for this call says who is an admin.
     boolean admin = catalog.authorize(caller, null).admin();
     if (newOwner == null) {
       check(caller.user(), ownerId, what);
