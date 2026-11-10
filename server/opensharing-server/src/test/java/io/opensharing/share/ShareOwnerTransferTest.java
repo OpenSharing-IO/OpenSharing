@@ -161,18 +161,6 @@ class ShareOwnerTransferTest {
   }
 
   @Test
-  void anUnknownNewOwnerIsRejected() {
-    assertEquals(201, create("owner-token", "vetted").status());
-
-    Response unknown = patch("vetted", "admin-token", "{\"ownerId\":\"ghost-id\"}");
-    assertEquals(400, unknown.status());
-    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, unknown.errorCode());
-
-    // The owner is unchanged.
-    assertEquals("owner-id", owner("vetted"));
-  }
-
-  @Test
   void transferringToTheCurrentOwnerIsANoOp() {
     assertEquals(201, create("owner-token", "noop").status());
 

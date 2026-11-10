@@ -123,7 +123,6 @@ public class ShareService {
           catalog,
           new AuthContext(serverId, user),
           "share '" + existing.getName() + "'",
-          existing.getOwnerId(),
           newOwnerId,
           otherChanges(request));
     } else {

@@ -1,7 +1,6 @@
 package io.opensharing.auth;
 
 import io.opensharing.catalog.CatalogConnector;
-import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 
 /** Ownership checks for objects OpenSharing stores. */
@@ -23,7 +22,6 @@ public final class Ownership {
       CatalogConnector catalog,
       AuthContext caller,
       String what,
-      String ownerId,
       String newOwnerId,
       boolean otherChanges) {
     // Only the catalog's answer for this call says who is an admin.
@@ -38,16 +36,6 @@ public final class Ownership {
     }
     if (newOwnerId.isBlank()) {
       throw ApiException.invalidParameter("ownerId must not be blank");
-    }
-    if (!newOwnerId.equals(ownerId)) {
-      try {
-        catalog.authorize(
-            new AuthContext(caller.serverId(), UserContext.fromUserIdAndName(newOwnerId, null)),
-            null);
-      } catch (CatalogException e) {
-        throw ApiException.invalidParameter(
-            "owner '" + newOwnerId + "' is not a user of the catalog");
-      }
     }
   }
 

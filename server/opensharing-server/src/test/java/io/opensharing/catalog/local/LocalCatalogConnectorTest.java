@@ -331,36 +331,21 @@ class LocalCatalogConnectorTest {
     assertFalse(connector.authorize(authByToken("bob-token"), null).admin());
   }
 
-  /**
-   * OpenSharing names the user it acts for by id when it has no token, such as when it checks that
-   * a share's new owner exists.
-   */
+  /** A user id alone authenticates no one, so a caller must always present a token. */
   @Test
-  void authorizesAUserByIdWithoutAToken() {
+  void rejectsAUserIdWithoutAToken() {
     LocalCatalogConnector connector = sample();
 
-    UserContext bob =
-        connector.authorize(
-            new AuthContext(
-                "opensharing-server", UserContext.fromUserIdAndName("catalog-bob-id", null)),
-            null);
-    assertEquals("catalog-bob-id", bob.userId());
-    assertFalse(bob.admin());
-
-    assertThrows(
-        CatalogAuthenticationException.class,
-        () ->
-            connector.authorize(
-                new AuthContext(
-                    "opensharing-server",
-                    UserContext.fromUserIdAndName("catalog-mallory-id", null)),
-                null));
-    assertThrows(
-        CatalogAuthenticationException.class,
-        () ->
-            connector.authorize(
-                new AuthContext("opensharing-server", UserContext.fromUserIdAndName(null, null)),
-                null));
+    CatalogAuthenticationException missing =
+        assertThrows(
+            CatalogAuthenticationException.class,
+            () ->
+                connector.authorize(
+                    new AuthContext(
+                        "opensharing-server",
+                        UserContext.fromUserIdAndName("catalog-bob-id", null)),
+                    null));
+    assertEquals("missing bearer token", missing.getMessage());
   }
 
   private static AuthContext authByToken(String token) {
