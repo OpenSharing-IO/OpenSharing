@@ -134,6 +134,22 @@ class ShareOwnerTransferTest {
     assertEquals("catalog-bob-id", owner("noop"));
   }
 
+  @Test
+  void anOwnerLongerThanTheColumnIsRejected() {
+    assertEquals(201, create("alice-token", "long-owner").status());
+
+    String longOwnerId = "x".repeat(256);
+    Response rejected =
+        patch("long-owner", "alice-token", "{\"ownerId\":\"" + longOwnerId + "\"}");
+    assertEquals(400, rejected.status());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, rejected.errorCode());
+    assertEquals(
+        "ownerId must not exceed 255 characters", rejected.body().path("message").asText());
+
+    // Nothing was applied.
+    assertEquals("catalog-alice-id", owner("long-owner"));
+  }
+
   private static Response create(String token, String name) {
     return server.post(SHARES, token, "{\"name\":\"" + name + "\"}");
   }

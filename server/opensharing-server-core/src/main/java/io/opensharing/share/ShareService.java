@@ -123,6 +123,7 @@ public class ShareService {
       // authentication, which cannot change while the request is served.
       Ownership.checkAdminTransferOwner(
           user, "share '" + existing.getName() + "'", newOwnerId, otherChanges(request));
+      requireMaxLength(newOwnerId, ShareEntity.MAX_OWNER_ID_LENGTH, "ownerId");
     } else {
       Ownership.check(user, existing.getOwnerId(), "share '" + existing.getName() + "'");
     }

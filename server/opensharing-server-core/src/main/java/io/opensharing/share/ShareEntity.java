@@ -27,6 +27,7 @@ public class ShareEntity extends BaseEntity {
   static final int MAX_PROPERTY_KEY_LENGTH = 255;
   static final int MAX_PROPERTY_VALUE_LENGTH = 1000;
   static final int MAX_PROPERTIES = 50;
+  static final int MAX_OWNER_ID_LENGTH = 255;
 
   @Column(nullable = false, length = 255)
   private String name;
@@ -41,7 +42,7 @@ public class ShareEntity extends BaseEntity {
    * The catalog's user id for whoever created this share. It is not kept in sync with the catalog,
    * so it goes stale if the catalog removes the user.
    */
-  @Column(name = "owner_id", nullable = false, length = 255)
+  @Column(name = "owner_id", nullable = false, length = MAX_OWNER_ID_LENGTH)
   private String ownerId;
 
   /**
