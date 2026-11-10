@@ -7,6 +7,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapKeyColumn;
 import jakarta.persistence.Table;
@@ -52,6 +53,7 @@ public class ShareEntity extends BaseEntity {
   @CollectionTable(
       name = "os_share_properties",
       joinColumns = @JoinColumn(name = "share_id"),
+      foreignKey = @ForeignKey(name = "fk_share_properties_share"),
       uniqueConstraints =
           @UniqueConstraint(
               name = "uk_share_properties",
