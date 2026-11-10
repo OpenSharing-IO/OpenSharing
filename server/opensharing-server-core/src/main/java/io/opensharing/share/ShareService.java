@@ -119,6 +119,8 @@ public class ShareService {
     String newOwnerId = request.ownerId();
     boolean transfers = newOwnerId != null;
     if (transfers) {
+      // No admin re-check inside the transaction: the flag comes from this request's
+      // authentication, which cannot change while the request is served.
       Ownership.checkAdminTransferOwner(
           user, "share '" + existing.getName() + "'", newOwnerId, otherChanges(request));
     } else {
@@ -251,7 +253,8 @@ public class ShareService {
   }
 
   // Whether moving the share to a new owner is the request's only change, which a transfer must
-  // be, whatever the caller's other rights.
+  // be, whatever the caller's other rights. Removals are updates too (REMOVE actions), so the
+  // emptiness check covers them; there is no separate removals field.
   private static boolean otherChanges(UpdateShareRequest request) {
     return request.displayName() != null
         || request.comment() != null
