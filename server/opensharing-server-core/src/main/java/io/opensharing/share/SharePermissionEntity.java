@@ -36,7 +36,7 @@ public class SharePermissionEntity extends BaseEntity {
   private RecipientEntity recipient;
 
   @Convert(converter = SharePrivilegeConverter.class)
-  @Column(nullable = false, length = 32)
+  @Column(nullable = false, length = 255)
   private SharePrivilege privilege;
 
   public ShareEntity getShare() {

@@ -23,6 +23,15 @@ public abstract class EnumNameConverter<E extends Enum<E>>
 
   @Override
   public E convertToEntityAttribute(String value) {
-    return value == null ? null : Enum.valueOf(type, value);
+    if (value == null) {
+      return null;
+    }
+    try {
+      return Enum.valueOf(type, value);
+    } catch (IllegalArgumentException e) {
+      // A stored name from an older or newer version has no constant here; say where it came from.
+      throw new IllegalArgumentException(
+          "Unrecognized " + type.getSimpleName() + " value in database: '" + value + "'", e);
+    }
   }
 }
