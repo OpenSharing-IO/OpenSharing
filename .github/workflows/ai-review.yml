@@ -15,7 +15,7 @@ name: AI PR Review
 
 on:
   pull_request_target:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, synchronize]
   issue_comment:
     types: [created]
   workflow_dispatch:
@@ -29,7 +29,22 @@ permissions:
   contents: read
 
 concurrency:
-  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number || inputs.pr }}
+  # Only review requests share a per-PR group. Other comments get a unique
+  # group so they cannot cancel an in-progress review before the job-level
+  # condition skips them.
+  group: >-
+    ai-review-${{
+      github.event_name == 'issue_comment' &&
+      (
+        github.event.issue.pull_request == null ||
+        github.event.comment.body != '/review' ||
+        endsWith(github.actor, '[bot]')
+      ) &&
+      github.run_id ||
+      github.event.pull_request.number ||
+      github.event.issue.number ||
+      inputs.pr
+    }}
   cancel-in-progress: true
 
 jobs:
@@ -38,7 +53,7 @@ jobs:
     if: >-
       github.event_name != 'issue_comment' || (
         github.event.issue.pull_request != null &&
-        contains(github.event.comment.body, '/review') &&
+        github.event.comment.body == '/review' &&
         !endsWith(github.actor, '[bot]')
       )
     runs-on: ubuntu-24.04
@@ -75,8 +90,7 @@ jobs:
               pullNumber = pull.number;
               authorizationSubject = pull.user.login;
             } else if (context.eventName === 'issue_comment') {
-              const command = context.payload.comment.body.match(/^[ \t]*\/review[ \t]*$/m);
-              if (!command) return;
+              if (context.payload.comment.body !== '/review') return;
               pullNumber = context.payload.issue.number;
               authorizationSubject = context.actor;
             } else if (context.eventName === 'workflow_dispatch') {
@@ -137,6 +151,10 @@ jobs:
     if: needs.authorize.outputs.allowed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # Keep ocr_version reproducible and prevent its background updater from
+    # replacing the executable while the composite action is still using it.
+    env:
+      OCR_NO_UPDATE: '1'
     permissions:
       contents: read
       issues: read

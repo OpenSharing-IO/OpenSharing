@@ -79,9 +79,10 @@ specification or server release. See [RELEASE.md](./RELEASE.md) for versioning.
 ### Automated AI review
 
 Non-draft PRs from maintainers and explicitly allowlisted contributors receive
-an automated AI review. A maintainer can request a review on any open PR by
-posting `/review` as a comment. The reviewer reads the proposed diff and
-surrounding repository files but does not execute code from the PR.
+an automated AI review when opened and after each new commit. A maintainer can
+request a review on any open PR by posting `/review` as a comment. The reviewer
+reads the proposed diff and surrounding repository files but does not execute
+code from the PR.
 
 AI findings are advisory. Maintainers remain responsible for reviewing changes
 and deciding whether a finding needs to be addressed.
