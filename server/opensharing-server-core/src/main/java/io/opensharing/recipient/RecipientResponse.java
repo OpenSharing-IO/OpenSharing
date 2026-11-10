@@ -12,8 +12,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
  *   "name": "<recipient name>",
  *   "comment": "<comment>",
  *   "authenticationType": "TOKEN",
- *   "activationUrl": "<activation URL>",
- *   "owner": "<owner user id>"
+ *   "activationUrl": "<activation URL>"
  * }
  * }</pre>
  */
@@ -23,8 +22,7 @@ public record RecipientResponse(
     String name,
     String comment,
     AuthenticationType authenticationType,
-    String activationUrl,
-    String owner) {
+    String activationUrl) {
 
   public static RecipientResponse from(RecipientEntity recipient, String activationUrl) {
     return new RecipientResponse(
@@ -32,7 +30,6 @@ public record RecipientResponse(
         recipient.getName(),
         recipient.getComment(),
         recipient.getAuthenticationType(),
-        activationUrl,
-        recipient.getOwnerId());
+        activationUrl);
   }
 }
