@@ -32,12 +32,25 @@ public class ProtocolShares {
         maxResults,
         pageToken,
         (offset, limit) -> sharePermissions.listSharesFor(recipient.recipientId(), offset, limit),
-        ShareResponse::from);
+        share -> withoutOwner(ShareResponse.from(share)));
   }
 
   /** Gets one of the recipient's shares by share name. */
   public GetShareResponse get(RecipientPrincipal recipient, String shareName) {
-    return new GetShareResponse(ShareResponse.from(requireGranted(recipient, shareName)));
+    return new GetShareResponse(
+        withoutOwner(ShareResponse.from(requireGranted(recipient, shareName))));
+  }
+
+  // The provider's identity stays behind the provider API: recipients never see the owner.
+  private static ShareResponse withoutOwner(ShareResponse share) {
+    return new ShareResponse(
+        share.id(),
+        share.name(),
+        share.displayName(),
+        share.comment(),
+        share.properties(),
+        share.objects(),
+        null);
   }
 
   /** Looks up a share by share name. Fails with not-found unless the recipient holds SELECT. */

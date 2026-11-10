@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A share as an API reports it. Fields without a value are omitted, and {@code objects} is omitted
- * unless requested:
+ * A share as the provider API reports it. Fields without a value are omitted, and {@code objects}
+ * is omitted unless requested:
  *
  * <pre>{@code
  * {
@@ -22,7 +22,8 @@ import java.util.Map;
  * }
  * }</pre>
  *
- * <p>{@code ownerId} is the owner's catalog user id.
+ * <p>{@code ownerId} is the owner's catalog user id, reported to the provider only: the
+ * recipient-facing protocol omits it.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ShareResponse(
