@@ -68,7 +68,7 @@ public class ShareService {
     // The host has already authenticated the caller. A host that also checks CREATE_SHARE at its
     // endpoint can make this a no-op.
     catalog.authorize(new AuthContext(serverId, user), Privilege.CREATE_SHARE);
-    return ShareResponse.fromOwned(
+    return ShareResponse.from(
         shares.create(
             user,
             ObjectNames.validateShareName(request.name()),
@@ -83,7 +83,7 @@ public class ShareService {
         holds(user, Privilege.USE_SHARE)
             ? shares::list
             : (offset, limit) -> shares.listOwnedBy(user.userId(), offset, limit);
-    return Pagination.page(maxResults, pageToken, slice, ShareResponse::fromOwned);
+    return Pagination.page(maxResults, pageToken, slice, ShareResponse::from);
   }
 
   /**
@@ -91,7 +91,7 @@ public class ShareService {
    * which ones the caller may see. The host must filter each page before returning it.
    */
   public ListResponse<ShareResponse> listAll(Integer maxResults, String pageToken) {
-    return Pagination.page(maxResults, pageToken, shares::list, ShareResponse::fromOwned);
+    return Pagination.page(maxResults, pageToken, shares::list, ShareResponse::from);
   }
 
   /**
@@ -101,11 +101,11 @@ public class ShareService {
   public ShareResponse get(UserContext user, String share, boolean includeSharedData) {
     ShareEntity entity = requireReadable(user, share);
     if (!includeSharedData) {
-      return ShareResponse.fromOwned(entity);
+      return ShareResponse.from(entity);
     }
     List<SharedDataObjectEntity> sharedObjects = objects.list(entity);
     sharedObjects.forEach(sharedObject -> requireStillShared(entity, sharedObject));
-    return ShareResponse.fromOwned(entity, sharedObjects);
+    return ShareResponse.from(entity, sharedObjects);
   }
 
   /**
@@ -116,15 +116,15 @@ public class ShareService {
    */
   public ShareResponse update(UserContext user, String share, UpdateShareRequest request) {
     ShareEntity existing = shares.getOrThrow(share);
-    String newOwner = request.owner();
-    boolean transfers = newOwner != null;
+    String newOwnerId = request.ownerId();
+    boolean transfers = newOwnerId != null;
     boolean admin =
-        Ownership.checkUpdate(
+        Ownership.authorizeUpdate(
             catalog,
             new AuthContext(serverId, user),
             "share '" + existing.getName() + "'",
             existing.getOwnerId(),
-            newOwner,
+            newOwnerId,
             otherChanges(request));
     String displayName = validateDisplayName(request.displayName());
     String comment = validateComment(request.comment());
@@ -170,10 +170,11 @@ public class ShareService {
                     addition.alias().schema(),
                     addition.alias().table());
               }
-              shares.update(entity, displayName, comment, properties, transfers ? newOwner : null);
+              shares.update(
+                  entity, displayName, comment, properties, transfers ? newOwnerId : null);
               return entity;
             });
-    return ShareResponse.fromOwned(updated);
+    return ShareResponse.from(updated);
   }
 
   /** Deletes the share. Owner only. */

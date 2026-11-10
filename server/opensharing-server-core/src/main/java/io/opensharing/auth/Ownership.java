@@ -16,41 +16,41 @@ public final class Ownership {
 
   /**
    * Checks an update before it is applied and returns whether the caller is a catalog admin. A
-   * transfer to {@code newOwner} must be the only change and needs an admin; anything else needs
+   * transfer to {@code newOwnerId} must be the only change and needs an admin; anything else needs
    * the owner.
    */
-  public static boolean checkUpdate(
+  public static boolean authorizeUpdate(
       CatalogConnector catalog,
       AuthContext caller,
       String what,
       String ownerId,
-      String newOwner,
+      String newOwnerId,
       boolean otherChanges) {
     // Only the catalog's answer for this call says who is an admin.
     boolean admin = catalog.authorize(caller, null).admin();
-    if (newOwner == null) {
+    if (newOwnerId == null) {
       check(caller.user(), ownerId, what);
       return admin;
     }
     if (otherChanges) {
       throw ApiException.invalidParameter(
-          "owner must be changed on its own, without other updates");
+          "ownerId must be changed on its own, without other updates");
     }
     if (!admin) {
       throw ApiException.permissionDenied(
           "only an admin of the catalog may change the owner of " + what);
     }
-    if (newOwner.isBlank()) {
-      throw ApiException.invalidParameter("owner must not be blank");
+    if (newOwnerId.isBlank()) {
+      throw ApiException.invalidParameter("ownerId must not be blank");
     }
-    if (!newOwner.equals(ownerId)) {
+    if (!newOwnerId.equals(ownerId)) {
       try {
         catalog.authorize(
-            new AuthContext(caller.serverId(), UserContext.fromUserIdAndName(newOwner, null)),
+            new AuthContext(caller.serverId(), UserContext.fromUserIdAndName(newOwnerId, null)),
             null);
       } catch (CatalogException e) {
         throw ApiException.invalidParameter(
-            "owner '" + newOwner + "' is not a user of the catalog");
+            "owner '" + newOwnerId + "' is not a user of the catalog");
       }
     }
     return admin;

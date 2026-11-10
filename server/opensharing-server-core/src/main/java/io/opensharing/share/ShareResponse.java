@@ -18,13 +18,11 @@ import java.util.Map;
  *   "comment": "<comment>",
  *   "properties": {"<key>": "<value>"},
  *   "objects": [{"name": "<asset name>", "type": "TABLE", "sharedAs": "<alias>"}],
- *   "owner": "<owner user id>"
+ *   "ownerId": "<owner user id>"
  * }
  * }</pre>
  *
- * <p>{@code owner} is the owner's catalog user id. The provider API reports it; the recipient
- * protocol builds responses with {@link #from}, which leaves it out, because recipients never see
- * who owns a share.
+ * <p>{@code ownerId} is the owner's catalog user id.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ShareResponse(
@@ -34,31 +32,13 @@ public record ShareResponse(
     String comment,
     Map<String, String> properties,
     List<SharedDataObjectResponse> objects,
-    String owner) {
+    String ownerId) {
 
   public static ShareResponse from(ShareEntity share) {
     return from(share, null);
   }
 
   public static ShareResponse from(ShareEntity share, List<SharedDataObjectEntity> objects) {
-    return new ShareResponse(
-        share.getId(),
-        share.getName(),
-        share.getDisplayName(),
-        share.getComment(),
-        Map.copyOf(share.getProperties()),
-        objects == null
-            ? null
-            : objects.stream().map(SharedDataObjectResponse::from).toList(),
-        null);
-  }
-
-  /** Like {@link #from(ShareEntity)}, with the owner, for the provider API. */
-  public static ShareResponse fromOwned(ShareEntity share) {
-    return fromOwned(share, null);
-  }
-
-  public static ShareResponse fromOwned(ShareEntity share, List<SharedDataObjectEntity> objects) {
     return new ShareResponse(
         share.getId(),
         share.getName(),

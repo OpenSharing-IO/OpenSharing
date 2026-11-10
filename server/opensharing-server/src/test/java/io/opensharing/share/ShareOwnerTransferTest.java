@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Transferring a share's ownership with {@code owner} on the update body. Only an admin of the
+ * Transferring a share's ownership with {@code ownerId} on the update body. Only an admin of the
  * catalog may transfer, and a transfer must be the request's only change, whoever the caller is;
  * everything else follows the regular owner rules.
  */
@@ -72,18 +72,18 @@ class ShareOwnerTransferTest {
     assertEquals(201, create("owner-token", "handover").status());
 
     // The current owner may not transfer.
-    Response byOwner = patch("handover", "owner-token", "{\"owner\":\"other-id\"}");
+    Response byOwner = patch("handover", "owner-token", "{\"ownerId\":\"other-id\"}");
     assertEquals(403, byOwner.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, byOwner.errorCode());
 
     // Neither may a non-owner non-admin.
-    Response byOther = patch("handover", "other-token", "{\"owner\":\"other-id\"}");
+    Response byOther = patch("handover", "other-token", "{\"ownerId\":\"other-id\"}");
     assertEquals(403, byOther.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, byOther.errorCode());
 
     // Mixing the transfer with other changes is a bad request before any permission check.
     Response mixed =
-        patch("handover", "other-token", "{\"owner\":\"other-id\",\"comment\":\"no\"}");
+        patch("handover", "other-token", "{\"ownerId\":\"other-id\",\"comment\":\"no\"}");
     assertEquals(400, mixed.status());
     assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, mixed.errorCode());
 
@@ -95,9 +95,9 @@ class ShareOwnerTransferTest {
   void anAdminTransfersAShareTheyDoNotOwn() {
     assertEquals(201, create("owner-token", "rescued").status());
 
-    Response transferred = patch("rescued", "admin-token", "{\"owner\":\"other-id\"}");
+    Response transferred = patch("rescued", "admin-token", "{\"ownerId\":\"other-id\"}");
     assertEquals(200, transferred.status(), () -> transferred.body().toString());
-    assertEquals("other-id", transferred.body().path("owner").asText());
+    assertEquals("other-id", transferred.body().path("ownerId").asText());
 
     // A fresh get shows the new owner too.
     assertEquals("other-id", owner("rescued"));
@@ -124,7 +124,7 @@ class ShareOwnerTransferTest {
             "scoped",
             "admin-token",
             """
-            {"owner":"other-id","updates":[{"action":"ADD",
+            {"ownerId":"other-id","updates":[{"action":"ADD",
               "dataObject":{"name":"main.sales.orders","type":"TABLE"}}]}
             """);
     assertEquals(400, objects.status());
@@ -149,7 +149,7 @@ class ShareOwnerTransferTest {
             "both",
             "admin-token",
             """
-            {"owner":"other-id","comment":"v2","updates":[{"action":"ADD",
+            {"ownerId":"other-id","comment":"v2","updates":[{"action":"ADD",
               "dataObject":{"name":"main.sales.orders","type":"TABLE"}}]}
             """);
     assertEquals(400, updated.status());
@@ -164,7 +164,7 @@ class ShareOwnerTransferTest {
   void anUnknownNewOwnerIsRejected() {
     assertEquals(201, create("owner-token", "vetted").status());
 
-    Response unknown = patch("vetted", "admin-token", "{\"owner\":\"ghost-id\"}");
+    Response unknown = patch("vetted", "admin-token", "{\"ownerId\":\"ghost-id\"}");
     assertEquals(400, unknown.status());
     assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, unknown.errorCode());
 
@@ -176,7 +176,7 @@ class ShareOwnerTransferTest {
   void transferringToTheCurrentOwnerIsANoOp() {
     assertEquals(201, create("owner-token", "noop").status());
 
-    Response transferred = patch("noop", "admin-token", "{\"owner\":\"owner-id\"}");
+    Response transferred = patch("noop", "admin-token", "{\"ownerId\":\"owner-id\"}");
     assertEquals(200, transferred.status(), () -> transferred.body().toString());
     assertEquals("owner-id", owner("noop"));
   }
@@ -192,7 +192,7 @@ class ShareOwnerTransferTest {
   private static String owner(String share) {
     Response response = server.get(SHARES + "/" + share, "admin-token");
     assertEquals(200, response.status());
-    return response.body().path("owner").asText();
+    return response.body().path("ownerId").asText();
   }
 
   private static int objectsOf(String share) {

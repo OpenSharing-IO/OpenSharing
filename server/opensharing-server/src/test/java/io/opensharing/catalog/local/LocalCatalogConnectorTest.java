@@ -367,7 +367,6 @@ class LocalCatalogConnectorTest {
     return new AuthContext(null, new UserContext(null, token, null));
   }
 
-
   @Test
   void rejectsUnknownKeysInCatalogFile() {
     String yaml =
