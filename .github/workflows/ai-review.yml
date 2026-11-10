@@ -137,6 +137,10 @@ jobs:
     if: needs.authorize.outputs.allowed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # Keep ocr_version reproducible and prevent its background updater from
+    # replacing the executable while the composite action is still using it.
+    env:
+      OCR_NO_UPDATE: '1'
     permissions:
       contents: read
       issues: read
