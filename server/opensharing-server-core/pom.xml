@@ -46,6 +46,13 @@
       <groupId>io.delta</groupId>
       <artifactId>delta-kernel-defaults</artifactId>
       <version>${delta-kernel.version}</version>
+      <exclusions>
+        <!-- A Log4j backend for SLF4J, from unitycatalog-client; the application picks one. -->
+        <exclusion>
+          <groupId>org.apache.logging.log4j</groupId>
+          <artifactId>log4j-slf4j2-impl</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
