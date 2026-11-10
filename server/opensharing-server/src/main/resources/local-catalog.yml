@@ -5,7 +5,11 @@ credentials:
   mode: FAKE
   ttlSeconds: 3600
 
-# A principal holds only the privileges it lists.
+# A principal holds only the privileges it lists. Users whose ids are in adminUserIds come
+# back from authorize marked as catalog admins, who may transfer the ownership of any share.
+adminUserIds:
+  - catalog-alice-id
+
 principals:
   - bearerToken: alice-token
     userId: catalog-alice-id

@@ -6,6 +6,7 @@ import io.opensharing.asset.SharedAssetResolver;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.auth.AuthContext;
+import io.opensharing.auth.CatalogUsers;
 import io.opensharing.auth.Ownership;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
@@ -30,9 +31,11 @@ import java.util.stream.Stream;
 
 /**
  * Provider share CRUD and recipient grants for a caller the host has authenticated. Creating a
- * share needs CREATE_SHARE from the catalog, and only the owner may change it. The owner and
- * callers with USE_SHARE from the catalog may read a share; listing without USE_SHARE returns only
- * the caller's own shares.
+ * share needs CREATE_SHARE from the catalog, and only the owner may change it. The one exception is
+ * the ownership transfer in {@link #update}: an admin of the catalog, as its {@code authorize}
+ * reports per call, may transfer the ownership of a share they don't own. The owner and callers
+ * with USE_SHARE from the catalog may read a share; listing without USE_SHARE returns only the
+ * caller's own shares.
  */
 public class ShareService {
 
@@ -66,7 +69,7 @@ public class ShareService {
     // The host has already authenticated the caller. A host that also checks CREATE_SHARE at its
     // endpoint can make this a no-op.
     catalog.authorize(new AuthContext(serverId, user), Privilege.CREATE_SHARE);
-    return ShareResponse.from(
+    return ShareResponse.fromOwned(
         shares.create(
             user,
             ObjectNames.validateShareName(request.name()),
@@ -81,7 +84,7 @@ public class ShareService {
         holds(user, Privilege.USE_SHARE)
             ? shares::list
             : (offset, limit) -> shares.listOwnedBy(user.userId(), offset, limit);
-    return Pagination.page(maxResults, pageToken, slice, ShareResponse::from);
+    return Pagination.page(maxResults, pageToken, slice, ShareResponse::fromOwned);
   }
 
   /**
@@ -89,7 +92,7 @@ public class ShareService {
    * which ones the caller may see. The host must filter each page before returning it.
    */
   public ListResponse<ShareResponse> listAll(Integer maxResults, String pageToken) {
-    return Pagination.page(maxResults, pageToken, shares::list, ShareResponse::from);
+    return Pagination.page(maxResults, pageToken, shares::list, ShareResponse::fromOwned);
   }
 
   /**
@@ -99,19 +102,45 @@ public class ShareService {
   public ShareResponse get(UserContext user, String share, boolean includeSharedData) {
     ShareEntity entity = requireReadable(user, share);
     if (!includeSharedData) {
-      return ShareResponse.from(entity);
+      return ShareResponse.fromOwned(entity);
     }
     List<SharedDataObjectEntity> sharedObjects = objects.list(entity);
     sharedObjects.forEach(sharedObject -> requireStillShared(entity, sharedObject));
-    return ShareResponse.from(entity, sharedObjects);
+    return ShareResponse.fromOwned(entity, sharedObjects);
   }
 
   /**
    * Removes objects, then adds objects, then updates the fields set in {@code request}, all in one
-   * transaction: either every change commits or none does. Owner only.
+   * transaction: either every change commits or none does. Owner only, except that an admin of the
+   * catalog may transfer the share's ownership in a request whose {@code owner} is the only change.
    */
   public ShareResponse update(UserContext user, String share, UpdateShareRequest request) {
-    shares.getOwnedOrThrow(share, user);
+    // The catalog decides per call whether the caller is an admin; OpenSharing never takes that
+    // from the request body or from stored data.
+    boolean admin = catalog.authorize(new AuthContext(serverId, user), null).admin();
+    ShareEntity existing = shares.getOrThrow(share);
+    boolean owner = Ownership.owns(user, existing.getOwnerId());
+    if (!owner && !(admin && transfersOwnership(request))) {
+      Ownership.check(user, existing.getOwnerId(), "share '" + existing.getName() + "'");
+    }
+    String newOwner = request.owner();
+    boolean transfers = newOwner != null;
+    if (transfers) {
+      if (!admin) {
+        throw ApiException.permissionDenied(
+            "only an admin of the catalog may change the owner of share '"
+                + existing.getName()
+                + "'");
+      }
+      if (newOwner.isBlank()) {
+        throw ApiException.invalidParameter("owner must not be blank");
+      }
+      // Transferring to the current owner is a no-op; anything else must be a user of the catalog,
+      // so a typo cannot orphan the share.
+      if (!newOwner.equals(existing.getOwnerId())) {
+        CatalogUsers.requireExisting(catalog, serverId, newOwner);
+      }
+    }
     String displayName = validateDisplayName(request.displayName());
     String comment = validateComment(request.comment());
     Map<String, String> properties = validateProperties(request.properties());
@@ -138,7 +167,11 @@ public class ShareService {
         tx.inTransaction(
             false,
             em -> {
-              ShareEntity entity = shares.getOwnedOrThrow(em, share, user);
+              // Under the lock the non-admin must still own the share, in case it changed hands.
+              ShareEntity entity =
+                  admin
+                      ? shares.getLockedOrThrow(em, share)
+                      : shares.getOwnedOrThrow(em, share, user);
               for (Removal removal : removals) {
                 removal.apply(em, objects, entity);
               }
@@ -152,10 +185,10 @@ public class ShareService {
                     addition.alias().schema(),
                     addition.alias().table());
               }
-              shares.update(entity, displayName, comment, properties);
+              shares.update(entity, displayName, comment, properties, transfers ? newOwner : null);
               return entity;
             });
-    return ShareResponse.from(updated);
+    return ShareResponse.fromOwned(updated);
   }
 
   /** Deletes the share. Owner only. */
@@ -231,6 +264,16 @@ public class ShareService {
       catalog.authorize(new AuthContext(serverId, user), Privilege.USE_SHARE);
     }
     return entity;
+  }
+
+  // Whether moving the share to a new owner is the request's only change, the one change an admin
+  // who is not the owner may make.
+  private static boolean transfersOwnership(UpdateShareRequest request) {
+    return request.owner() != null
+        && request.displayName() == null
+        && request.comment() == null
+        && request.properties() == null
+        && request.updates().isEmpty();
   }
 
   // Resolves an included object as the share's owner, whom recipients read it as.

@@ -1,6 +1,7 @@
 package io.opensharing.catalog.local;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -319,6 +320,46 @@ class LocalCatalogConnectorTest {
         () ->
             connector.authorize(
                 new AuthContext(null, new UserContext(null, "mallory-token", null)), null));
+  }
+
+  /** The sample catalog lists catalog-alice-id in adminUserIds. */
+  @Test
+  void marksConfiguredAdminsOnAuthorize() {
+    LocalCatalogConnector connector = sample();
+
+    assertTrue(connector.authorize(authByToken("alice-token"), null).admin());
+    assertFalse(connector.authorize(authByToken("bob-token"), null).admin());
+  }
+
+  /**
+   * OpenSharing names the user it acts for by id when it has no token, such as when it checks that
+   * a share's new owner exists.
+   */
+  @Test
+  void authorizesAUserByIdWithoutAToken() {
+    LocalCatalogConnector connector = sample();
+
+    UserContext bob =
+        connector.authorize(
+            new AuthContext("opensharing-server", UserContext.fromUserIdAndName("catalog-bob-id", null)),
+            null);
+    assertEquals("catalog-bob-id", bob.userId());
+    assertFalse(bob.admin());
+
+    assertThrows(
+        CatalogAuthenticationException.class,
+        () ->
+            connector.authorize(
+                new AuthContext(
+                    "opensharing-server", UserContext.fromUserIdAndName("catalog-mallory-id", null)),
+                null));
+    assertThrows(
+        CatalogAuthenticationException.class,
+        () -> connector.authorize(new AuthContext("opensharing-server", UserContext.fromUserIdAndName(null, null)), null));
+  }
+
+  private static AuthContext authByToken(String token) {
+    return new AuthContext(null, new UserContext(null, token, null));
   }
 
 

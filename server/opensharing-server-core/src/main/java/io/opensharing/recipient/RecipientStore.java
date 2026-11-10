@@ -57,14 +57,25 @@ public class RecipientStore {
         });
   }
 
-  /** Only non-null fields are applied. Only the owner may update the recipient. */
-  public RecipientEntity update(UserContext user, String name, String comment) {
+  /**
+   * Only non-null fields are applied; {@code ownerId}, when set, moves the recipient to a new owner,
+   * whom the caller has already vetted. The caller checks permission; when {@code admin} is false
+   * the recipient must still belong to {@code user}, in case it changed hands.
+   */
+  public RecipientEntity update(
+      UserContext user, String name, String comment, String ownerId, boolean admin) {
     return tx.inTransaction(
         false,
         em -> {
-          RecipientEntity recipient = getOwnedOrThrow(em, name, user);
+          RecipientEntity recipient =
+              admin
+                  ? getOrThrow(em, name, LockModeType.PESSIMISTIC_WRITE)
+                  : getOwnedOrThrow(em, name, user);
           if (comment != null) {
             recipient.setComment(comment);
+          }
+          if (ownerId != null) {
+            recipient.setOwnerId(ownerId);
           }
           return recipient;
         });

@@ -17,8 +17,9 @@ import io.opensharing.http.ListResponse;
 
 /**
  * Provider HTTP API for recipient CRUD, behind {@link ProviderTokenDecorator}. Only the owner may
- * change a recipient. The owner and callers with USE_RECIPIENT may read it; listing without
- * USE_RECIPIENT returns only the caller's own recipients.
+ * change a recipient, except that an admin of the catalog may transfer its ownership. The owner and
+ * callers with USE_RECIPIENT may read it; listing without USE_RECIPIENT returns only the caller's
+ * own recipients.
  */
 @Blocking
 @ProducesJson
@@ -68,7 +69,11 @@ public final class RecipientAdminService {
     return recipients.get(ProviderTokenDecorator.user(ctx), recipient, activationBaseUrl);
   }
 
-  /** {@code PATCH /recipients/{recipient}}: updates the fields set in the body. Owner only. */
+  /**
+   * {@code PATCH /recipients/{recipient}}: updates the fields set in the body. Owner only, except
+   * that an admin of the catalog may transfer the recipient's ownership in a request whose {@code
+   * owner} is the only change.
+   */
   @Patch("/recipients/{recipient}")
   public RecipientResponse update(
       ServiceRequestContext ctx, @Param String recipient, UpdateRecipientRequest request) {

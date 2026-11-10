@@ -2,6 +2,7 @@ package io.opensharing.recipient;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.auth.AuthContext;
+import io.opensharing.auth.CatalogUsers;
 import io.opensharing.auth.Ownership;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.TokenHashes;
@@ -21,7 +22,9 @@ import java.util.UUID;
 
 /**
  * Provider recipient CRUD and token issuance for a caller the host has authenticated. Creating a
- * recipient needs CREATE_RECIPIENT from the catalog, and only the owner may change it. The owner
+ * recipient needs CREATE_RECIPIENT from the catalog, and only the owner may change it. The one
+ * exception is the ownership transfer in {@link #update}: an admin of the catalog, as its {@code
+ * authorize} reports per call, may transfer the ownership of a recipient they don't own. The owner
  * and callers with USE_RECIPIENT from the catalog may read a recipient; listing without
  * USE_RECIPIENT returns only the caller's own recipients. {@link #activate} is public: the
  * activation code itself is the credential. {@link #authenticate} checks the bearer tokens
@@ -114,14 +117,45 @@ public class RecipientService {
     return toResponse(entity, activationBaseUrl);
   }
 
-  /** Updates the fields set in {@code request}. Owner only. */
+  /**
+   * Updates the fields set in {@code request}. Owner only, except that an admin of the catalog may
+   * transfer the recipient's ownership in a request whose {@code owner} is the only change.
+   */
   public RecipientResponse update(
       UserContext user,
       String recipient,
       UpdateRecipientRequest request,
       String activationBaseUrl) {
+    // The catalog decides per call whether the caller is an admin; OpenSharing never takes that
+    // from the request body or from stored data.
+    boolean admin = catalog.authorize(new AuthContext(serverId, user), null).admin();
+    RecipientEntity existing = recipients.getOrThrow(recipient);
+    boolean owner = Ownership.owns(user, existing.getOwnerId());
+    if (!owner && !(admin && transfersOwnership(request))) {
+      Ownership.check(user, existing.getOwnerId(), "recipient '" + existing.getName() + "'");
+    }
+    String newOwner = request.owner();
+    boolean transfers = newOwner != null;
+    if (transfers) {
+      if (!admin) {
+        throw ApiException.permissionDenied(
+            "only an admin of the catalog may change the owner of recipient '"
+                + existing.getName()
+                + "'");
+      }
+      if (newOwner.isBlank()) {
+        throw ApiException.invalidParameter("owner must not be blank");
+      }
+      // Transferring to the current owner is a no-op; anything else must be a user of the catalog,
+      // so a typo cannot orphan the recipient.
+      if (!newOwner.equals(existing.getOwnerId())) {
+        CatalogUsers.requireExisting(catalog, serverId, newOwner);
+      }
+    }
+    String comment = validateComment(request.comment());
     return toResponse(
-        recipients.update(user, recipient, validateComment(request.comment())), activationBaseUrl);
+        recipients.update(user, recipient, comment, transfers ? newOwner : null, admin),
+        activationBaseUrl);
   }
 
   /** Deletes the recipient, its tokens and its permissions. Owner only. */
@@ -191,6 +225,12 @@ public class RecipientService {
           "comment must not exceed " + RecipientEntity.MAX_COMMENT_LENGTH + " characters");
     }
     return comment;
+  }
+
+  // Whether moving the recipient to a new owner is the request's only change, the one change an
+  // admin who is not the owner may make.
+  private static boolean transfersOwnership(UpdateRecipientRequest request) {
+    return request.owner() != null && request.comment() == null;
   }
 
   private boolean holds(UserContext user, Privilege privilege) {

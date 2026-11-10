@@ -18,8 +18,9 @@ import io.opensharing.http.ListResponse;
 
 /**
  * Provider HTTP API for share CRUD and recipient grants, behind {@link ProviderTokenDecorator}.
- * Only the owner may change a share. The owner and callers with USE_SHARE may read it; listing
- * without USE_SHARE returns only the caller's own shares.
+ * Only the owner may change a share, except that an admin of the catalog may transfer its
+ * ownership. The owner and callers with USE_SHARE may read it; listing without USE_SHARE returns
+ * only the caller's own shares.
  */
 @Blocking
 @ProducesJson
@@ -64,7 +65,8 @@ public final class ShareAdminService {
 
   /**
    * {@code PATCH /shares/{share}}: applies the object removes, then the adds, in {@code updates},
-   * then the other fields set in the body, all or nothing. Owner only.
+   * then the other fields set in the body, all or nothing. Owner only, except that an admin of the
+   * catalog may transfer the share's ownership in a request whose {@code owner} is the only change.
    */
   @Patch("/shares/{share}")
   public ShareResponse update(

@@ -63,12 +63,14 @@ public final class LocalCatalogConnector implements CatalogConnector {
 
   private final Map<String, LocalCatalogFile.Asset> assetsByIdentifier;
   private final List<LocalCatalogFile.Principal> principals;
+  private final List<String> adminUserIds;
   private final LocalCatalogFile.Credentials credentials;
   private final SecureRandom random = new SecureRandom();
 
   public LocalCatalogConnector(LocalCatalogFile file) {
     this.credentials = file.credentials();
     this.principals = file.principals();
+    this.adminUserIds = file.adminUserIds();
     this.assetsByIdentifier =
         file.assets().stream()
             .collect(
@@ -216,6 +218,11 @@ public final class LocalCatalogConnector implements CatalogConnector {
         new StorageCredentials(location, provider, fakeValues(provider, expiration), expiration));
   }
 
+  /**
+   * Authenticates by bearer token on a user's own request; without a token, the caller's user id
+   * names the user the OpenSharing server acts for, as when it checks that a share's new owner
+   * exists. Principals listed in {@code adminUserIds} come back marked as admins.
+   */
   @Override
   public UserContext authorize(AuthContext auth, Privilege privilege) {
     if (principals.isEmpty()) {
@@ -223,19 +230,38 @@ public final class LocalCatalogConnector implements CatalogConnector {
           "the " + NAME + " catalog has no principals configured to authorize");
     }
     String token = auth == null || auth.user() == null ? null : auth.user().userAuthToken();
-    if (token == null || token.isBlank()) {
-      throw new CatalogAuthenticationException("missing bearer token");
-    }
     LocalCatalogFile.Principal principal =
-        principals.stream()
-            .filter(candidate -> token.equals(candidate.bearerToken()))
-            .findFirst()
-            .orElseThrow(() -> new CatalogAuthenticationException("invalid bearer token"));
+        token == null || token.isBlank()
+            ? principalByUserId(auth == null ? null : auth.user())
+            : principalByToken(token);
     if (privilege != null && !principal.privileges().contains(privilege)) {
       throw new CatalogAuthorizationException(
           "user '" + principal.userId() + "' does not hold " + privilege);
     }
-    return new UserContext(principal.userId(), principal.bearerToken(), principal.userName());
+    UserContext user =
+        new UserContext(principal.userId(), principal.bearerToken(), principal.userName());
+    return adminUserIds.contains(principal.userId()) ? user.asAdmin() : user;
+  }
+
+  private LocalCatalogFile.Principal principalByToken(String token) {
+    return principals.stream()
+        .filter(candidate -> token.equals(candidate.bearerToken()))
+        .findFirst()
+        .orElseThrow(() -> new CatalogAuthenticationException("invalid bearer token"));
+  }
+
+  private LocalCatalogFile.Principal principalByUserId(UserContext user) {
+    String userId = user == null ? null : user.userId();
+    if (userId == null || userId.isBlank()) {
+      throw new CatalogAuthenticationException("missing bearer token");
+    }
+    return principals.stream()
+        .filter(candidate -> userId.equals(candidate.userId()))
+        .findFirst()
+        .orElseThrow(
+            () ->
+                new CatalogAuthenticationException(
+                    "user '" + userId + "' does not exist in the catalog"));
   }
 
   private static boolean covers(LocalCatalogFile.Asset asset, String location) {
