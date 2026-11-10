@@ -30,13 +30,6 @@
       <artifactId>opensharing-server</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
-      <exclusions>
-        <!-- Spark's log4j-slf4j2-impl sends SLF4J to Log4j; both bridges together fail. -->
-        <exclusion>
-          <groupId>org.apache.logging.log4j</groupId>
-          <artifactId>log4j-to-slf4j</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.opensharing</groupId>
@@ -45,12 +38,6 @@
       <type>test-jar</type>
       <version>${project.version}</version>
       <scope>test</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>org.apache.logging.log4j</groupId>
-          <artifactId>log4j-to-slf4j</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>

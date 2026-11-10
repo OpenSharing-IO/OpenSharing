@@ -47,10 +47,15 @@
       <artifactId>delta-kernel-defaults</artifactId>
       <version>${delta-kernel.version}</version>
       <exclusions>
-        <!-- A Log4j backend for SLF4J, from unitycatalog-client; the application picks one. -->
+        <!-- delta-storage brings published Unity Catalog jars that OpenSharing doesn't use. They
+             ship a Log4j backend, and classes that would shadow a host's own. -->
         <exclusion>
-          <groupId>org.apache.logging.log4j</groupId>
-          <artifactId>log4j-slf4j2-impl</artifactId>
+          <groupId>io.unitycatalog</groupId>
+          <artifactId>unitycatalog-client</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>io.unitycatalog</groupId>
+          <artifactId>unitycatalog-hadoop</artifactId>
         </exclusion>
       </exclusions>
     </dependency>

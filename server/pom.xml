@@ -73,7 +73,6 @@
     <mysql.version>9.2.0</mysql.version>
     <slf4j.version>2.0.17</slf4j.version>
     <logback.version>1.5.18</logback.version>
-    <log4j.version>2.25.3</log4j.version>
     <junit.version>5.12.2</junit.version>
     <delta-kernel.version>4.4.1</delta-kernel.version>
     <hadoop.version>3.4.3</hadoop.version>
@@ -168,11 +167,6 @@
         <groupId>ch.qos.logback</groupId>
         <artifactId>logback-classic</artifactId>
         <version>${logback.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.logging.log4j</groupId>
-        <artifactId>log4j-to-slf4j</artifactId>
-        <version>${log4j.version}</version>
       </dependency>
       <dependency>
         <groupId>com.azure</groupId>
