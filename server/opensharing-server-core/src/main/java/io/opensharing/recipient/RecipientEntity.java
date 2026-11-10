@@ -5,6 +5,7 @@ import io.opensharing.ObjectNames;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -15,7 +16,8 @@ import jakarta.persistence.UniqueConstraint;
 @Entity
 @Table(
     name = "os_recipients",
-    uniqueConstraints = @UniqueConstraint(name = "uk_recipients_name", columnNames = "name"))
+    uniqueConstraints = @UniqueConstraint(name = "uk_recipients_name", columnNames = "name"),
+    indexes = @Index(name = "idx_recipients_owner_id", columnList = "owner_id"))
 public class RecipientEntity extends BaseEntity {
 
   static final int MAX_COMMENT_LENGTH = 65536;

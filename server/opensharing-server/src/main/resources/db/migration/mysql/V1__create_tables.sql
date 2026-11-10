@@ -10,6 +10,8 @@ create table os_shares (
     constraint uk_shares_name unique (name)
 ) engine=InnoDB;
 
+create index idx_shares_owner_id on os_shares (owner_id);
+
 create table os_share_properties (
     share_id binary(16) not null,
     property_key varchar(255) not null,
@@ -29,6 +31,8 @@ create table os_recipients (
     primary key (id),
     constraint uk_recipients_name unique (name)
 ) engine=InnoDB;
+
+create index idx_recipients_owner_id on os_recipients (owner_id);
 
 create table os_recipient_tokens (
     id binary(16) not null,
@@ -51,7 +55,7 @@ create table os_share_permissions (
     id binary(16) not null,
     share_id binary(16) not null,
     recipient_id binary(16) not null,
-    privilege varchar(255) not null,
+    privilege varchar(32) not null,
     created_at datetime(6) not null,
     updated_at datetime(6) not null,
     primary key (id),

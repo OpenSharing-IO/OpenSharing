@@ -27,6 +27,9 @@ class JpaTransactionsTest {
     assertTrue(
         statements.stream().noneMatch(JpaTransactionsTest::addsTablesOrColumns),
         () -> String.join(";\n", statements));
+    assertTrue(
+        statements.stream().noneMatch(sql -> sql.toLowerCase().contains(" idx_")),
+        () -> "V1 lacks an index the entities declare: " + String.join(";\n", statements));
   }
 
   private static boolean addsTablesOrColumns(String statement) {
