@@ -118,14 +118,17 @@ public class ShareService {
     ShareEntity existing = shares.getOrThrow(share);
     String newOwnerId = request.ownerId();
     boolean transfers = newOwnerId != null;
-    boolean admin =
-        Ownership.authorizeUpdate(
-            catalog,
-            new AuthContext(serverId, user),
-            "share '" + existing.getName() + "'",
-            existing.getOwnerId(),
-            newOwnerId,
-            otherChanges(request));
+    if (transfers) {
+      Ownership.checkAdminTransferOwner(
+          catalog,
+          new AuthContext(serverId, user),
+          "share '" + existing.getName() + "'",
+          existing.getOwnerId(),
+          newOwnerId,
+          otherChanges(request));
+    } else {
+      Ownership.check(user, existing.getOwnerId(), "share '" + existing.getName() + "'");
+    }
     String displayName = validateDisplayName(request.displayName());
     String comment = validateComment(request.comment());
     Map<String, String> properties = validateProperties(request.properties());
@@ -152,9 +155,10 @@ public class ShareService {
         tx.inTransaction(
             false,
             em -> {
-              // Under the lock the non-admin must still own the share, in case it changed hands.
+              // Under the lock the caller must still own the share on a plain update, in case it
+              // changed hands.
               ShareEntity entity =
-                  admin
+                  transfers
                       ? shares.getLockedOrThrow(em, share)
                       : shares.getOwnedOrThrow(em, share, user);
               for (Removal removal : removals) {
@@ -170,8 +174,7 @@ public class ShareService {
                     addition.alias().schema(),
                     addition.alias().table());
               }
-              shares.update(
-                  entity, displayName, comment, properties, transfers ? newOwnerId : null);
+              shares.update(entity, displayName, comment, properties, newOwnerId);
               return entity;
             });
     return ShareResponse.from(updated);

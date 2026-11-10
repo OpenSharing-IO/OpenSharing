@@ -238,9 +238,11 @@ public final class LocalCatalogConnector implements CatalogConnector {
       throw new CatalogAuthorizationException(
           "user '" + principal.userId() + "' does not hold " + privilege);
     }
-    UserContext user =
-        new UserContext(principal.userId(), principal.bearerToken(), principal.userName());
-    return adminUserIds.contains(principal.userId()) ? user.asAdmin() : user;
+    return new UserContext(
+        principal.userId(),
+        principal.bearerToken(),
+        principal.userName(),
+        adminUserIds.contains(principal.userId()));
   }
 
   private LocalCatalogFile.Principal principalByToken(String token) {

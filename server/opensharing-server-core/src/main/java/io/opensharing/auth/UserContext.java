@@ -26,11 +26,6 @@ public record UserContext(String userId, String userAuthToken, String userName, 
     return new UserContext(userId, null, userName);
   }
 
-  /** A copy that says the catalog calls this user an admin, keeping the token. */
-  public UserContext asAdmin() {
-    return new UserContext(userId, userAuthToken, userName, true);
-  }
-
   /** Hides the token, which is a live catalog credential and must never be logged. */
   @Override
   public String toString() {

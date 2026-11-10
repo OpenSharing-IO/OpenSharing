@@ -25,7 +25,6 @@ class UserContextTest {
   void usersAreNotAdminsUnlessTheCatalogSaysSo() {
     assertFalse(new UserContext("alice-id", null, "alice").admin());
     assertFalse(UserContext.fromUserIdAndName("alice-id", "alice").admin());
-    assertTrue(UserContext.fromUserIdAndName("alice-id", "alice").asAdmin().admin());
-    assertTrue(new UserContext("alice-id", null, "alice", true).asAdmin().admin());
+    assertTrue(new UserContext("alice-id", null, "alice", true).admin());
   }
 }

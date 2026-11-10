@@ -15,11 +15,11 @@ public final class Ownership {
   }
 
   /**
-   * Checks an update before it is applied and returns whether the caller is a catalog admin. A
-   * transfer to {@code newOwnerId} must be the only change and needs an admin; anything else needs
-   * the owner.
+   * Checks a transfer of ownership to {@code newOwnerId} before it is applied. Only an admin of
+   * the catalog, as {@code authorize} reports for this call, may transfer, and the transfer must
+   * be the request's only change, so nothing else rides in past the owner.
    */
-  public static boolean authorizeUpdate(
+  public static void checkAdminTransferOwner(
       CatalogConnector catalog,
       AuthContext caller,
       String what,
@@ -28,10 +28,6 @@ public final class Ownership {
       boolean otherChanges) {
     // Only the catalog's answer for this call says who is an admin.
     boolean admin = catalog.authorize(caller, null).admin();
-    if (newOwnerId == null) {
-      check(caller.user(), ownerId, what);
-      return admin;
-    }
     if (otherChanges) {
       throw ApiException.invalidParameter(
           "ownerId must be changed on its own, without other updates");
@@ -53,7 +49,6 @@ public final class Ownership {
             "owner '" + newOwnerId + "' is not a user of the catalog");
       }
     }
-    return admin;
   }
 
   /** Passes only when {@link #owns} does. */
