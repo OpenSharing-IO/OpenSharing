@@ -119,7 +119,8 @@ public class RecipientService {
 
   /**
    * Updates the fields set in {@code request}. Owner only, except that an admin of the catalog may
-   * transfer the recipient's ownership in a request whose {@code owner} is the only change.
+   * transfer the recipient's ownership. A transfer must be the request's only change, for every
+   * caller.
    */
   public RecipientResponse update(
       UserContext user,
@@ -130,13 +131,13 @@ public class RecipientService {
     // from the request body or from stored data.
     boolean admin = catalog.authorize(new AuthContext(serverId, user), null).admin();
     RecipientEntity existing = recipients.getOrThrow(recipient);
-    boolean owner = Ownership.owns(user, existing.getOwnerId());
-    if (!owner && !(admin && transfersOwnership(request))) {
-      Ownership.check(user, existing.getOwnerId(), "recipient '" + existing.getName() + "'");
-    }
     String newOwner = request.owner();
     boolean transfers = newOwner != null;
     if (transfers) {
+      if (!transfersOwnership(request)) {
+        throw ApiException.invalidParameter(
+            "owner must be changed on its own, without other updates");
+      }
       if (!admin) {
         throw ApiException.permissionDenied(
             "only an admin of the catalog may change the owner of recipient '"
@@ -151,6 +152,8 @@ public class RecipientService {
       if (!newOwner.equals(existing.getOwnerId())) {
         CatalogUsers.requireExisting(catalog, serverId, newOwner);
       }
+    } else if (!Ownership.owns(user, existing.getOwnerId())) {
+      Ownership.check(user, existing.getOwnerId(), "recipient '" + existing.getName() + "'");
     }
     String comment = validateComment(request.comment());
     return toResponse(
@@ -227,8 +230,8 @@ public class RecipientService {
     return comment;
   }
 
-  // Whether moving the recipient to a new owner is the request's only change, the one change an
-  // admin who is not the owner may make.
+  // Whether moving the recipient to a new owner is the request's only change, which a transfer
+  // must be, whatever the caller's other rights.
   private static boolean transfersOwnership(UpdateRecipientRequest request) {
     return request.owner() != null && request.comment() == null;
   }

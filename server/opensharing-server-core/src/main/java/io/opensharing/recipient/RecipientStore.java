@@ -58,9 +58,9 @@ public class RecipientStore {
   }
 
   /**
-   * Only non-null fields are applied; {@code ownerId}, when set, moves the recipient to a new owner,
-   * whom the caller has already vetted. The caller checks permission; when {@code admin} is false
-   * the recipient must still belong to {@code user}, in case it changed hands.
+   * Only non-null fields are applied; {@code ownerId}, when set, moves the recipient to a new
+   * owner, whom the caller has already vetted. The caller checks permission; when {@code admin}
+   * is false the recipient must still belong to {@code user}, in case it changed hands.
    */
   public RecipientEntity update(
       UserContext user, String name, String comment, String ownerId, boolean admin) {

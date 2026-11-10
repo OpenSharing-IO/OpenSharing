@@ -10,9 +10,8 @@ import java.util.Map;
  * PATCH body for share metadata and content changes. Null fields are left unchanged; {@code
  * updates} adds or removes objects, applying every remove before any add.
  *
- * <p>{@code owner} transfers the share to that catalog user id. Only an admin of the catalog may
- * set it, and only in a request whose owner is the sole change unless the caller also owns the
- * share.
+ * <p>{@code owner} transfers the share to that catalog user id, in a request that carries no other
+ * change. Only an admin of the catalog may set it.
  */
 public record UpdateShareRequest(
     String displayName,

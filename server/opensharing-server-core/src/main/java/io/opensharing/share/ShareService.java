@@ -112,20 +112,21 @@ public class ShareService {
   /**
    * Removes objects, then adds objects, then updates the fields set in {@code request}, all in one
    * transaction: either every change commits or none does. Owner only, except that an admin of the
-   * catalog may transfer the share's ownership in a request whose {@code owner} is the only change.
+   * catalog may transfer the share's ownership. A transfer must be the request's only change, for
+   * every caller.
    */
   public ShareResponse update(UserContext user, String share, UpdateShareRequest request) {
     // The catalog decides per call whether the caller is an admin; OpenSharing never takes that
     // from the request body or from stored data.
     boolean admin = catalog.authorize(new AuthContext(serverId, user), null).admin();
     ShareEntity existing = shares.getOrThrow(share);
-    boolean owner = Ownership.owns(user, existing.getOwnerId());
-    if (!owner && !(admin && transfersOwnership(request))) {
-      Ownership.check(user, existing.getOwnerId(), "share '" + existing.getName() + "'");
-    }
     String newOwner = request.owner();
     boolean transfers = newOwner != null;
     if (transfers) {
+      if (!transfersOwnership(request)) {
+        throw ApiException.invalidParameter(
+            "owner must be changed on its own, without other updates");
+      }
       if (!admin) {
         throw ApiException.permissionDenied(
             "only an admin of the catalog may change the owner of share '"
@@ -140,6 +141,8 @@ public class ShareService {
       if (!newOwner.equals(existing.getOwnerId())) {
         CatalogUsers.requireExisting(catalog, serverId, newOwner);
       }
+    } else if (!Ownership.owns(user, existing.getOwnerId())) {
+      Ownership.check(user, existing.getOwnerId(), "share '" + existing.getName() + "'");
     }
     String displayName = validateDisplayName(request.displayName());
     String comment = validateComment(request.comment());
@@ -266,8 +269,8 @@ public class ShareService {
     return entity;
   }
 
-  // Whether moving the share to a new owner is the request's only change, the one change an admin
-  // who is not the owner may make.
+  // Whether moving the share to a new owner is the request's only change, which a transfer must
+  // be, whatever the caller's other rights.
   private static boolean transfersOwnership(UpdateShareRequest request) {
     return request.owner() != null
         && request.displayName() == null

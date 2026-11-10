@@ -17,8 +17,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Transferring a recipient's ownership with {@code owner} on the update body, under the same rules
- * as for shares: only an admin of the catalog may transfer, and only in a request whose owner is
- * the sole change unless the caller also owns the recipient.
+ * as for shares: only an admin of the catalog may transfer, and a transfer must be the request's
+ * only change, whoever the caller is.
  */
 class RecipientOwnerTransferTest {
 
@@ -76,6 +76,12 @@ class RecipientOwnerTransferTest {
     assertEquals(403, byOther.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, byOther.errorCode());
 
+    // Mixing the transfer with other changes is a bad request before any permission check.
+    Response mixed =
+        patch("handover", "other-token", "{\"owner\":\"other-id\",\"comment\":\"no\"}");
+    assertEquals(400, mixed.status());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, mixed.errorCode());
+
     // The owner is unchanged.
     assertEquals("owner-id", owner("handover"));
   }
@@ -107,16 +113,18 @@ class RecipientOwnerTransferTest {
     assertEquals(403, comment.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, comment.errorCode());
 
+    // A mixed request is a bad request, not a permission denial, and nothing is applied.
     Response mixed = patch("scoped", "admin-token", "{\"owner\":\"other-id\",\"comment\":\"no\"}");
-    assertEquals(403, mixed.status());
-    assertEquals(ErrorCodes.PERMISSION_DENIED, mixed.errorCode());
+    assertEquals(400, mixed.status());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, mixed.errorCode());
 
     Response deleted = server.delete(RECIPIENTS + "/scoped", "admin-token");
     assertEquals(403, deleted.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, deleted.errorCode());
 
     Response rotated =
-        server.post(RECIPIENTS + "/scoped/rotate-token", "admin-token", "{\"tokenExpirationDays\":1}");
+        server.post(
+            RECIPIENTS + "/scoped/rotate-token", "admin-token", "{\"tokenExpirationDays\":1}");
     assertEquals(403, rotated.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, rotated.errorCode());
 
@@ -127,13 +135,17 @@ class RecipientOwnerTransferTest {
   }
 
   @Test
-  void anAdminWhoOwnsTheRecipientMayCombineTheTransferWithOtherChanges() {
+  void anAdminOwnerAlsoCannotCombineTheTransferWithOtherChanges() {
     create("admin-token", "both");
 
     Response updated = patch("both", "admin-token", "{\"owner\":\"other-id\",\"comment\":\"v2\"}");
-    assertEquals(200, updated.status(), () -> updated.body().toString());
-    assertEquals("other-id", updated.body().path("owner").asText());
-    assertEquals("v2", updated.body().path("comment").asText());
+    assertEquals(400, updated.status());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, updated.errorCode());
+
+    // Nothing was applied.
+    assertTrue(
+        server.get(RECIPIENTS + "/both", "admin-token").body().path("comment").isMissingNode());
+    assertEquals("admin-id", owner("both"));
   }
 
   @Test

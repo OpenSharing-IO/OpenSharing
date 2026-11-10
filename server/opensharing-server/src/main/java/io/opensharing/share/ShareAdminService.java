@@ -66,7 +66,7 @@ public final class ShareAdminService {
   /**
    * {@code PATCH /shares/{share}}: applies the object removes, then the adds, in {@code updates},
    * then the other fields set in the body, all or nothing. Owner only, except that an admin of the
-   * catalog may transfer the share's ownership in a request whose {@code owner} is the only change.
+   * catalog may transfer the share's ownership. A transfer must be the request's only change.
    */
   @Patch("/shares/{share}")
   public ShareResponse update(

@@ -71,8 +71,8 @@ public final class RecipientAdminService {
 
   /**
    * {@code PATCH /recipients/{recipient}}: updates the fields set in the body. Owner only, except
-   * that an admin of the catalog may transfer the recipient's ownership in a request whose {@code
-   * owner} is the only change.
+   * that an admin of the catalog may transfer the recipient's ownership. A transfer must be the
+   * request's only change.
    */
   @Patch("/recipients/{recipient}")
   public RecipientResponse update(

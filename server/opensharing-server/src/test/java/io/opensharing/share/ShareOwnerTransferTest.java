@@ -17,8 +17,8 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Transferring a share's ownership with {@code owner} on the update body. Only an admin of the
- * catalog may transfer, and only in a request whose owner is the sole change unless the caller also
- * owns the share; everything else follows the regular owner rules.
+ * catalog may transfer, and a transfer must be the request's only change, whoever the caller is;
+ * everything else follows the regular owner rules.
  */
 class ShareOwnerTransferTest {
 
@@ -81,6 +81,12 @@ class ShareOwnerTransferTest {
     assertEquals(403, byOther.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, byOther.errorCode());
 
+    // Mixing the transfer with other changes is a bad request before any permission check.
+    Response mixed =
+        patch("handover", "other-token", "{\"owner\":\"other-id\",\"comment\":\"no\"}");
+    assertEquals(400, mixed.status());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, mixed.errorCode());
+
     // The owner is unchanged.
     assertEquals("owner-id", owner("handover"));
   }
@@ -112,6 +118,7 @@ class ShareOwnerTransferTest {
     assertEquals(403, comment.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, comment.errorCode());
 
+    // A mixed request is a bad request, not a permission denial, and nothing is applied.
     Response objects =
         patch(
             "scoped",
@@ -120,20 +127,21 @@ class ShareOwnerTransferTest {
             {"owner":"other-id","updates":[{"action":"ADD",
               "dataObject":{"name":"main.sales.orders","type":"TABLE"}}]}
             """);
-    assertEquals(403, objects.status());
-    assertEquals(ErrorCodes.PERMISSION_DENIED, objects.errorCode());
+    assertEquals(400, objects.status());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, objects.errorCode());
 
     Response deleted = server.delete(SHARES + "/scoped", "admin-token");
     assertEquals(403, deleted.status());
     assertEquals(ErrorCodes.PERMISSION_DENIED, deleted.errorCode());
 
     // Nothing was applied.
-    assertTrue(server.get(SHARES + "/scoped", "owner-token").body().path("comment").isMissingNode());
+    assertTrue(
+        server.get(SHARES + "/scoped", "owner-token").body().path("comment").isMissingNode());
     assertEquals(0, objectsOf("scoped"));
   }
 
   @Test
-  void anAdminWhoOwnsTheShareMayCombineTheTransferWithOtherChanges() {
+  void anAdminOwnerAlsoCannotCombineTheTransferWithOtherChanges() {
     assertEquals(201, create("admin-token", "both").status());
 
     Response updated =
@@ -144,10 +152,12 @@ class ShareOwnerTransferTest {
             {"owner":"other-id","comment":"v2","updates":[{"action":"ADD",
               "dataObject":{"name":"main.sales.orders","type":"TABLE"}}]}
             """);
-    assertEquals(200, updated.status(), () -> updated.body().toString());
-    assertEquals("other-id", updated.body().path("owner").asText());
-    assertEquals("v2", updated.body().path("comment").asText());
-    assertEquals(1, objectsOf("both"));
+    assertEquals(400, updated.status());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, updated.errorCode());
+
+    // Nothing was applied.
+    assertTrue(server.get(SHARES + "/both", "admin-token").body().path("comment").isMissingNode());
+    assertEquals(0, objectsOf("both"));
   }
 
   @Test
@@ -186,7 +196,8 @@ class ShareOwnerTransferTest {
   }
 
   private static int objectsOf(String share) {
-    Response response = server.get(SHARES + "/" + share + "?include_shared_data=true", "admin-token");
+    Response response =
+        server.get(SHARES + "/" + share + "?include_shared_data=true", "admin-token");
     assertEquals(200, response.status());
     return response.body().path("objects").size();
   }

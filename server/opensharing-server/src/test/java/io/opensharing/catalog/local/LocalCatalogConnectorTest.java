@@ -341,7 +341,8 @@ class LocalCatalogConnectorTest {
 
     UserContext bob =
         connector.authorize(
-            new AuthContext("opensharing-server", UserContext.fromUserIdAndName("catalog-bob-id", null)),
+            new AuthContext(
+                "opensharing-server", UserContext.fromUserIdAndName("catalog-bob-id", null)),
             null);
     assertEquals("catalog-bob-id", bob.userId());
     assertFalse(bob.admin());
@@ -351,11 +352,15 @@ class LocalCatalogConnectorTest {
         () ->
             connector.authorize(
                 new AuthContext(
-                    "opensharing-server", UserContext.fromUserIdAndName("catalog-mallory-id", null)),
+                    "opensharing-server",
+                    UserContext.fromUserIdAndName("catalog-mallory-id", null)),
                 null));
     assertThrows(
         CatalogAuthenticationException.class,
-        () -> connector.authorize(new AuthContext("opensharing-server", UserContext.fromUserIdAndName(null, null)), null));
+        () ->
+            connector.authorize(
+                new AuthContext("opensharing-server", UserContext.fromUserIdAndName(null, null)),
+                null));
   }
 
   private static AuthContext authByToken(String token) {
