@@ -57,6 +57,11 @@ public final class JpaTransactions implements Transactions, AutoCloseable {
             .getServiceRegistry()
             .requireService(ConnectionProvider.class)
             .unwrap(DataSource.class);
+    if (dataSource == null) {
+      throw new IllegalStateException(
+          "The ConnectionProvider does not expose a DataSource, which Flyway needs; use a provider"
+              + " that wraps one, such as HikariCPConnectionProvider");
+    }
     Flyway.configure(JpaTransactions.class.getClassLoader())
         .envVars()
         .dataSource(dataSource)

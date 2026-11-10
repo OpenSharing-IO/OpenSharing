@@ -51,7 +51,7 @@ create table os_share_permissions (
     id binary(16) not null,
     share_id binary(16) not null,
     recipient_id binary(16) not null,
-    privilege varchar(32) not null,
+    privilege varchar(255) not null,
     created_at datetime(6) not null,
     updated_at datetime(6) not null,
     primary key (id),

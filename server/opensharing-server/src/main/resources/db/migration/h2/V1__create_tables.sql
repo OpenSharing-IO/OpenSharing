@@ -51,7 +51,7 @@ create table os_share_permissions (
     id uuid not null,
     share_id uuid not null,
     recipient_id uuid not null,
-    privilege varchar(32) not null,
+    privilege varchar(255) not null,
     created_at timestamp(6) with time zone not null,
     updated_at timestamp(6) with time zone not null,
     primary key (id),

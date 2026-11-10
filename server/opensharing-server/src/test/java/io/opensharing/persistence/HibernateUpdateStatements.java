@@ -25,7 +25,8 @@ final class HibernateUpdateStatements {
   static List<String> of(String url, String username, String password) {
     StandardServiceRegistry registry =
         new StandardServiceRegistryBuilder()
-            .applySetting(AvailableSettings.CONNECTION_PROVIDER, DriverManagerConnectionProviderImpl.class)
+            .applySetting(
+                AvailableSettings.CONNECTION_PROVIDER, DriverManagerConnectionProviderImpl.class)
             .applySetting("hibernate.connection.url", url)
             .applySetting("hibernate.connection.username", username)
             .applySetting("hibernate.connection.password", password)
