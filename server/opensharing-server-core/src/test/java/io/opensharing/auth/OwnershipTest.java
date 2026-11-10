@@ -80,4 +80,17 @@ class OwnershipTest {
       assertEquals("ownerId must not be blank", e.getMessage());
     }
   }
+
+  @Test
+  void transferToAnOwnerLongerThanTheColumnRejected() {
+    String tooLong = "x".repeat(Ownership.MAX_OWNER_ID_LENGTH + 1);
+    ApiException e =
+        assertThrows(
+            ApiException.class,
+            () -> Ownership.checkAdminTransferOwner(ADMIN, "share 's'", tooLong, false));
+
+    assertEquals(400, e.getStatus());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, e.getErrorCode());
+    assertEquals("ownerId must not exceed 255 characters", e.getMessage());
+  }
 }

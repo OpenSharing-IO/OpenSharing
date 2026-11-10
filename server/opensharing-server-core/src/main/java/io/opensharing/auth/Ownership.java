@@ -5,6 +5,9 @@ import io.opensharing.http.ApiException;
 /** Ownership checks for objects OpenSharing stores. */
 public final class Ownership {
 
+  /** Longest owner id the owner_id columns of shares and recipients hold. */
+  public static final int MAX_OWNER_ID_LENGTH = 255;
+
   private Ownership() {}
 
   /** Whether {@code user} has the id {@code ownerId}; a missing id never matches. */
@@ -31,6 +34,10 @@ public final class Ownership {
     }
     if (newOwnerId == null || newOwnerId.isBlank()) {
       throw ApiException.invalidParameter("ownerId must not be blank");
+    }
+    if (newOwnerId.length() > MAX_OWNER_ID_LENGTH) {
+      throw ApiException.invalidParameter(
+          "ownerId must not exceed " + MAX_OWNER_ID_LENGTH + " characters");
     }
   }
 
