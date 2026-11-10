@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
 import io.opensharing.http.ErrorCodes;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterAll;
@@ -191,7 +192,9 @@ class ShareAdminServiceTest {
     Response created = create("alice-token", "{\"name\":\"Sales\",\"comment\":\"orders\"}");
     assertEquals(201, created.status());
     assertEquals("sales", created.body().path("name").asText());
+    // Ids serialize as the lowercase UUID string recipients and hosts already parse.
     assertFalse(created.body().path("id").isMissingNode());
+    assertUuid(created.body().path("id").asText());
 
     // Owner lists shares.
     Response list = server.get(SHARES, "alice-token");
@@ -383,5 +386,10 @@ class ShareAdminServiceTest {
   private static void assertTooLong(Response response, String message) {
     assertInvalid(response);
     assertEquals(message, response.body().path("message").asText());
+  }
+
+  // toString of a parsed UUID is lowercase, so a round trip checks both format and case.
+  private static void assertUuid(String id) {
+    assertEquals(id, UUID.fromString(id).toString());
   }
 }

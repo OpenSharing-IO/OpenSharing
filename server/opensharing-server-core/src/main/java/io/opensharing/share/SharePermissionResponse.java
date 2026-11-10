@@ -28,9 +28,9 @@ public record SharePermissionResponse(
 
   public static SharePermissionResponse from(SharePermissionEntity permission) {
     return new SharePermissionResponse(
-        permission.getShare().getId(),
+        permission.getShare().getId().toString(),
         permission.getShare().getName(),
-        permission.getRecipient().getId(),
+        permission.getRecipient().getId().toString(),
         permission.getRecipient().getName(),
         permission.getPrivilege(),
         permission.getCreatedAt());

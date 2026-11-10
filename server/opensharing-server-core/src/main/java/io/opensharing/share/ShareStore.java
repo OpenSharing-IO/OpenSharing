@@ -10,6 +10,7 @@ import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Storage for shares. Names are stored lowercase and looked up case-insensitively. Each public
@@ -126,7 +127,7 @@ public class ShareStore {
   }
 
   private static boolean exists(EntityManager em, String name) {
-    return !em.createQuery("select s.id from ShareEntity s where s.name = :name", String.class)
+    return !em.createQuery("select s.id from ShareEntity s where s.name = :name", UUID.class)
         .setParameter("name", name)
         .setMaxResults(1)
         .getResultList()

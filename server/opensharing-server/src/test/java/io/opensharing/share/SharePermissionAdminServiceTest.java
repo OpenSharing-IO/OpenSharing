@@ -8,6 +8,7 @@ import io.opensharing.Transactions;
 import io.opensharing.http.ErrorCodes;
 import io.opensharing.recipient.RecipientEntity;
 import io.opensharing.recipient.RecipientStore;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,9 @@ class SharePermissionAdminServiceTest {
     assertEquals("acme", granted.body().path("items").get(0).path("recipientName").asText());
     assertEquals("sales", granted.body().path("items").get(0).path("shareName").asText());
     assertEquals("SELECT", granted.body().path("items").get(0).path("privilege").asText());
+    // Ids serialize as the lowercase UUID string hosts already parse.
+    assertUuid(granted.body().path("items").get(0).path("shareId").asText());
+    assertUuid(granted.body().path("items").get(0).path("recipientId").asText());
 
     // Granting the same privilege again is idempotent.
     Response again = change("sales", "acme", "add");
@@ -159,5 +163,10 @@ class SharePermissionAdminServiceTest {
   private static String select(String recipient, String list) {
     return "{\"changes\":[{\"recipientName\":\"%s\",\"%s\":[\"SELECT\"]}]}"
         .formatted(recipient, list);
+  }
+
+  // toString of a parsed UUID is lowercase, so a round trip checks both format and case.
+  private static void assertUuid(String id) {
+    assertEquals(id, UUID.fromString(id).toString());
   }
 }

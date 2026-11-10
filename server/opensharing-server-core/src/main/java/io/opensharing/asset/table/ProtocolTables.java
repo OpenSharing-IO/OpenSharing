@@ -107,7 +107,7 @@ public class ProtocolTables {
         table.tableAlias(),
         table.schemaAlias(),
         share.getName(),
-        share.getId(),
+        share.getId().toString(),
         table.tableId(),
         format == null ? null : format.wireName());
   }
@@ -406,7 +406,7 @@ public class ProtocolTables {
               sharedObject.getSharedAsTable(),
               sharedObject.getSharedAsSchema(),
               share.getName(),
-              share.getId(),
+              share.getId().toString(),
               sharedObject.getSourceAssetId(),
               sharedObject.getStorageLocation(),
               sharedObject.getAuxiliaryLocations().isEmpty()

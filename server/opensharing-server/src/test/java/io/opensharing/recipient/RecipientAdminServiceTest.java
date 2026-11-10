@@ -10,6 +10,7 @@ import io.opensharing.http.ErrorCodes;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,8 @@ class RecipientAdminServiceTest {
     assertEquals("TOKEN", created.body().path("authenticationType").asText());
     assertTrue(created.body().path("activationUrl").asText().startsWith(activations));
     assertFalse(created.body().path("id").isMissingNode());
+    // Ids serialize as the lowercase UUID string hosts already parse.
+    assertUuid(created.body().path("id").asText());
 
     // Owner lists recipients including activation URLs.
     Response list = server.get(RECIPIENTS, "alice-token");
@@ -143,6 +146,7 @@ class RecipientAdminServiceTest {
             "{\"tokenExpirationDays\":1,\"existingTokenExpireInSeconds\":0}");
     assertEquals(201, rotated.status());
     assertFalse(rotated.body().path("tokenId").isMissingNode());
+    assertUuid(rotated.body().path("tokenId").asText());
     assertEquals("rotate", rotated.body().path("recipientName").asText());
     assertFalse(rotated.body().path("expiresAt").isMissingNode());
 
@@ -289,10 +293,16 @@ class RecipientAdminServiceTest {
         .server()
         .transactions()
         .inTransaction(
-            true, em -> em.find(RecipientTokenEntity.class, tokenId).getExpiresAt());
+            true,
+            em -> em.find(RecipientTokenEntity.class, UUID.fromString(tokenId)).getExpiresAt());
   }
 
   private static String activationPath(Response response) {
     return URI.create(response.body().path("activationUrl").asText()).getPath();
+  }
+
+  // toString of a parsed UUID is lowercase, so a round trip checks both format and case.
+  private static void assertUuid(String id) {
+    assertEquals(id, UUID.fromString(id).toString());
   }
 }

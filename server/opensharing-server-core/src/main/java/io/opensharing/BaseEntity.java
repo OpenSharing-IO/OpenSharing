@@ -12,9 +12,11 @@ import java.util.UUID;
 @MappedSuperclass
 public abstract class BaseEntity {
 
+  // No length: Hibernate maps UUID to the dialect's native type, uuid on PostgreSQL and H2,
+  // binary(16) on MySQL.
   @Id
-  @Column(length = 36, nullable = false, updatable = false)
-  private String id = UUID.randomUUID().toString();
+  @Column(nullable = false, updatable = false)
+  private UUID id = UUID.randomUUID();
 
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
@@ -33,7 +35,7 @@ public abstract class BaseEntity {
     this.updatedAt = Instant.now();
   }
 
-  public String getId() {
+  public UUID getId() {
     return id;
   }
 

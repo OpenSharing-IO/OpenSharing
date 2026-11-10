@@ -6,6 +6,7 @@ import io.opensharing.recipient.RecipientEntity;
 import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Storage for privileges recipients hold on shares. Callers check share ownership before granting
@@ -74,7 +75,7 @@ public class SharePermissionStore {
    * Shares the recipient holds SELECT on, ordered by name. Share names are unique, so the order
    * is total.
    */
-  public List<ShareEntity> listSharesFor(String recipientId, int offset, int limit) {
+  public List<ShareEntity> listSharesFor(UUID recipientId, int offset, int limit) {
     return tx.inTransaction(
         true,
         em ->
@@ -91,14 +92,14 @@ public class SharePermissionStore {
   }
 
   /** Whether the recipient holds SELECT on {@code share}. */
-  public boolean hasSelect(ShareEntity share, String recipientId) {
+  public boolean hasSelect(ShareEntity share, UUID recipientId) {
     return tx.inTransaction(
         true,
         em ->
             !em.createQuery(
                     "select p.id from SharePermissionEntity p where p.share.id = :shareId"
                         + " and p.recipient.id = :recipientId and p.privilege = :privilege",
-                    String.class)
+                    UUID.class)
                 .setParameter("shareId", share.getId())
                 .setParameter("recipientId", recipientId)
                 .setParameter("privilege", SharePrivilege.SELECT)
