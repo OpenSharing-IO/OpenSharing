@@ -62,6 +62,8 @@ public final class JpaTransactions implements Transactions, AutoCloseable {
           "The ConnectionProvider does not expose a DataSource, which Flyway needs; use a provider"
               + " that wraps one, such as HikariCPConnectionProvider");
     }
+    // envVars() comes first so the dialect's scripts below take precedence: FLYWAY_LOCATIONS
+    // cannot point a database at another dialect's scripts. Other FLYWAY_* variables apply.
     Flyway.configure(JpaTransactions.class.getClassLoader())
         .envVars()
         .dataSource(dataSource)
