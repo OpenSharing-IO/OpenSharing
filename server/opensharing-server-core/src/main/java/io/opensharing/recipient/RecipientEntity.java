@@ -3,9 +3,8 @@ package io.opensharing.recipient;
 import io.opensharing.BaseEntity;
 import io.opensharing.ObjectNames;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
@@ -32,8 +31,8 @@ public class RecipientEntity extends BaseEntity {
   private String ownerId;
 
   /** How the recipient authenticates to the sharing protocol. */
-  @Enumerated(EnumType.STRING)
-  @Column(name = "authentication_type", nullable = false, length = 32)
+  @Convert(converter = AuthenticationTypeConverter.class)
+  @Column(name = "authentication_type", nullable = false, length = 255)
   private AuthenticationType authenticationType;
 
   public String getName() {

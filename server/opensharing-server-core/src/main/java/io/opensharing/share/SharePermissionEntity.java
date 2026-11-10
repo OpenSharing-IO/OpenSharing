@@ -3,9 +3,8 @@ package io.opensharing.share;
 import io.opensharing.BaseEntity;
 import io.opensharing.recipient.RecipientEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -36,7 +35,7 @@ public class SharePermissionEntity extends BaseEntity {
   @JoinColumn(name = "recipient_id", nullable = false)
   private RecipientEntity recipient;
 
-  @Enumerated(EnumType.STRING)
+  @Convert(converter = SharePrivilegeConverter.class)
   @Column(nullable = false, length = 32)
   private SharePrivilege privilege;
 

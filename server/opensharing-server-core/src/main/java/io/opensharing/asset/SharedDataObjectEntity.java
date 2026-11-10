@@ -6,9 +6,8 @@ import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.DataSourceFormat;
 import io.opensharing.share.ShareEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -46,13 +45,13 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Column(name = "full_name", nullable = false, length = 512)
   private String fullName;
 
-  @Enumerated(EnumType.STRING)
-  @Column(nullable = false, length = 32)
+  @Convert(converter = AssetTypeConverter.class)
+  @Column(nullable = false, length = 255)
   private AssetType type;
 
   /** Data source format for tables, such as Delta. */
-  @Enumerated(EnumType.STRING)
-  @Column(name = "source_format", length = 32)
+  @Convert(converter = DataSourceFormatConverter.class)
+  @Column(name = "source_format", length = 255)
   private DataSourceFormat sourceFormat;
 
   /** Storage location of a table as the catalog reported it when shared. */
