@@ -2,13 +2,13 @@ package io.opensharing.recipient;
 
 import io.opensharing.ObjectNames;
 import io.opensharing.auth.AuthContext;
-import io.opensharing.auth.CatalogUsers;
 import io.opensharing.auth.Ownership;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.TokenHashes;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.exception.CatalogAuthorizationException;
+import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
@@ -150,7 +150,7 @@ public class RecipientService {
       // Transferring to the current owner is a no-op; anything else must be a user of the catalog,
       // so a typo cannot orphan the recipient.
       if (!newOwner.equals(existing.getOwnerId())) {
-        CatalogUsers.requireExisting(catalog, serverId, newOwner);
+        requireCatalogUser(newOwner);
       }
     } else if (!Ownership.owns(user, existing.getOwnerId())) {
       Ownership.check(user, existing.getOwnerId(), "recipient '" + existing.getName() + "'");
@@ -254,5 +254,15 @@ public class RecipientService {
     byte[] bytes = new byte[BEARER_BYTES];
     random.nextBytes(bytes);
     return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+  }
+
+  /** Rejects a new owner the catalog doesn't know, so a typo can't strand the recipient. */
+  private void requireCatalogUser(String userId) {
+    try {
+      catalog.authorize(
+          new AuthContext(serverId, UserContext.fromUserIdAndName(userId, null)), null);
+    } catch (CatalogException e) {
+      throw ApiException.invalidParameter("owner '" + userId + "' is not a user of the catalog");
+    }
   }
 }

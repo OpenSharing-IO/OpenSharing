@@ -6,7 +6,6 @@ import io.opensharing.asset.SharedAssetResolver;
 import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.auth.AuthContext;
-import io.opensharing.auth.CatalogUsers;
 import io.opensharing.auth.Ownership;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
@@ -139,7 +138,7 @@ public class ShareService {
       // Transferring to the current owner is a no-op; anything else must be a user of the catalog,
       // so a typo cannot orphan the share.
       if (!newOwner.equals(existing.getOwnerId())) {
-        CatalogUsers.requireExisting(catalog, serverId, newOwner);
+        requireCatalogUser(newOwner);
       }
     } else if (!Ownership.owns(user, existing.getOwnerId())) {
       Ownership.check(user, existing.getOwnerId(), "share '" + existing.getName() + "'");
@@ -407,6 +406,16 @@ public class ShareService {
   }
 
   private record Alias(String schema, String table) {}
+
+  /** Rejects a new owner the catalog doesn't know, so a typo can't strand the share. */
+  private void requireCatalogUser(String userId) {
+    try {
+      catalog.authorize(
+          new AuthContext(serverId, UserContext.fromUserIdAndName(userId, null)), null);
+    } catch (CatalogException e) {
+      throw ApiException.invalidParameter("owner '" + userId + "' is not a user of the catalog");
+    }
+  }
 
   private record Addition(String name, AssetType type, ResolvedAsset resolved, Alias alias) {}
 
