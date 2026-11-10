@@ -120,11 +120,7 @@ public class ShareService {
     boolean transfers = newOwnerId != null;
     if (transfers) {
       Ownership.checkAdminTransferOwner(
-          catalog,
-          new AuthContext(serverId, user),
-          "share '" + existing.getName() + "'",
-          newOwnerId,
-          otherChanges(request));
+          user, "share '" + existing.getName() + "'", newOwnerId, otherChanges(request));
     } else {
       Ownership.check(user, existing.getOwnerId(), "share '" + existing.getName() + "'");
     }
