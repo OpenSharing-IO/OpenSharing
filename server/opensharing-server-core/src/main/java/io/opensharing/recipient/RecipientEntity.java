@@ -2,6 +2,7 @@ package io.opensharing.recipient;
 
 import io.opensharing.BaseEntity;
 import io.opensharing.ObjectNames;
+import io.opensharing.auth.Ownership;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -27,7 +28,7 @@ public class RecipientEntity extends BaseEntity {
   private String comment;
 
   /** userId of whoever created this recipient. Not a foreign key: there is no principal table. */
-  @Column(name = "owner_id", nullable = false, length = 255)
+  @Column(name = "owner_id", nullable = false, length = Ownership.MAX_OWNER_ID_LENGTH)
   private String ownerId;
 
   /** How the recipient authenticates to the sharing protocol. */
