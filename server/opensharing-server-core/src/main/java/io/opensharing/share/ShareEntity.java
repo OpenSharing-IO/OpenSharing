@@ -9,6 +9,7 @@ import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapKeyColumn;
 import jakarta.persistence.Table;
@@ -21,7 +22,8 @@ import java.util.Map;
 @Entity
 @Table(
     name = "os_shares",
-    uniqueConstraints = @UniqueConstraint(name = "uk_shares_name", columnNames = "name"))
+    uniqueConstraints = @UniqueConstraint(name = "uk_shares_name", columnNames = "name"),
+    indexes = @Index(name = "idx_shares_owner_id", columnList = "owner_id"))
 public class ShareEntity extends BaseEntity {
 
   static final int MAX_DISPLAY_NAME_LENGTH = 255;
