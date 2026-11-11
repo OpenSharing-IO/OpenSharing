@@ -4,6 +4,7 @@ import io.opensharing.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -27,7 +28,10 @@ public class RecipientTokenEntity extends BaseEntity {
 
   /** The recipient the token belongs to. {@code RecipientStore} deletes tokens with it. */
   @ManyToOne(fetch = FetchType.EAGER, optional = false)
-  @JoinColumn(name = "recipient_id", nullable = false)
+  @JoinColumn(
+      name = "recipient_id",
+      nullable = false,
+      foreignKey = @ForeignKey(name = "fk_recipient_tokens_recipient"))
   private RecipientEntity recipient;
 
   /** One-time code embedded in the activation URL. */

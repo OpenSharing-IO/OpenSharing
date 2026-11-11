@@ -9,6 +9,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -34,7 +35,10 @@ public class SharedDataObjectEntity extends BaseEntity {
 
   /** The owning share. Lazy because callers already hold the share they query by. */
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "share_id", nullable = false)
+  @JoinColumn(
+      name = "share_id",
+      nullable = false,
+      foreignKey = @ForeignKey(name = "fk_shared_objects_share"))
   private ShareEntity share;
 
   /** The catalog's own stable id for the object, when the catalog reports one. */

@@ -6,6 +6,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.ForeignKey;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -27,12 +28,18 @@ public class SharePermissionEntity extends BaseEntity {
 
   /** Loaded eagerly because responses read the share's name after the store returns. */
   @ManyToOne(fetch = FetchType.EAGER, optional = false)
-  @JoinColumn(name = "share_id", nullable = false)
+  @JoinColumn(
+      name = "share_id",
+      nullable = false,
+      foreignKey = @ForeignKey(name = "fk_share_permissions_share"))
   private ShareEntity share;
 
   /** Loaded eagerly because responses read the recipient's name after the store returns. */
   @ManyToOne(fetch = FetchType.EAGER, optional = false)
-  @JoinColumn(name = "recipient_id", nullable = false)
+  @JoinColumn(
+      name = "recipient_id",
+      nullable = false,
+      foreignKey = @ForeignKey(name = "fk_share_permissions_recipient"))
   private RecipientEntity recipient;
 
   @Convert(converter = SharePrivilegeConverter.class)
