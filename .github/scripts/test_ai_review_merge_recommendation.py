@@ -71,6 +71,31 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual("failure", decision["state"])
         self.assertIn("sensitive paths", " ".join(decision["reasons"]))
 
+    def test_blocks_protocol_and_schema_paths(self):
+        core = "server/opensharing-server-core/src/main/java/io/opensharing"
+        for path in (
+            f"{core}/asset/table/QueryTableRequest.java",
+            f"{core}/asset/share/GetShareResponse.java",
+            f"{core}/asset/share/ProtocolShare.java",
+            f"{core}/asset/table/TableActions.java",
+            f"{core}/http/ErrorResponse.java",
+            f"{core}/protocol/NdjsonResponse.java",
+            f"{core}/share/ShareEntity.java",
+            "server/opensharing-server/src/main/resources/db/migration/postgresql/V2__add.sql",
+        ):
+            with self.subTest(path=path):
+                decision = MODULE.classify(complete_result(), BASE, HEAD, [path])
+                self.assertEqual("failure", decision["state"])
+                self.assertIn("sensitive paths", " ".join(decision["reasons"]))
+
+    def test_allows_provider_api_request_and_response(self):
+        core = "server/opensharing-server-core/src/main/java/io/opensharing"
+        for path in (f"{core}/share/CreateShareRequest.java", f"{core}/share/ShareResponse.java"):
+            with self.subTest(path=path):
+                self.assertEqual(
+                    "success", MODULE.classify(complete_result(), BASE, HEAD, [path])["state"]
+                )
+
     def test_blocks_incomplete_coverage(self):
         result = complete_result()
         result["manifest"]["coverage"]["completed"] = []

@@ -90,8 +90,9 @@ and deciding whether a finding needs to be addressed.
 The workflow also publishes a commit-specific `AI Review / Merge recommendation`
 status. It recommends merging only when the review covered every selected file,
 used the current PR commit, had no failed or waived work, had no tool failures,
-found no medium-or-higher issues, and did not touch security-sensitive workflow,
-protocol, authentication, credential, token, or signing paths. Low-severity
+found no medium-or-higher issues, and did not touch workflow, protocol spec,
+protocol request or response, entity, Flyway migration, authentication,
+credential, token, or signing paths. Low-severity
 findings remain advisory. The status does not grant merge permission or replace
 human review; maintainers may choose whether to require it in branch rules.
 

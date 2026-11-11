@@ -15,6 +15,12 @@ SENSITIVE_PATH_PATTERNS = (
     re.compile(r"^spec(?:/|$)", re.IGNORECASE),
     re.compile(r"(?:^|/)(?:security\.md|codeowners)$", re.IGNORECASE),
     re.compile(r"(?:auth|credential|security|token|signer)", re.IGNORECASE),
+    re.compile(
+        r"/io/opensharing/(?:asset|http|protocol)/(?:[^/]+/)*[^/]*(?:Request|Response)\.java$"
+    ),
+    re.compile(r"/io/opensharing/asset/(?:share/ProtocolShare|table/TableActions)\.java$"),
+    re.compile(r"Entity\.java$"),
+    re.compile(r"(?:^|/)db/migration/"),
 )
 
 
@@ -122,7 +128,7 @@ def classify(
         if any(pattern.search(path) for pattern in SENSITIVE_PATH_PATTERNS)
     )
     if sensitive_paths:
-        reasons.append("security-sensitive paths require human review")
+        reasons.append("protocol, schema, or security-sensitive paths require human review")
 
     if errors:
         return _decision("error", errors + reasons)
