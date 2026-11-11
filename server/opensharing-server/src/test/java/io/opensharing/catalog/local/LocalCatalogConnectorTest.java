@@ -1,6 +1,7 @@
 package io.opensharing.catalog.local;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -321,6 +322,35 @@ class LocalCatalogConnectorTest {
                 new AuthContext(null, new UserContext(null, "mallory-token", null)), null));
   }
 
+  /** The sample catalog lists catalog-alice-id in adminUserIds. */
+  @Test
+  void marksConfiguredAdminsOnAuthorize() {
+    LocalCatalogConnector connector = sample();
+
+    assertTrue(connector.authorize(authByToken("alice-token"), null).admin());
+    assertFalse(connector.authorize(authByToken("bob-token"), null).admin());
+  }
+
+  /** A user id alone authenticates no one, so a caller must always present a token. */
+  @Test
+  void rejectsAUserIdWithoutAToken() {
+    LocalCatalogConnector connector = sample();
+
+    CatalogAuthenticationException missing =
+        assertThrows(
+            CatalogAuthenticationException.class,
+            () ->
+                connector.authorize(
+                    new AuthContext(
+                        "opensharing-server",
+                        UserContext.fromUserIdAndName("catalog-bob-id", null)),
+                    null));
+    assertEquals("missing bearer token", missing.getMessage());
+  }
+
+  private static AuthContext authByToken(String token) {
+    return new AuthContext(null, new UserContext(null, token, null));
+  }
 
   @Test
   void rejectsUnknownKeysInCatalogFile() {

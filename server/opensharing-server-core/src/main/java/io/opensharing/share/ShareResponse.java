@@ -17,9 +17,13 @@ import java.util.Map;
  *   "displayName": "<display name>",
  *   "comment": "<comment>",
  *   "properties": {"<key>": "<value>"},
- *   "objects": [{"name": "<asset name>", "type": "TABLE", "sharedAs": "<alias>"}]
+ *   "objects": [{"name": "<asset name>", "type": "TABLE", "sharedAs": "<alias>"}],
+ *   "ownerId": "<owner user id>"
  * }
  * }</pre>
+ *
+ * <p>{@code ownerId} is the owner's catalog user id. The recipient protocol reports shares as
+ * {@code ProtocolShare}, which has no owner.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ShareResponse(
@@ -28,12 +32,15 @@ public record ShareResponse(
     String displayName,
     String comment,
     Map<String, String> properties,
-    List<SharedDataObjectResponse> objects) {
+    List<SharedDataObjectResponse> objects,
+    String ownerId) {
 
+  /** For the provider API: the share with its owner, without its objects. */
   public static ShareResponse from(ShareEntity share) {
     return from(share, null);
   }
 
+  /** For the provider API: the share with its owner, and its objects when they are given. */
   public static ShareResponse from(ShareEntity share, List<SharedDataObjectEntity> objects) {
     return new ShareResponse(
         share.getId().toString(),
@@ -43,7 +50,8 @@ public record ShareResponse(
         Map.copyOf(share.getProperties()),
         objects == null
             ? null
-            : objects.stream().map(SharedDataObjectResponse::from).toList());
+            : objects.stream().map(SharedDataObjectResponse::from).toList(),
+        share.getOwnerId());
   }
 
   /** A catalog asset included in a share, with the alias recipients see it under. */

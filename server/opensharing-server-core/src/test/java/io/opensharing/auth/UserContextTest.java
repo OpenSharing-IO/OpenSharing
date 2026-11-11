@@ -1,6 +1,8 @@
 package io.opensharing.auth;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -11,10 +13,18 @@ class UserContextTest {
     UserContext user = new UserContext("alice-id", "secret-token", "alice");
 
     assertEquals(
-        "UserContext[userId=alice-id, userAuthToken=***, userName=alice]", user.toString());
+        "UserContext[userId=alice-id, userAuthToken=***, userName=alice, admin=false]",
+        user.toString());
     assertEquals(
         "AuthContext[serverId=null, user=UserContext[userId=alice-id, userAuthToken=***,"
-            + " userName=alice]]",
+            + " userName=alice, admin=false]]",
         AuthContext.of(user).toString());
+  }
+
+  @Test
+  void usersAreNotAdminsUnlessTheCatalogSaysSo() {
+    assertFalse(new UserContext("alice-id", null, "alice").admin());
+    assertFalse(UserContext.fromUserIdAndName("alice-id", "alice").admin());
+    assertTrue(new UserContext("alice-id", null, "alice", true).admin());
   }
 }

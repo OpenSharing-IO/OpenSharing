@@ -54,10 +54,15 @@ public class ShareStore {
 
   /**
    * Applies the non-null fields to {@code share}, which must be loaded in the caller's transaction,
-   * such as by {@link #getOwnedOrThrow(EntityManager, String, UserContext)}.
+   * such as by {@link #getOwnedOrThrow(EntityManager, String, UserContext)}. {@code ownerId}, when
+   * set, moves the share to a new owner; the caller has already vetted the user.
    */
   void update(
-      ShareEntity share, String displayName, String comment, Map<String, String> properties) {
+      ShareEntity share,
+      String displayName,
+      String comment,
+      Map<String, String> properties,
+      String ownerId) {
     if (displayName != null) {
       share.setDisplayName(displayName);
     }
@@ -66,6 +71,9 @@ public class ShareStore {
     }
     if (properties != null) {
       share.setProperties(properties);
+    }
+    if (ownerId != null) {
+      share.setOwnerId(ownerId);
     }
   }
 
@@ -153,7 +161,15 @@ public class ShareStore {
    * wrote.
    */
   ShareEntity getOwnedOrThrow(EntityManager em, String name, UserContext user) {
-    return checkOwner(getOrThrow(em, name, LockModeType.PESSIMISTIC_WRITE), user);
+    return checkOwner(getLockedOrThrow(em, name), user);
+  }
+
+  /**
+   * Like {@link #getOrThrow(String)}, in the caller's transaction with the share's row locked, so
+   * changes to one share run one at a time. The caller checks permission.
+   */
+  ShareEntity getLockedOrThrow(EntityManager em, String name) {
+    return getOrThrow(em, name, LockModeType.PESSIMISTIC_WRITE);
   }
 
   private static ShareEntity checkOwner(ShareEntity share, UserContext user) {

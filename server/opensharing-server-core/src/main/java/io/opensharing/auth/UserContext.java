@@ -12,8 +12,16 @@ package io.opensharing.auth;
  * @param userAuthToken the user's catalog token, present only while serving that user's own
  *     request
  * @param userName display name
+ * @param admin whether the caller is an admin of the catalog, who may transfer the ownership of
+ *     any share or recipient. Trusted as given, like {@code userId}: the standalone server takes it
+ *     from {@code CatalogConnector#authorize}, and an embedding host sets it from its own
+ *     authorization. It is never taken from a request body or stored data
  */
-public record UserContext(String userId, String userAuthToken, String userName) {
+public record UserContext(String userId, String userAuthToken, String userName, boolean admin) {
+
+  public UserContext(String userId, String userAuthToken, String userName) {
+    this(userId, userAuthToken, userName, false);
+  }
 
   public static UserContext fromUserIdAndName(String userId, String userName) {
     return new UserContext(userId, null, userName);
@@ -28,6 +36,8 @@ public record UserContext(String userId, String userAuthToken, String userName) 
         + (userAuthToken == null ? null : "***")
         + ", userName="
         + userName
+        + ", admin="
+        + admin
         + "]";
   }
 }

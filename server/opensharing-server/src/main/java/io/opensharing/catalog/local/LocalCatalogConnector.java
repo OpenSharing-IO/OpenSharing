@@ -63,12 +63,14 @@ public final class LocalCatalogConnector implements CatalogConnector {
 
   private final Map<String, LocalCatalogFile.Asset> assetsByIdentifier;
   private final List<LocalCatalogFile.Principal> principals;
+  private final List<String> adminUserIds;
   private final LocalCatalogFile.Credentials credentials;
   private final SecureRandom random = new SecureRandom();
 
   public LocalCatalogConnector(LocalCatalogFile file) {
     this.credentials = file.credentials();
     this.principals = file.principals();
+    this.adminUserIds = file.adminUserIds();
     this.assetsByIdentifier =
         file.assets().stream()
             .collect(
@@ -216,6 +218,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
         new StorageCredentials(location, provider, fakeValues(provider, expiration), expiration));
   }
 
+  /** Principals listed in {@code adminUserIds} come back marked as admins. */
   @Override
   public UserContext authorize(AuthContext auth, Privilege privilege) {
     if (principals.isEmpty()) {
@@ -235,7 +238,11 @@ public final class LocalCatalogConnector implements CatalogConnector {
       throw new CatalogAuthorizationException(
           "user '" + principal.userId() + "' does not hold " + privilege);
     }
-    return new UserContext(principal.userId(), principal.bearerToken(), principal.userName());
+    return new UserContext(
+        principal.userId(),
+        principal.bearerToken(),
+        principal.userName(),
+        adminUserIds.contains(principal.userId()));
   }
 
   private static boolean covers(LocalCatalogFile.Asset asset, String location) {

@@ -2,6 +2,7 @@ package io.opensharing.share;
 
 import io.opensharing.BaseEntity;
 import io.opensharing.ObjectNames;
+import io.opensharing.auth.Ownership;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -42,7 +43,7 @@ public class ShareEntity extends BaseEntity {
    * The catalog's user id for whoever created this share. It is not kept in sync with the catalog,
    * so it goes stale if the catalog removes the user.
    */
-  @Column(name = "owner_id", nullable = false, length = 255)
+  @Column(name = "owner_id", nullable = false, length = Ownership.MAX_OWNER_ID_LENGTH)
   private String ownerId;
 
   /**

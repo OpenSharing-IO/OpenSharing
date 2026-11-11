@@ -30,9 +30,11 @@ import java.util.stream.Stream;
 
 /**
  * Provider share CRUD and recipient grants for a caller the host has authenticated. Creating a
- * share needs CREATE_SHARE from the catalog, and only the owner may change it. The owner and
- * callers with USE_SHARE from the catalog may read a share; listing without USE_SHARE returns only
- * the caller's own shares.
+ * share needs CREATE_SHARE from the catalog, and only the owner may change it. The one exception is
+ * the ownership transfer in {@link #update}: an admin of the catalog, as its {@code authorize}
+ * reports per call, may transfer the ownership of a share they don't own. The owner and callers
+ * with USE_SHARE from the catalog may read a share; listing without USE_SHARE returns only the
+ * caller's own shares.
  */
 public class ShareService {
 
@@ -108,10 +110,22 @@ public class ShareService {
 
   /**
    * Removes objects, then adds objects, then updates the fields set in {@code request}, all in one
-   * transaction: either every change commits or none does. Owner only.
+   * transaction: either every change commits or none does. Owner only, except that an admin of the
+   * catalog may transfer the share's ownership. A transfer must be the request's only change, for
+   * every caller.
    */
   public ShareResponse update(UserContext user, String share, UpdateShareRequest request) {
-    shares.getOwnedOrThrow(share, user);
+    ShareEntity existing = shares.getOrThrow(share);
+    String newOwnerId = request.ownerId();
+    boolean transfers = newOwnerId != null;
+    if (transfers) {
+      // No admin re-check inside the transaction: the flag comes from this request's
+      // authentication, which cannot change while the request is served.
+      Ownership.checkAdminTransferOwner(
+          user, "share '" + existing.getName() + "'", newOwnerId, otherChanges(request));
+    } else {
+      Ownership.check(user, existing.getOwnerId(), "share '" + existing.getName() + "'");
+    }
     String displayName = validateDisplayName(request.displayName());
     String comment = validateComment(request.comment());
     Map<String, String> properties = validateProperties(request.properties());
@@ -138,7 +152,12 @@ public class ShareService {
         tx.inTransaction(
             false,
             em -> {
-              ShareEntity entity = shares.getOwnedOrThrow(em, share, user);
+              // Under the lock the caller must still own the share on a plain update, in case it
+              // changed hands.
+              ShareEntity entity =
+                  transfers
+                      ? shares.getLockedOrThrow(em, share)
+                      : shares.getOwnedOrThrow(em, share, user);
               for (Removal removal : removals) {
                 removal.apply(em, objects, entity);
               }
@@ -152,7 +171,7 @@ public class ShareService {
                     addition.alias().schema(),
                     addition.alias().table());
               }
-              shares.update(entity, displayName, comment, properties);
+              shares.update(entity, displayName, comment, properties, newOwnerId);
               return entity;
             });
     return ShareResponse.from(updated);
@@ -231,6 +250,16 @@ public class ShareService {
       catalog.authorize(new AuthContext(serverId, user), Privilege.USE_SHARE);
     }
     return entity;
+  }
+
+  // Whether moving the share to a new owner is the request's only change, which a transfer must
+  // be, whatever the caller's other rights. Removals are updates too (REMOVE actions), so the
+  // emptiness check covers them; there is no separate removals field.
+  private static boolean otherChanges(UpdateShareRequest request) {
+    return request.displayName() != null
+        || request.comment() != null
+        || request.properties() != null
+        || !request.updates().isEmpty();
   }
 
   // Resolves an included object as the share's owner, whom recipients read it as.

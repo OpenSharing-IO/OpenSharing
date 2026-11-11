@@ -9,16 +9,20 @@ import java.util.Map;
 
 /** YAML/JSON description of a local catalog. */
 public record LocalCatalogFile(
-    Credentials credentials, List<Principal> principals, List<Asset> assets) {
+    Credentials credentials,
+    List<String> adminUserIds,
+    List<Principal> principals,
+    List<Asset> assets) {
 
   public LocalCatalogFile {
     assets = assets == null ? List.of() : List.copyOf(assets);
     principals = principals == null ? List.of() : List.copyOf(principals);
+    adminUserIds = adminUserIds == null ? List.of() : List.copyOf(adminUserIds);
     credentials = credentials == null ? Credentials.defaults() : credentials;
   }
 
   public LocalCatalogFile(Credentials credentials, List<Asset> assets) {
-    this(credentials, List.of(), assets);
+    this(credentials, null, List.of(), assets);
   }
 
   public enum CredentialMode {
