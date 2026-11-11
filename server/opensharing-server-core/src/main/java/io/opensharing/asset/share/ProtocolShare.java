@@ -27,7 +27,7 @@ public record ProtocolShare(
   /** For the recipient protocol: the share as a recipient may see it, without the owner. */
   static ProtocolShare from(ShareEntity share) {
     return new ProtocolShare(
-        share.getId(),
+        share.getId().toString(),
         share.getName(),
         share.getDisplayName(),
         share.getComment(),
