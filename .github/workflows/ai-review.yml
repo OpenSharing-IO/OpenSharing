@@ -7,6 +7,11 @@
 #   AI_REVIEW_MODEL   Model ID exposed by the gateway.
 # Optional repository variable:
 #   AI_REVIEW_ALLOWLIST  JSON array of GitHub logins allowed to trigger reviews.
+# Optional repository setting:
+#   "Allow GitHub Actions to create and approve pull requests" lets the workflow
+#   approve a pull request whose merge recommendation succeeds. It approves only
+#   while the base branch's rules dismiss approvals on new pushes or require the
+#   last push to be approved.
 #
 # Dependency provenance: https://github.com/alibaba/open-code-review,
 # Apache-2.0, pinned below to an exact commit. The nested OCR package is also
@@ -411,4 +416,66 @@ jobs:
               description: description.slice(0, 140),
               target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
                 `/actions/runs/${context.runId}`,
+            });
+
+      - name: Approve recommended pull request
+        if: steps.recommendation.outputs.state == 'success'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BASE_REF: ${{ needs.authorize.outputs.base_ref }}
+          EXPECTED_BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pullNumber = Number(process.env.PR_NUMBER);
+            const head = process.env.EXPECTED_HEAD_SHA;
+
+            // An approval that outlived a later push would approve unreviewed code.
+            const { data: rules } = await github.request(
+              'GET /repos/{owner}/{repo}/rules/branches/{branch}',
+              { owner, repo, branch: process.env.BASE_REF, per_page: 100 },
+            );
+            const approvalsResetOnPush = rules.some(
+              (rule) => rule.type === 'pull_request' && (
+                rule.parameters?.dismiss_stale_reviews_on_push === true ||
+                rule.parameters?.require_last_push_approval === true
+              ),
+            );
+            if (!approvalsResetOnPush) {
+              core.notice('Not approving: the branch rules keep approvals after new pushes.');
+              return;
+            }
+
+            const { data: pull } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: pullNumber,
+            });
+            if (pull.state !== 'open' || pull.draft ||
+                pull.base.sha !== process.env.EXPECTED_BASE_SHA || pull.head.sha !== head) {
+              core.notice('Not approving: the pull request changed after review.');
+              return;
+            }
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner,
+              repo,
+              pull_number: pullNumber,
+              per_page: 100,
+            });
+            if (reviews.some((review) => review.user?.login === 'github-actions[bot]' &&
+                review.state === 'APPROVED' && review.commit_id === head)) {
+              return;
+            }
+
+            await github.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number: pullNumber,
+              commit_id: head,
+              event: 'APPROVE',
+              body: `AI review of ${head.slice(0, 8)} found no medium-or-higher issues, ` +
+                'and the change touches no protocol, schema, or security-sensitive paths.',
             });

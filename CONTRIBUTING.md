@@ -92,9 +92,13 @@ status. It recommends merging only when the review covered every selected file,
 used the current PR commit, had no failed or waived work, had no tool failures,
 found no medium-or-higher issues, and did not touch workflow, protocol spec,
 protocol request or response, entity, Flyway migration, authentication,
-credential, token, or signing paths. Low-severity
-findings remain advisory. The status does not grant merge permission or replace
-human review; maintainers may choose whether to require it in branch rules.
+credential, token, or signing paths. Low-severity findings remain advisory.
+
+When the status succeeds, the workflow also approves the PR at that commit, and
+the approval counts toward the required review. It approves only while the
+branch rules dismiss approvals on new pushes or require the last push to be
+approved, so the approval never carries over to later commits. Every other PR
+still needs a maintainer's approval.
 
 ## Contribution guidelines
 
