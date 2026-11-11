@@ -6,7 +6,8 @@ credentials:
   ttlSeconds: 3600
 
 # A principal holds only the privileges it lists. Users whose ids are in adminUserIds come
-# back from authorize marked as catalog admins, who may transfer the ownership of any share.
+# back from authorize marked as catalog admins, who may transfer the ownership of any share
+# or recipient.
 adminUserIds:
   - catalog-alice-id
 

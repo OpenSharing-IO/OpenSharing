@@ -21,7 +21,9 @@ import java.util.UUID;
 
 /**
  * Provider recipient CRUD and token issuance for a caller the host has authenticated. Creating a
- * recipient needs CREATE_RECIPIENT from the catalog, and only the owner may change it. The owner
+ * recipient needs CREATE_RECIPIENT from the catalog, and only the owner may change it. The one
+ * exception is the ownership transfer in {@link #update}: an admin of the catalog, as its {@code
+ * authorize} reports per call, may transfer the ownership of a recipient they don't own. The owner
  * and callers with USE_RECIPIENT from the catalog may read a recipient; listing without
  * USE_RECIPIENT returns only the caller's own recipients. {@link #activate} is public: the
  * activation code itself is the credential. {@link #authenticate} checks the bearer tokens
@@ -114,14 +116,28 @@ public class RecipientService {
     return toResponse(entity, activationBaseUrl);
   }
 
-  /** Updates the fields set in {@code request}. Owner only. */
+  /**
+   * Updates the fields set in {@code request}. Owner only, except that an admin of the catalog may
+   * transfer the recipient's ownership. A transfer must be the request's only change, for every
+   * caller.
+   */
   public RecipientResponse update(
       UserContext user,
       String recipient,
       UpdateRecipientRequest request,
       String activationBaseUrl) {
+    RecipientEntity existing = recipients.getOrThrow(recipient);
+    String newOwnerId = request.ownerId();
+    boolean transfers = newOwnerId != null;
+    if (transfers) {
+      Ownership.checkAdminTransferOwner(
+          user, "recipient '" + existing.getName() + "'", newOwnerId, otherChanges(request));
+    } else {
+      Ownership.check(user, existing.getOwnerId(), "recipient '" + existing.getName() + "'");
+    }
+    String comment = validateComment(request.comment());
     return toResponse(
-        recipients.update(user, recipient, validateComment(request.comment())), activationBaseUrl);
+        recipients.update(user, recipient, comment, newOwnerId, transfers), activationBaseUrl);
   }
 
   /** Deletes the recipient, its tokens and its permissions. Owner only. */
@@ -191,6 +207,14 @@ public class RecipientService {
           "comment must not exceed " + RecipientEntity.MAX_COMMENT_LENGTH + " characters");
     }
     return comment;
+  }
+
+  // Whether moving the recipient to a new owner is the request's only change, which a transfer
+  // must be, whatever the caller's other rights.
+  private static boolean otherChanges(UpdateRecipientRequest request) {
+    // Extend here whenever UpdateRecipientRequest gains a field, so a transfer stays the only
+    // change a request can carry.
+    return request.comment() != null;
   }
 
   private boolean holds(UserContext user, Privilege privilege) {
