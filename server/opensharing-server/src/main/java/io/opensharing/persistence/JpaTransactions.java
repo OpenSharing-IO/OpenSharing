@@ -52,21 +52,22 @@ public final class JpaTransactions implements Transactions, AutoCloseable {
   // Flyway runs on Hibernate's pool so both use the same connection settings, and so an in-memory
   // H2 database, dropped when its last connection closes, keeps the tables Flyway creates.
   private static void migrate(SessionFactoryImplementor sessions) {
-    DataSource dataSource =
-        sessions
-            .getServiceRegistry()
-            .requireService(ConnectionProvider.class)
-            .unwrap(DataSource.class);
-    if (dataSource == null) {
+    ConnectionProvider connections =
+        sessions.getServiceRegistry().requireService(ConnectionProvider.class);
+    // unwrap throws for a provider that wraps no DataSource, so ask first to explain the fix.
+    if (!connections.isUnwrappableAs(DataSource.class)) {
       throw new IllegalStateException(
           "The ConnectionProvider does not expose a DataSource, which Flyway needs; use a provider"
               + " that wraps one, such as HikariCPConnectionProvider");
     }
+    DataSource dataSource = connections.unwrap(DataSource.class);
     // envVars() comes first so the settings below win: Flyway always uses Hibernate's pool and the
     // dialect's own scripts, so FLYWAY_URL, FLYWAY_USER, FLYWAY_PASSWORD and FLYWAY_LOCATIONS are
-    // ignored; other FLYWAY_* variables apply.
+    // ignored, and FLYWAY_CLEAN_DISABLED cannot let Flyway drop the schema; other FLYWAY_*
+    // variables apply.
     Flyway.configure(JpaTransactions.class.getClassLoader())
         .envVars()
+        .cleanDisabled(true)
         .dataSource(dataSource)
         .locations("classpath:db/migration/" + database(sessions.getJdbcServices().getDialect()))
         .load()
