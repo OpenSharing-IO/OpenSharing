@@ -22,8 +22,8 @@ import java.util.Map;
  * }
  * }</pre>
  *
- * <p>{@code ownerId} is the owner's catalog user id, reported to the provider only: the
- * recipient-facing protocol omits it.
+ * <p>{@code ownerId} is the owner's catalog user id. The recipient protocol reports shares as
+ * {@code ProtocolShare}, which has no owner.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ShareResponse(
@@ -35,10 +35,12 @@ public record ShareResponse(
     List<SharedDataObjectResponse> objects,
     String ownerId) {
 
+  /** For the provider API: the share with its owner, without its objects. */
   public static ShareResponse from(ShareEntity share) {
     return from(share, null);
   }
 
+  /** For the provider API: the share with its owner, and its objects when they are given. */
   public static ShareResponse from(ShareEntity share, List<SharedDataObjectEntity> objects) {
     return new ShareResponse(
         share.getId(),

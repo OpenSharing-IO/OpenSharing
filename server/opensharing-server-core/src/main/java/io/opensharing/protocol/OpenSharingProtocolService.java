@@ -10,12 +10,12 @@ import io.opensharing.ObjectNames;
 import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.schema.SchemaResponse;
 import io.opensharing.asset.share.GetShareResponse;
+import io.opensharing.asset.share.ProtocolShare;
 import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.asset.table.GetTableResponse;
 import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.asset.table.TableResponse;
 import io.opensharing.http.ListResponse;
-import io.opensharing.share.ShareResponse;
 
 /**
  * The OpenSharing protocol endpoints that list and get shares, schemas and tables, which recipients
@@ -38,7 +38,7 @@ public final class OpenSharingProtocolService {
 
   /** {@code GET /shares}: lists one page of the shares the recipient holds SELECT on. */
   @Get("/shares")
-  public ListResponse<ShareResponse> listShares(
+  public ListResponse<ProtocolShare> listShares(
       ServiceRequestContext ctx,
       @Param @Nullable Integer maxResults,
       @Param @Nullable String pageToken) {

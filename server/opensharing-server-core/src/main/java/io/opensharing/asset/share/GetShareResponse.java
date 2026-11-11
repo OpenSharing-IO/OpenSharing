@@ -1,7 +1,5 @@
 package io.opensharing.asset.share;
 
-import io.opensharing.share.ShareResponse;
-
 /**
  * Protocol {@code GET /shares/{share}} wraps the share in a single field:
  *
@@ -9,4 +7,4 @@ import io.opensharing.share.ShareResponse;
  * {"share": {"id": "<share id>", "name": "<share name>", ...}}
  * }</pre>
  */
-public record GetShareResponse(ShareResponse share) {}
+public record GetShareResponse(ProtocolShare share) {}
