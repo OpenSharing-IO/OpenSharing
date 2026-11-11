@@ -26,7 +26,7 @@ public record RecipientResponse(
 
   public static RecipientResponse from(RecipientEntity recipient, String activationUrl) {
     return new RecipientResponse(
-        recipient.getId(),
+        recipient.getId().toString(),
         recipient.getName(),
         recipient.getComment(),
         recipient.getAuthenticationType(),

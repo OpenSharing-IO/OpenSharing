@@ -20,6 +20,9 @@ public record IssuedTokenResponse(
 
   static IssuedTokenResponse from(RecipientTokenEntity token, String activationUrl) {
     return new IssuedTokenResponse(
-        token.getId(), token.getRecipient().getName(), activationUrl, token.getExpiresAt());
+        token.getId().toString(),
+        token.getRecipient().getName(),
+        activationUrl,
+        token.getExpiresAt());
   }
 }

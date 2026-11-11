@@ -36,7 +36,7 @@ public record ShareResponse(
 
   public static ShareResponse from(ShareEntity share, List<SharedDataObjectEntity> objects) {
     return new ShareResponse(
-        share.getId(),
+        share.getId().toString(),
         share.getName(),
         share.getDisplayName(),
         share.getComment(),
