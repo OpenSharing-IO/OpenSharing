@@ -267,19 +267,29 @@ jobs:
   publish:
     name: Publish AI PR Review
     needs: [authorize, review]
-    if: needs.authorize.outputs.allowed == 'true'
+    if: always() && needs.authorize.outputs.allowed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       issues: write
       pull-requests: write
+      statuses: write
     steps:
       - name: Download validated review output
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ai-review-${{ needs.authorize.outputs.pr_number }}-${{ github.run_id }}
           path: /tmp/ai-review
+
+      - name: Check out merge recommendation policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.authorize.outputs.base_sha }}
+          path: .review-policy
+          persist-credentials: false
+          sparse-checkout: .github/scripts/ai_review_merge_recommendation.py
+          sparse-checkout-cone-mode: false
 
       - name: Check out pinned publication helper
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -317,7 +327,38 @@ jobs:
               );
             }
 
+      - name: Collect changed paths
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+        with:
+          script: |
+            const fs = require('fs');
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...context.repo,
+              pull_number: Number(process.env.PR_NUMBER),
+              per_page: 100,
+            });
+            fs.writeFileSync(
+              '/tmp/ai-review/changed-paths.json',
+              JSON.stringify(files.map((file) => file.filename)),
+            );
+
+      - name: Evaluate merge recommendation
+        id: recommendation
+        env:
+          EXPECTED_BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+        run: |
+          python3 .review-policy/.github/scripts/ai_review_merge_recommendation.py \
+            --result /tmp/ai-review/ocr-result.json \
+            --changed-paths /tmp/ai-review/changed-paths.json \
+            --expected-base "$EXPECTED_BASE_SHA" \
+            --expected-head "$EXPECTED_HEAD_SHA" \
+            --github-output "$GITHUB_OUTPUT"
+
       - name: Publish validated findings
+        id: publish-findings
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
@@ -341,4 +382,33 @@ jobs:
               stickySummary: true,
               incremental: true,
               routeSeverityBelow: 'low',
+            });
+
+      - name: Publish merge recommendation
+        if: always()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          PUBLICATION_OUTCOME: ${{ steps.publish-findings.outcome }}
+          RECOMMENDATION_STATE: ${{ steps.recommendation.outputs.state }}
+          RECOMMENDATION_DESCRIPTION: ${{ steps.recommendation.outputs.description }}
+        with:
+          script: |
+            const publicationSucceeded = process.env.PUBLICATION_OUTCOME === 'success';
+            const allowedStates = new Set(['error', 'failure', 'success']);
+            const recommendationState = process.env.RECOMMENDATION_STATE;
+            const state = publicationSucceeded && allowedStates.has(recommendationState)
+              ? recommendationState
+              : 'error';
+            const description = publicationSucceeded && process.env.RECOMMENDATION_DESCRIPTION
+              ? process.env.RECOMMENDATION_DESCRIPTION
+              : 'AI review was not published; no merge recommendation';
+            await github.rest.repos.createCommitStatus({
+              ...context.repo,
+              sha: process.env.EXPECTED_HEAD_SHA,
+              state,
+              context: 'AI Review / Merge recommendation',
+              description: description.slice(0, 140),
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+                `/actions/runs/${context.runId}`,
             });
