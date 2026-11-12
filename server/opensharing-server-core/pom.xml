@@ -111,6 +111,26 @@
       <artifactId>hadoop-azure</artifactId>
       <version>${hadoop.version}</version>
       <scope>runtime</scope>
+      <exclusions>
+        <!-- EOL Jetty 9.4 flagged by vulnerability scanners; only needed by the legacy WASB filesystem. -->
+        <exclusion>
+          <groupId>org.eclipse.jetty</groupId>
+          <artifactId>jetty-util</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.eclipse.jetty</groupId>
+          <artifactId>jetty-util-ajax</artifactId>
+        </exclusion>
+        <!-- Legacy WASB SDK; OpenSharing only reads ABFS (abfs/abfss) and rejects WASB. -->
+        <exclusion>
+          <groupId>com.microsoft.azure</groupId>
+          <artifactId>azure-storage</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.microsoft.azure</groupId>
+          <artifactId>azure-keyvault-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.google.cloud.bigdataoss</groupId>
