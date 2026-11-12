@@ -12,8 +12,11 @@ public final class StorageLocations {
 
   public static final Set<String> S3_SCHEMES = Set.of("s3", "s3a", "s3n");
 
-  /** Azure file URLs are signed only for abfs:// and abfss://, so WASB tables are not read. */
-  public static final Set<String> AZURE_SCHEMES = Set.of("abfs", "abfss");
+  /**
+   * WASB locations are read through ABFS at the same blob host, and their file URLs are signed on
+   * that host, so all four Azure schemes are supported.
+   */
+  public static final Set<String> AZURE_SCHEMES = Set.of("abfs", "abfss", "wasb", "wasbs");
 
   public static final Set<String> GCS_SCHEMES = Set.of("gs");
 

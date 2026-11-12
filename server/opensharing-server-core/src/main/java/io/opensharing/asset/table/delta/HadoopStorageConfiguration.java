@@ -55,7 +55,8 @@ final class HadoopStorageConfiguration {
 
   /**
    * Hadoop reads S3 and R2 only through its s3a:// connector. Catalogs typically return S3
-   * locations as s3://, and Hadoop no longer reads s3n://.
+   * locations as s3://, and Hadoop no longer reads s3n://. Hadoop reads WASB locations through
+   * ABFS at the same blob host.
    */
   static String kernelPath(String location) {
     String scheme = StorageLocations.scheme(location);
@@ -65,6 +66,9 @@ final class HadoopStorageConfiguration {
     if (StorageLocations.R2_SCHEMES.contains(scheme)) {
       StorageLocations.R2Object r2 = StorageLocations.r2Object(location);
       return "s3a://" + r2.bucket() + "/" + r2.key();
+    }
+    if (StorageLocations.scheme(location).startsWith("wasb")) {
+      return "abfss://" + location.substring(location.indexOf("://") + 3);
     }
     return location;
   }
@@ -105,7 +109,10 @@ final class HadoopStorageConfiguration {
     configuration.set("fs.s3a.path.style.access", "true");
   }
 
-  /** The catalog's SAS token for every request to the storage account. */
+  /**
+   * The catalog's SAS token for every request to the storage account. ABFS reads a blob host, which
+   * WASB locations name, only for an account declared to have no hierarchical namespace.
+   */
   private static void configureAzure(
       Configuration configuration, StorageCredentials credentials, String location) {
     String host = URI.create(location).getHost();
@@ -115,6 +122,9 @@ final class HadoopStorageConfiguration {
     configuration.set("fs.azure.account.auth.type." + host, "SAS");
     configuration.set(
         "fs.azure.sas.fixed.token." + host, credentials.require(StorageCredentials.SAS_TOKEN));
+    if (host.contains(".blob.")) {
+      configuration.set("fs.azure.account.hns.enabled." + host, "false");
+    }
   }
 
   /**

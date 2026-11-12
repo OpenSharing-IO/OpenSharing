@@ -73,7 +73,7 @@ class UrlSignersTest {
   }
 
   @Test
-  void signsAzurePathsOnlyInAbfsForm() {
+  void signsAzurePathsAtTheBlobHost() {
     StorageCredentials sas =
         new StorageCredentials(
             "abfss://container@account.dfs.core.windows.net/",
@@ -92,17 +92,15 @@ class UrlSignersTest {
           signed.url());
     }
     for (String scheme : List.of("wasb", "wasbs")) {
-      ApiException rejected =
-          assertThrows(
-              ApiException.class,
-              () ->
-                  sign(
-                      scheme + "://container@account.blob.core.windows.net/table/part.parquet",
-                      sas,
-                      Duration.ofMinutes(5)));
-      assertEquals(501, rejected.getStatus());
-      assertEquals(
-          "this build cannot sign urls for '" + scheme + "' storage", rejected.getMessage());
+      SignedUrl signed =
+          sign(
+              scheme + "://container@account.blob.core.windows.net/table/part.parquet",
+              sas,
+              Duration.ofMinutes(5));
+      assertTrue(
+          signed.url().startsWith("https://account.blob.core.windows.net/container/table/"),
+          signed.url());
+      assertTrue(signed.url().endsWith("sv=2020-12-06&sig=catalog"), signed.url());
     }
   }
 

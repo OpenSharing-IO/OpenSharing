@@ -49,11 +49,13 @@ class HadoopStorageConfigurationTest {
             "gs://bucket/table",
             "abfs://container@account.dfs.core.windows.net/table",
             "abfss://container@account.dfs.core.windows.net/table",
+            "wasb://container@account.blob.core.windows.net/table",
+            "wasbs://container@account.blob.core.windows.net/table",
             "file:///tmp/table",
             "/tmp/table")) {
       assertDoesNotThrow(() -> HadoopStorageConfiguration.requireSupported(location), location);
     }
-    for (String scheme : List.of("wasb", "wasbs", "hdfs")) {
+    for (String scheme : List.of("hdfs")) {
       ApiException rejected =
           assertThrows(
               ApiException.class,
@@ -62,6 +64,25 @@ class HadoopStorageConfigurationTest {
       assertEquals(
           "this build cannot read tables in '" + scheme + "' storage", rejected.getMessage());
     }
+  }
+
+  @Test
+  void readsWasbThroughAbfsAtTheBlobHost() throws IOException {
+    String location = "wasbs://container@account.blob.core.windows.net/table";
+    String host = "account.blob.core.windows.net";
+    Configuration configuration =
+        HadoopStorageConfiguration.from(sasCredentials(location), location);
+
+    assertEquals(
+        "abfss://container@" + host + "/table", HadoopStorageConfiguration.kernelPath(location));
+    assertEquals(
+        "abfss://container@" + host + "/table",
+        HadoopStorageConfiguration.kernelPath("wasb://container@" + host + "/table"));
+    assertEquals("SAS", configuration.get("fs.azure.account.auth.type." + host));
+    assertEquals(
+        "sv=2020-12-06&sig=catalog", configuration.get("fs.azure.sas.fixed.token." + host));
+    assertEquals("false", configuration.get("fs.azure.account.hns.enabled." + host));
+    assertOpens("org.apache.hadoop.fs.azurebfs.SecureAzureBlobFileSystem", location, configuration);
   }
 
   @Test
@@ -102,6 +123,14 @@ class HadoopStorageConfigurationTest {
             StorageCredentials.ACCESS_KEY_ID, "r2key",
             StorageCredentials.SECRET_ACCESS_KEY, "r2secret",
             StorageCredentials.SESSION_TOKEN, "session"),
+        Instant.now().plus(Duration.ofHours(1)));
+  }
+
+  private static StorageCredentials sasCredentials(String location) {
+    return new StorageCredentials(
+        location,
+        CloudProvider.AZURE,
+        Map.of(StorageCredentials.SAS_TOKEN, "sv=2020-12-06&sig=catalog"),
         Instant.now().plus(Duration.ofHours(1)));
   }
 }

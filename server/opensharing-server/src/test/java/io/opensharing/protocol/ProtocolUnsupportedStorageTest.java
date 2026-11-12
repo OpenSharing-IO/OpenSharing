@@ -7,13 +7,12 @@ import io.opensharing.http.ErrorCodes;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Properties;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Reads of tables in WASB storage, which this build does not read, through the local catalog. */
+/** Reads of tables in storage this build does not read, through the local catalog. */
 class ProtocolUnsupportedStorageTest extends ProtocolApiSupport {
 
   @TempDir static Path directory;
@@ -32,15 +31,10 @@ class ProtocolUnsupportedStorageTest extends ProtocolApiSupport {
         assets:
           - identifier: main.lake
             type: SCHEMA
-          - identifier: main.lake.wasb
+          - identifier: main.lake.hdfs
             attributes:
               subtype: MANAGED
-            storageLocation: wasb://container@account.blob.core.windows.net/wasb
-            format: delta
-          - identifier: main.lake.wasbs
-            attributes:
-              subtype: MANAGED
-            storageLocation: wasbs://container@account.blob.core.windows.net/wasbs
+            storageLocation: hdfs://namenode:8020/table
             format: delta
         """;
     Path file = Files.writeString(directory.resolve("local-catalog.yml"), catalog);
@@ -52,21 +46,17 @@ class ProtocolUnsupportedStorageTest extends ProtocolApiSupport {
   @Test
   void rejectsReadsBeforeTheResponseStarts() {
     createShare("unsupported-storage");
-    for (String table : List.of("wasb", "wasbs")) {
-      addObject("unsupported-storage", "TABLE", "main.lake." + table, "lake." + table);
-    }
+    addObject("unsupported-storage", "TABLE", "main.lake.hdfs", "lake.hdfs");
     String bearer = createAndActivateRecipient("unsupported-storage-partner");
     grant("unsupported-storage", "unsupported-storage-partner");
 
-    String tables = PROTOCOL + "/shares/unsupported-storage/schemas/lake/tables/";
-    for (String table : List.of("wasb", "wasbs")) {
-      String message = "this build cannot read tables in '" + table + "' storage";
-      assertNotImplemented(message, server.get(tables + table + "/version", bearer));
-      assertNotImplemented(message, server.get(tables + table + "/metadata", bearer));
-      assertNotImplemented(message, server.post(tables + table + "/query", bearer, "{}"));
-      assertNotImplemented(
-          message, server.get(tables + table + "/changes?startingVersion=0", bearer));
-    }
+    String tables = PROTOCOL + "/shares/unsupported-storage/schemas/lake/tables/hdfs";
+    String message = "this build cannot read tables in 'hdfs' storage";
+    assertNotImplemented(message, server.get(tables + "/version", bearer));
+    assertNotImplemented(message, server.get(tables + "/metadata", bearer));
+    assertNotImplemented(message, server.post(tables + "/query", bearer, "{}"));
+    assertNotImplemented(
+        message, server.get(tables + "/changes?startingVersion=0", bearer));
   }
 
   private static void assertNotImplemented(String message, Response response) {
