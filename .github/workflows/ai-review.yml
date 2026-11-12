@@ -339,17 +339,29 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+            const pullNumber = Number(process.env.PR_NUMBER);
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: pullNumber,
+            });
             const files = await github.paginate(github.rest.pulls.listFiles, {
               ...context.repo,
-              pull_number: Number(process.env.PR_NUMBER),
+              pull_number: pullNumber,
               per_page: 100,
             });
-            fs.writeFileSync(
-              '/tmp/ai-review/changed-paths.json',
-              JSON.stringify(
-                files.flatMap((file) => [file.filename, file.previous_filename].filter(Boolean)),
-              ),
-            );
+            // listFiles stops at 3000 files; an empty list makes the classifier report an error.
+            let paths = [];
+            if (files.length === pull.changed_files && files.length < 3000) {
+              paths = files.flatMap(
+                (file) => [file.filename, file.previous_filename].filter(Boolean),
+              );
+            } else {
+              core.warning(
+                `Listed ${files.length} of ${pull.changed_files} changed files; ` +
+                'not recommending merge.',
+              );
+            }
+            fs.writeFileSync('/tmp/ai-review/changed-paths.json', JSON.stringify(paths));
 
       - name: Evaluate merge recommendation
         id: recommendation
