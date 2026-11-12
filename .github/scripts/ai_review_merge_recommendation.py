@@ -22,6 +22,15 @@ SENSITIVE_PATH_PATTERNS = (
     re.compile(r"/io/opensharing/asset/(?:share/ProtocolShare|table/TableActions)\.java$"),
     re.compile(r"Entity\.java$"),
     re.compile(r"(?:^|/)db/migration/"),
+    # Pagination tokens bound what a caller can list.
+    re.compile(r"pagination|pagetoken", re.IGNORECASE),
+    # Build, dependency and container files decide what code ships and runs.
+    re.compile(
+        r"(?:^|/)(?:pom\.xml|mvnw(?:\.cmd)?|\.mvn/.*|[^/]*\.gradle(?:\.kts)?|gradle/.*"
+        r"|gradlew(?:\.bat)?|[^/]*\.lock|package(?:-lock)?\.json|requirements[^/]*\.txt"
+        r"|Dockerfile[^/]*|[^/]*\.dockerfile|docker-compose[^/]*\.ya?ml)$",
+        re.IGNORECASE,
+    ),
 )
 
 

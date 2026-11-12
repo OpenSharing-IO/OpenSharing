@@ -89,6 +89,35 @@ class ClassifyTest(unittest.TestCase):
                 self.assertEqual("failure", decision["state"])
                 self.assertIn("sensitive paths", " ".join(decision["reasons"]))
 
+    def test_blocks_build_dependency_container_and_pagination_paths(self):
+        for path in (
+            "server/pom.xml",
+            "server/opensharing-server/pom.xml",
+            ".mvn/wrapper/maven-wrapper.properties",
+            "mvnw",
+            "build.gradle.kts",
+            "yarn.lock",
+            "Dockerfile",
+            "deploy/docker-compose.yml",
+            "server/core/src/main/java/io/opensharing/http/Pagination.java",
+            "server/core/src/main/java/io/opensharing/asset/table/signer/SignedUrl.java",
+        ):
+            with self.subTest(path=path):
+                result = complete_result()
+                item = {"item_id": "item-1", "path": path}
+                result["manifest"]["coverage"]["selected"] = [item]
+                result["manifest"]["coverage"]["completed"] = [item]
+                self.assertEqual("failure", MODULE.classify(result, BASE, HEAD, [path])["state"])
+
+    def test_allows_ordinary_source_and_docs(self):
+        for path in ("server/core/src/main/java/io/opensharing/Design.java", "README.md"):
+            with self.subTest(path=path):
+                result = complete_result()
+                item = {"item_id": "item-1", "path": path}
+                result["manifest"]["coverage"]["selected"] = [item]
+                result["manifest"]["coverage"]["completed"] = [item]
+                self.assertEqual("success", MODULE.classify(result, BASE, HEAD, [path])["state"])
+
     def test_allows_provider_api_request_and_response(self):
         core = "server/opensharing-server-core/src/main/java/io/opensharing"
         for path in (f"{core}/share/CreateShareRequest.java", f"{core}/share/ShareResponse.java"):
