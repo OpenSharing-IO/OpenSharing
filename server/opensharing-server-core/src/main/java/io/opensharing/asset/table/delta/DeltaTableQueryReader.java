@@ -22,10 +22,12 @@ import io.delta.kernel.internal.actions.Metadata;
 import io.delta.kernel.internal.actions.Protocol;
 import io.delta.kernel.internal.actions.RemoveFile;
 import io.delta.kernel.internal.checksum.CRCInfo;
+import io.delta.kernel.internal.data.DelegateRow;
 import io.delta.kernel.internal.fs.Path;
 import io.delta.kernel.internal.util.FileNames;
 import io.delta.kernel.internal.util.Utils;
 import io.delta.kernel.internal.util.VectorUtils;
+import io.delta.kernel.types.BooleanType;
 import io.delta.kernel.types.LongType;
 import io.delta.kernel.types.MapType;
 import io.delta.kernel.types.StringType;
@@ -79,6 +81,10 @@ public class DeltaTableQueryReader {
   private static final Duration URL_TTL = Duration.ofHours(1);
   private static final ObjectMapper JSON = new ObjectMapper();
 
+  // Kernel's cdc schema omits dataChange, which Delta readers require on a cdc action.
+  private static final StructType CDC_SCHEMA =
+      DeltaAction.CDC.schema.add("dataChange", BooleanType.BOOLEAN);
+
   // Commit files are read directly because Kernel 4.0's getChanges requires commitInfo fields that
   // older Delta writers omit; only the commitInfo fields used here are read.
   private static final StructType CHANGE_SCHEMA =
@@ -87,7 +93,7 @@ public class DeltaTableQueryReader {
           .add(DeltaAction.METADATA.colName, DeltaAction.METADATA.schema)
           .add(DeltaAction.ADD.colName, DeltaAction.ADD.schema)
           .add(DeltaAction.REMOVE.colName, DeltaAction.REMOVE.schema)
-          .add(DeltaAction.CDC.colName, DeltaAction.CDC.schema)
+          .add(DeltaAction.CDC.colName, CDC_SCHEMA)
           .add(
               DeltaAction.COMMITINFO.colName,
               new StructType()
@@ -883,12 +889,13 @@ public class DeltaTableQueryReader {
               null,
               remove.getDeletionVector());
         }
-        // cdc files are always data changes and carry no stats or deletion vector.
+        // cdc files are always data changes and carry no stats or deletion vector. The protocol
+        // fixes a cdc action's own dataChange at false, so it is written even if the commit omits it.
         case CDC -> {
           StructType schema = action.getSchema();
           yield new ChangeFile(
               type,
-              action,
+              new DelegateRow(action, Map.of(schema.indexOf("dataChange"), false)),
               action.getString(schema.indexOf("path")),
               true,
               VectorUtils.toJavaMap(action.getMap(schema.indexOf("partitionValues"))),

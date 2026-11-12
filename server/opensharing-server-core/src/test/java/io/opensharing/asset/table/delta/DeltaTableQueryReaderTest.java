@@ -233,6 +233,8 @@ class DeltaTableQueryReaderTest {
 
     List<String> delta = changeDataFeed(1L, null, 2L, null, "responseformat=delta", false);
     assertEquals(List.of("cdc c 1", "remove b 2"), describe(delta.subList(2, delta.size())));
+    // Delta readers require dataChange on a cdc action, which the protocol fixes at false.
+    assertTrue(delta.get(2).contains("\"dataChange\":false"), delta.get(2));
   }
 
   @Test
