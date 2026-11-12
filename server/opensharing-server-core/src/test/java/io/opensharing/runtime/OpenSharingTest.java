@@ -23,6 +23,33 @@ class OpenSharingTest {
   private static final UserContext ALICE = UserContext.fromUserIdAndName("alice-id", "alice");
 
   @Test
+  void requiresAValidPublicUrl() {
+    IllegalArgumentException missing =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                OpenSharing.builder()
+                    .catalog(refusing(new ArrayList<>()))
+                    .transactions(unused())
+                    .build());
+    assertEquals(
+        "publicUrl is required; set it to the address recipients reach this server at",
+        missing.getMessage());
+    IllegalArgumentException invalid =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                OpenSharing.builder()
+                    .catalog(refusing(new ArrayList<>()))
+                    .transactions(unused())
+                    .publicUrl("ftp://sharing.example.com")
+                    .build());
+    assertEquals(
+        "invalid value 'ftp://sharing.example.com' for publicUrl; expected an http or https URL",
+        invalid.getMessage());
+  }
+
+  @Test
   void namesTheConfiguredServerInEveryCatalogCall() {
     List<AuthContext> calls = new ArrayList<>();
     OpenSharing openSharing =
@@ -30,6 +57,7 @@ class OpenSharingTest {
             .catalog(refusing(calls))
             .serverId("sharing-server-1")
             .transactions(unused())
+            .publicUrl("https://sharing.example.com/")
             .build();
 
     createShareAndRecipient(openSharing);
@@ -42,7 +70,11 @@ class OpenSharingTest {
   void namesNoServerUnlessTheHostSetsOne() {
     List<AuthContext> calls = new ArrayList<>();
     OpenSharing openSharing =
-        OpenSharing.builder().catalog(refusing(calls)).transactions(unused()).build();
+        OpenSharing.builder()
+            .catalog(refusing(calls))
+            .transactions(unused())
+            .publicUrl("https://sharing.example.com")
+            .build();
 
     createShareAndRecipient(openSharing);
 
@@ -63,8 +95,7 @@ class OpenSharingTest {
                 .recipients()
                 .create(
                     ALICE,
-                    new CreateRecipientRequest("acme", null, AuthenticationType.TOKEN, 30L),
-                    "http://host/activations"));
+                    new CreateRecipientRequest("acme", null, AuthenticationType.TOKEN, 30L)));
   }
 
   private static CatalogConnector refusing(List<AuthContext> calls) {

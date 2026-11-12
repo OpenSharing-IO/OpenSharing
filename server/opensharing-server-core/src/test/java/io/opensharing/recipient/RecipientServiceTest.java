@@ -34,7 +34,12 @@ class RecipientServiceTest {
               throw new UnsupportedOperationException();
             });
     RecipientService recipients =
-        new RecipientService(catalog, null, new RecipientStore(unused));
+        new RecipientService(
+            catalog,
+            null,
+            new RecipientStore(unused),
+            "http://host/activations",
+            "http://host/sharing");
     UserContext alice = UserContext.fromUserIdAndName("alice-id", "alice");
 
     assertThrows(
@@ -42,8 +47,7 @@ class RecipientServiceTest {
         () ->
             recipients.create(
                 alice,
-                new CreateRecipientRequest("acme", null, AuthenticationType.TOKEN, 30L),
-                "http://host/activations"));
+                new CreateRecipientRequest("acme", null, AuthenticationType.TOKEN, 30L)));
     assertEquals(List.of(Privilege.CREATE_RECIPIENT), privileges);
   }
 
@@ -62,10 +66,15 @@ class RecipientServiceTest {
         proxy(
             Transactions.class,
             (proxy, method, args) -> calls.getAndIncrement() == 0 ? rows : "code");
-    RecipientService recipients = new RecipientService(catalog, null, new RecipientStore(tx));
+    RecipientService recipients =
+        new RecipientService(
+            catalog,
+            null,
+            new RecipientStore(tx),
+            "http://host/activations",
+            "http://host/sharing");
 
-    List<RecipientResponse> items =
-        recipients.listAll(null, null, "http://host/activations").items();
+    List<RecipientResponse> items = recipients.listAll(null, null).items();
     assertEquals(List.of("acme", "bolt"), items.stream().map(RecipientResponse::name).toList());
     assertEquals("http://host/activations/code", items.get(0).activationUrl());
   }

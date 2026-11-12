@@ -26,15 +26,9 @@ import io.opensharing.http.ListResponse;
 public final class RecipientAdminService {
 
   private final RecipientService recipients;
-  private final String activationBaseUrl;
 
-  /**
-   * @param activationBaseUrl the absolute URL recipient activation links are built under, on the
-   *     address recipients reach the host at
-   */
-  public RecipientAdminService(RecipientService recipients, String activationBaseUrl) {
+  public RecipientAdminService(RecipientService recipients) {
     this.recipients = recipients;
-    this.activationBaseUrl = activationBaseUrl;
   }
 
   /**
@@ -44,7 +38,7 @@ public final class RecipientAdminService {
   @Post("/recipients")
   @StatusCode(201)
   public RecipientResponse create(ServiceRequestContext ctx, CreateRecipientRequest request) {
-    return recipients.create(ProviderTokenDecorator.user(ctx), request, activationBaseUrl);
+    return recipients.create(ProviderTokenDecorator.user(ctx), request);
   }
 
   /**
@@ -56,8 +50,7 @@ public final class RecipientAdminService {
       ServiceRequestContext ctx,
       @Param @Nullable Integer maxResults,
       @Param @Nullable String pageToken) {
-    return recipients.list(
-        ProviderTokenDecorator.user(ctx), maxResults, pageToken, activationBaseUrl);
+    return recipients.list(ProviderTokenDecorator.user(ctx), maxResults, pageToken);
   }
 
   /**
@@ -66,7 +59,7 @@ public final class RecipientAdminService {
    */
   @Get("/recipients/{recipient}")
   public RecipientResponse get(ServiceRequestContext ctx, @Param String recipient) {
-    return recipients.get(ProviderTokenDecorator.user(ctx), recipient, activationBaseUrl);
+    return recipients.get(ProviderTokenDecorator.user(ctx), recipient);
   }
 
   /**
@@ -77,8 +70,7 @@ public final class RecipientAdminService {
   @Patch("/recipients/{recipient}")
   public RecipientResponse update(
       ServiceRequestContext ctx, @Param String recipient, UpdateRecipientRequest request) {
-    return recipients.update(
-        ProviderTokenDecorator.user(ctx), recipient, request, activationBaseUrl);
+    return recipients.update(ProviderTokenDecorator.user(ctx), recipient, request);
   }
 
   /** {@code DELETE /recipients/{recipient}}: deletes the recipient and its tokens. Owner only. */
@@ -97,7 +89,6 @@ public final class RecipientAdminService {
   @StatusCode(201)
   public IssuedTokenResponse rotateToken(
       ServiceRequestContext ctx, @Param String recipient, RotateTokenRequest request) {
-    return recipients.rotateToken(
-        ProviderTokenDecorator.user(ctx), recipient, request, activationBaseUrl);
+    return recipients.rotateToken(ProviderTokenDecorator.user(ctx), recipient, request);
   }
 }

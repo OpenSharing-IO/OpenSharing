@@ -21,6 +21,8 @@ import io.opensharing.share.SharePermissionEntity;
 import io.opensharing.share.SharePermissionStore;
 import io.opensharing.share.ShareService;
 import io.opensharing.share.ShareStore;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 
 /**
@@ -31,14 +33,26 @@ import java.util.List;
 public final class OpenSharing {
 
   private final CatalogConnector catalog;
+  private final String protocolBasePath;
+  private final String activationBasePath;
   private final ShareService shares;
   private final RecipientService recipients;
   private final ProtocolShares protocolShares;
   private final ProtocolSchemas protocolSchemas;
   private final ProtocolTables protocolTables;
 
-  private OpenSharing(CatalogConnector catalog, String serverId, Transactions tx) {
+  private OpenSharing(
+      CatalogConnector catalog,
+      String serverId,
+      Transactions tx,
+      String publicUrl,
+      String protocolBasePath,
+      String activationBasePath) {
     this.catalog = catalog;
+    this.protocolBasePath = protocolBasePath;
+    this.activationBasePath = activationBasePath;
+    String profileEndpoint = publicUrl + protocolBasePath;
+    String activationBaseUrl = publicUrl + activationBasePath;
     ShareStore shareStore = new ShareStore(tx);
     SharedDataObjectStore objectStore = new SharedDataObjectStore(tx);
     SharePermissionStore permissionStore = new SharePermissionStore(tx);
@@ -46,7 +60,9 @@ public final class OpenSharing {
     this.shares =
         new ShareService(
             catalog, serverId, tx, shareStore, objectStore, permissionStore, recipientStore);
-    this.recipients = new RecipientService(catalog, serverId, recipientStore);
+    this.recipients =
+        new RecipientService(
+            catalog, serverId, recipientStore, activationBaseUrl, profileEndpoint);
     this.protocolShares = new ProtocolShares(shareStore, permissionStore);
     this.protocolSchemas = new ProtocolSchemas(protocolShares, objectStore);
     DeltaKernel kernel = new DeltaKernel(catalog);
@@ -87,6 +103,16 @@ public final class OpenSharing {
     return recipients;
   }
 
+  /** The path under which the sharing protocol is served. */
+  public String protocolBasePath() {
+    return protocolBasePath;
+  }
+
+  /** The unauthenticated path under which recipients redeem activation codes. */
+  public String activationBasePath() {
+    return activationBasePath;
+  }
+
   /** The shares recipients see through the sharing protocol. */
   public ProtocolShares protocolShares() {
     return protocolShares;
@@ -107,6 +133,9 @@ public final class OpenSharing {
     private CatalogConnector catalog;
     private String serverId;
     private Transactions transactions;
+    private String publicUrl;
+    private String protocolBasePath = "/api/1.0/opensharing";
+    private String activationBasePath = "/api/1.0/opensharing/activations";
 
     private Builder() {}
 
@@ -136,6 +165,24 @@ public final class OpenSharing {
       return this;
     }
 
+    /** The absolute address recipients use to reach the host (required). */
+    public Builder publicUrl(String publicUrl) {
+      this.publicUrl = publicUrl;
+      return this;
+    }
+
+    /** The path under which the sharing protocol is served. */
+    public Builder protocolBasePath(String protocolBasePath) {
+      this.protocolBasePath = protocolBasePath;
+      return this;
+    }
+
+    /** The unauthenticated path under which recipients redeem activation codes. */
+    public Builder activationBasePath(String activationBasePath) {
+      this.activationBasePath = activationBasePath;
+      return this;
+    }
+
     public OpenSharing build() {
       if (catalog == null) {
         throw new IllegalStateException("OpenSharing requires a CatalogConnector from the host");
@@ -143,7 +190,38 @@ public final class OpenSharing {
       if (transactions == null) {
         throw new IllegalStateException("OpenSharing requires Transactions from the host");
       }
-      return new OpenSharing(catalog, serverId, transactions);
+      String normalizedPublicUrl = normalizePublicUrl(publicUrl);
+      return new OpenSharing(
+          catalog,
+          serverId,
+          transactions,
+          normalizedPublicUrl,
+          protocolBasePath,
+          activationBasePath);
+    }
+
+    private static String normalizePublicUrl(String value) {
+      if (value == null || value.isBlank()) {
+        throw new IllegalArgumentException(
+            "publicUrl is required; set it to the address recipients reach this server at");
+      }
+      String url = value.trim();
+      URI uri;
+      try {
+        uri = new URI(url);
+      } catch (URISyntaxException e) {
+        uri = null;
+      }
+      if (uri == null
+          || !("http".equalsIgnoreCase(uri.getScheme())
+              || "https".equalsIgnoreCase(uri.getScheme()))
+          || uri.getHost() == null
+          || uri.getRawQuery() != null
+          || uri.getRawFragment() != null) {
+        throw new IllegalArgumentException(
+            "invalid value '" + value + "' for publicUrl; expected an http or https URL");
+      }
+      return url.replaceAll("/+$", "");
     }
   }
 }

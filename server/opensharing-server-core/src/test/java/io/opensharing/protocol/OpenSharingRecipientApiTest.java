@@ -35,15 +35,15 @@ class OpenSharingRecipientApiTest {
       port = socket.getLocalPort();
     }
     ServerBuilder builder = Server.builder().http(port);
-    OpenSharingRecipientApi.mount(
-        builder.virtualHost(port),
-        "http://127.0.0.1:" + port,
-        "/sharing",
-        "/sharing/activations",
+    OpenSharing openSharing =
         OpenSharing.builder()
             .catalog(new UnusedCatalog())
             .transactions(new UnusedDatabase())
-            .build());
+            .publicUrl("http://127.0.0.1:" + port)
+            .protocolBasePath("/sharing")
+            .activationBasePath("/sharing/activations")
+            .build();
+    OpenSharingRecipientApi.mount(builder.virtualHost(port), openSharing);
     Server server = builder.build();
     server.start().join();
     try {

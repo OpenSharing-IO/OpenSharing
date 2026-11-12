@@ -73,6 +73,9 @@ public final class OpenSharingServer implements AutoCloseable {
               .catalog(catalog)
               .serverId(serverId)
               .transactions(transactions)
+              .publicUrl(publicUrl)
+              .protocolBasePath(properties.get(Property.PROTOCOL_BASE_PATH))
+              .activationBasePath(properties.get(Property.ACTIVATION_BASE_PATH))
               .build();
       ApiExceptionHandler errors = new ApiExceptionHandler();
       HttpService notFound =
@@ -100,15 +103,8 @@ public final class OpenSharingServer implements AutoCloseable {
           providerPath,
           providerToken,
           errors,
-          new RecipientAdminService(
-              openSharing.recipients(),
-              publicUrl + properties.get(Property.ACTIVATION_BASE_PATH)));
-      OpenSharingRecipientApi.mount(
-          builder.defaultVirtualHost(),
-          publicUrl,
-          properties.get(Property.PROTOCOL_BASE_PATH),
-          properties.get(Property.ACTIVATION_BASE_PATH),
-          openSharing);
+          new RecipientAdminService(openSharing.recipients()));
+      OpenSharingRecipientApi.mount(builder.defaultVirtualHost(), openSharing);
       Server server = builder.build();
       try {
         server.start().join();

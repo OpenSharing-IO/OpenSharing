@@ -18,15 +18,9 @@ import io.opensharing.recipient.RecipientService;
 public final class ActivationService {
 
   private final RecipientService recipients;
-  private final String endpoint;
 
-  /**
-   * @param endpoint the absolute URL the host serves the sharing protocol under, on the address
-   *     recipients reach it at, which profile files point recipients to
-   */
-  public ActivationService(RecipientService recipients, String endpoint) {
+  public ActivationService(RecipientService recipients) {
     this.recipients = recipients;
-    this.endpoint = endpoint;
   }
 
   /**
@@ -41,6 +35,6 @@ public final class ActivationService {
             .add(HttpHeaderNames.CONTENT_DISPOSITION, "attachment; filename=\"config.share\"")
             .add(HttpHeaderNames.CACHE_CONTROL, "no-store")
             .build(),
-        recipients.activate(code, endpoint));
+        recipients.activate(code));
   }
 }

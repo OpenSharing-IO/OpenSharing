@@ -29,8 +29,8 @@ import java.util.UUID;
  * activation code itself is the credential. {@link #authenticate} checks the bearer tokens
  * recipients then present.
  *
- * <p>{@code activationBaseUrl} is the absolute URL recipient activation links are built under, such
- * as {@code https://host/api/1.0/opensharing/activations}; the host knows its own address.
+ * <p>OpenSharing captures the host's public address when it is built, so every activation link and
+ * profile endpoint uses the same configured host.
  */
 public class RecipientService {
 
@@ -50,20 +50,28 @@ public class RecipientService {
   private final CatalogConnector catalog;
   private final String serverId;
   private final RecipientStore recipients;
+  private final String activationBaseUrl;
+  private final String profileEndpoint;
   private final SecureRandom random = new SecureRandom();
 
-  public RecipientService(CatalogConnector catalog, String serverId, RecipientStore recipients) {
+  public RecipientService(
+      CatalogConnector catalog,
+      String serverId,
+      RecipientStore recipients,
+      String activationBaseUrl,
+      String profileEndpoint) {
     this.catalog = catalog;
     this.serverId = serverId;
     this.recipients = recipients;
+    this.activationBaseUrl = activationBaseUrl;
+    this.profileEndpoint = profileEndpoint;
   }
 
   /**
    * Creates a recipient owned by the caller, who needs CREATE_RECIPIENT from the catalog, with a
    * new activation code.
    */
-  public RecipientResponse create(
-      UserContext user, CreateRecipientRequest request, String activationBaseUrl) {
+  public RecipientResponse create(UserContext user, CreateRecipientRequest request) {
     // The host has already authenticated the caller. A host that also checks CREATE_RECIPIENT at
     // its endpoint can make this a no-op.
     catalog.authorize(new AuthContext(serverId, user), Privilege.CREATE_RECIPIENT);
@@ -80,7 +88,7 @@ public class RecipientService {
             request.authenticationType(),
             UUID.randomUUID().toString(),
             expiresAt);
-    return toResponse(recipient, activationBaseUrl);
+    return toResponse(recipient);
   }
 
   /**
@@ -88,12 +96,12 @@ public class RecipientService {
    * caller's own.
    */
   public ListResponse<RecipientResponse> list(
-      UserContext user, Integer maxResults, String pageToken, String activationBaseUrl) {
+      UserContext user, Integer maxResults, String pageToken) {
     Pagination.Slice<RecipientEntity> slice =
         holds(user, Privilege.USE_RECIPIENT)
             ? recipients::list
             : (offset, limit) -> recipients.listOwnedBy(user.userId(), offset, limit);
-    return Pagination.page(maxResults, pageToken, slice, r -> toResponse(r, activationBaseUrl));
+    return Pagination.page(maxResults, pageToken, slice, this::toResponse);
   }
 
   /**
@@ -101,19 +109,17 @@ public class RecipientService {
    * recipient which ones the caller may see. The host must filter each page before returning it,
    * since unused activation links are in it.
    */
-  public ListResponse<RecipientResponse> listAll(
-      Integer maxResults, String pageToken, String activationBaseUrl) {
-    return Pagination.page(
-        maxResults, pageToken, recipients::list, r -> toResponse(r, activationBaseUrl));
+  public ListResponse<RecipientResponse> listAll(Integer maxResults, String pageToken) {
+    return Pagination.page(maxResults, pageToken, recipients::list, this::toResponse);
   }
 
   /** Gets a recipient by name in any case. Owner or USE_RECIPIENT. */
-  public RecipientResponse get(UserContext user, String recipient, String activationBaseUrl) {
+  public RecipientResponse get(UserContext user, String recipient) {
     RecipientEntity entity = recipients.getOrThrow(recipient);
     if (!Ownership.owns(user, entity.getOwnerId())) {
       catalog.authorize(new AuthContext(serverId, user), Privilege.USE_RECIPIENT);
     }
-    return toResponse(entity, activationBaseUrl);
+    return toResponse(entity);
   }
 
   /**
@@ -122,10 +128,7 @@ public class RecipientService {
    * caller.
    */
   public RecipientResponse update(
-      UserContext user,
-      String recipient,
-      UpdateRecipientRequest request,
-      String activationBaseUrl) {
+      UserContext user, String recipient, UpdateRecipientRequest request) {
     RecipientEntity existing = recipients.getOrThrow(recipient);
     String newOwnerId = request.ownerId();
     boolean transfers = newOwnerId != null;
@@ -136,8 +139,7 @@ public class RecipientService {
       Ownership.check(user, existing.getOwnerId(), "recipient '" + existing.getName() + "'");
     }
     String comment = validateComment(request.comment());
-    return toResponse(
-        recipients.update(user, recipient, comment, newOwnerId, transfers), activationBaseUrl);
+    return toResponse(recipients.update(user, recipient, comment, newOwnerId, transfers));
   }
 
   /** Deletes the recipient, its tokens and its permissions. Owner only. */
@@ -150,7 +152,7 @@ public class RecipientService {
    * grace window, immediately unless the request sets one. Owner only.
    */
   public IssuedTokenResponse rotateToken(
-      UserContext user, String recipient, RotateTokenRequest request, String activationBaseUrl) {
+      UserContext user, String recipient, RotateTokenRequest request) {
     Long graceSeconds = request.existingTokenExpireInSeconds();
     if (graceSeconds != null && graceSeconds < 0) {
       throw ApiException.invalidParameter("existingTokenExpireInSeconds must not be negative");
@@ -165,15 +167,17 @@ public class RecipientService {
 
   /**
    * Redeems the activation code into a profile file with a new bearer token, stored only as a
-   * hash. Fails with not-found when the code is unknown, already redeemed, or expired. {@code
-   * endpoint} is the absolute URL the host serves the sharing protocol under.
+   * hash. Fails with not-found when the code is unknown, already redeemed, or expired.
    */
-  public ProfileFile activate(String code, String endpoint) {
+  public ProfileFile activate(String code) {
     String bearer = newBearer();
     RecipientTokenEntity token =
         recipients.activate(code, TokenHashes.sha256(bearer), Instant.now());
     return new ProfileFile(
-        SHARE_CREDENTIALS_VERSION, bearer, endpoint, EXPIRATION_TIME.format(token.getExpiresAt()));
+        SHARE_CREDENTIALS_VERSION,
+        bearer,
+        profileEndpoint,
+        EXPIRATION_TIME.format(token.getExpiresAt()));
   }
 
   /**
@@ -226,7 +230,7 @@ public class RecipientService {
     }
   }
 
-  private RecipientResponse toResponse(RecipientEntity recipient, String activationBaseUrl) {
+  private RecipientResponse toResponse(RecipientEntity recipient) {
     String code = recipients.findActivationCode(recipient);
     return RecipientResponse.from(recipient, code == null ? null : activationBaseUrl + "/" + code);
   }
