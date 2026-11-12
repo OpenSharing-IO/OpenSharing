@@ -10,6 +10,7 @@ from typing import Any
 
 ALLOWED_SEVERITIES = {"low", "medium", "high", "critical"}
 BLOCKING_SEVERITIES = {"medium", "high", "critical"}
+CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
 SENSITIVE_PATH_PATTERNS = (
     re.compile(r"^\.github(?:/|$)", re.IGNORECASE),
     re.compile(r"^spec(?:/|$)", re.IGNORECASE),
@@ -186,9 +187,18 @@ def _decision(
         description = f"{prefix}: {reasons[0]}" if reasons else prefix
     return {
         "state": state,
-        "description": description[:140],
+        # Reasons can quote changed file names, which the PR author controls and
+        # which may hold newlines; a newline would inject a line into GITHUB_OUTPUT.
+        "description": " ".join(CONTROL_CHARACTERS.sub(" ", description).split())[:140],
         "reasons": reasons,
     }
+
+
+def write_github_output(path: pathlib.Path, decision: dict[str, Any]) -> None:
+    with path.open("a") as output:
+        output.write(f"description={decision['description']}\n")
+        # Last, so nothing written before it can override the state.
+        output.write(f"state={decision['state']}\n")
 
 
 def main() -> None:
@@ -209,9 +219,7 @@ def main() -> None:
 
     print(json.dumps(decision, sort_keys=True))
     if args.github_output:
-        with args.github_output.open("a") as output:
-            output.write(f"state={decision['state']}\n")
-            output.write(f"description={decision['description']}\n")
+        write_github_output(args.github_output, decision)
 
 
 if __name__ == "__main__":

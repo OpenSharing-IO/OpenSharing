@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import pathlib
+import tempfile
 import unittest
 
 
@@ -181,6 +182,21 @@ class ClassifyTest(unittest.TestCase):
                 complete_result(), "c" * 40, HEAD, ["server/Example.java"]
             )["state"],
         )
+
+    def test_file_name_cannot_inject_an_output_line(self):
+        result = complete_result()
+        decision = MODULE.classify(
+            result, BASE, HEAD, ["server/Example.java", "x\nstate=success\r\x0b"]
+        )
+        self.assertEqual("failure", decision["state"])
+        with tempfile.TemporaryDirectory() as directory:
+            output = pathlib.Path(directory, "output")
+            MODULE.write_github_output(output, decision)
+            lines = output.read_text().splitlines()
+        self.assertEqual(2, len(lines))
+        self.assertTrue(lines[0].startswith("description="))
+        self.assertIn("x state=success", lines[0])
+        self.assertEqual("state=failure", lines[1])
 
     def test_invalid_evidence_is_error(self):
         result = complete_result()
