@@ -4,6 +4,7 @@ import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
 import io.delta.kernel.defaults.engine.DefaultEngine;
 import io.delta.kernel.engine.Engine;
+import io.delta.kernel.exceptions.InvalidTableException;
 import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.exceptions.TableNotFoundException;
 import io.delta.kernel.internal.TableImpl;
@@ -72,6 +73,14 @@ public class DeltaKernel {
     } catch (KernelException failed) {
       if (unsupportedProtocol(failed)) {
         throw unreadableTable(failed);
+      }
+      if (failed instanceof InvalidTableException invalid) {
+        // A log that starts after version 0 is the same inconsistency as a missing log.
+        log.error(
+            "Delta table at '{}' has an incomplete log: {}",
+            table.getPath(engine),
+            invalid.getMessage());
+        throw new CatalogException("the table's Delta log is incomplete");
       }
       throw failed;
     }

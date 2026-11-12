@@ -18,8 +18,9 @@ import org.junit.jupiter.api.io.TempDir;
  * {@code main.ops.events} with 2 commits and no data files. Commit {@code n} of each table is
  * timestamped 2024-01-01T00:00:00Z plus {@code n} hours. Table {@code t} has metadata id {@code t}
  * and one {@code long} column, {@code id}. {@code main.lake.unwritten} is a Delta table with no
- * log, {@code main.lake.raw} has no format, and {@code main.lake.future} requires a reader feature
- * Kernel does not know.
+ * log, {@code main.lake.raw} has no format, {@code main.lake.future} requires a reader feature
+ * Kernel does not know, and {@code main.lake.gapped} has a log that starts at version 1, so its
+ * first commit is missing.
  */
 abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
 
@@ -51,6 +52,7 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
     write(
         "future/_delta_log/%020d.json".formatted(0),
         FUTURE_PROTOCOL_ACTION + METADATA_ACTION.formatted("future"));
+    appendCommit("gapped", 1);
     String catalog =
         """
         principals:
@@ -101,6 +103,11 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
               subtype: MANAGED
             storageLocation: %s
             format: delta
+          - identifier: main.lake.gapped
+            attributes:
+              subtype: MANAGED
+            storageLocation: %s
+            format: delta
         """
             .formatted(
                 orders,
@@ -109,7 +116,8 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
                 events,
                 location("unwritten"),
                 location("raw"),
-                location("future"));
+                location("future"),
+                location("gapped"));
     Properties properties = new Properties();
     properties.setProperty("catalog.local.file", write("local-catalog.yml", catalog).toString());
     restartServer(properties);

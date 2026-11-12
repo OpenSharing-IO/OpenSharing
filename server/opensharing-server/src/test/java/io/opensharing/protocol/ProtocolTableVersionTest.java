@@ -64,6 +64,7 @@ class ProtocolTableVersionTest extends LocalDeltaTableSupport {
     addObject("unreadable-version", "TABLE", "main.lake.unwritten", "lake.unwritten");
     addObject("unreadable-version", "TABLE", "main.lake.raw", "lake.raw");
     addObject("unreadable-version", "TABLE", "main.lake.future", "lake.future");
+    addObject("unreadable-version", "TABLE", "main.lake.gapped", "lake.gapped");
     String bearer = createAndActivateRecipient("unreadable-version-partner");
     grant("unreadable-version", "unreadable-version-partner");
     String lake = PROTOCOL + "/shares/unreadable-version/schemas/lake/tables/";
@@ -72,6 +73,10 @@ class ProtocolTableVersionTest extends LocalDeltaTableSupport {
     Response unwritten = version(lake + "unwritten/version", bearer, null);
     assertEquals(502, unwritten.status());
     assertEquals(ErrorCodes.CATALOG_ERROR, unwritten.errorCode());
+    // A log without its first commit is inconsistent in the same way.
+    Response gapped = version(lake + "gapped/version", bearer, null);
+    assertEquals(502, gapped.status());
+    assertEquals(ErrorCodes.CATALOG_ERROR, gapped.errorCode());
     Response raw = version(lake + "raw/version", bearer, null);
     assertEquals(400, raw.status());
     assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, raw.errorCode());
