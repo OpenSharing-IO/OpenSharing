@@ -165,7 +165,10 @@ public final class OpenSharing {
       return this;
     }
 
-    /** The absolute address recipients use to reach the host (required). */
+    /**
+     * The address recipients reach the host at, such as {@code https://sharing.example.com}
+     * (required). Activation links and profile files point recipients to it.
+     */
     public Builder publicUrl(String publicUrl) {
       this.publicUrl = publicUrl;
       return this;

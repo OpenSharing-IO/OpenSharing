@@ -18,12 +18,15 @@ public final class OpenSharingRecipientApi {
   private OpenSharingRecipientApi() {}
 
   /**
-   * Serves the paths configured on {@code openSharing}; hosts may use their own authentication for
-   * provider endpoints while these recipient endpoints retain OpenSharing's token handling.
+   * Serves the sharing protocol under {@code openSharing}'s protocol base path, behind recipient
+   * bearer tokens, and recipient activation under its activation base path, behind none. Both bring
+   * their own JSON converters and error handling, which take precedence over the host's
+   * server-wide ones.
    *
-   * @param host the virtual host serving these endpoints. Use {@link
-   *     ServerBuilder#defaultVirtualHost()} on a server without virtual hosts.
-   * @param openSharing the OpenSharing instance whose paths and services are served
+   * @param host the virtual host that serves the host's API: {@link
+   *     ServerBuilder#defaultVirtualHost()} on a server without virtual hosts. A request on a port
+   *     with a port-based virtual host is not served from the default one.
+   * @param openSharing the instance whose paths and public URL the endpoints are served with
    */
   public static void mount(VirtualHostBuilder host, OpenSharing openSharing) {
     ApiExceptionHandler errors = ApiExceptionHandler.forRecipients();
