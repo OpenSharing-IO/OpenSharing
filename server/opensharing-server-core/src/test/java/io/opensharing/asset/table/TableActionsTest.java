@@ -133,7 +133,10 @@ class TableActionsTest {
                 Optional.empty(),
                 Optional.empty(),
                 Optional.empty()));
-    String addJson = JsonUtils.rowToJson(add.toRow());
+    // An add carries its tags redacted to an empty object.
+    String addJson =
+        JsonUtils.rowToJson(add.toRow())
+            .replaceFirst("\\}$", ",\"tags\":{}}");
     assertEquals(
         """
         {"file":{"id":"file-1","expirationTimestamp":1652140800000,"deltaSingleAction":{"add":%s}}}
@@ -152,7 +155,9 @@ class TableActionsTest {
     AddFile signed =
         TableActions.withPath(
             addWithDv, "https://example.invalid/part.parquet", "https://example.invalid/dv.bin");
-    String signedJson = JsonUtils.rowToJson(signed.toRow());
+    String signedJson =
+        JsonUtils.rowToJson(signed.toRow())
+            .replaceFirst("\\}$", ",\"tags\":{}}");
     assertTrue(signedJson.contains("\"storageType\":\"p\""));
     assertTrue(signedJson.contains("https://example.invalid/dv.bin"));
     assertEquals(

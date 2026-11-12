@@ -17,9 +17,10 @@ import org.junit.jupiter.api.io.TempDir;
  * main.sales.customers} with 1, and {@code main.hr.salaries} with 4, each adding one data file, and
  * {@code main.ops.events} with 2 commits and no data files. Commit {@code n} of each table is
  * timestamped 2024-01-01T00:00:00Z plus {@code n} hours. Table {@code t} has metadata id {@code t}
- * and one {@code long} column, {@code id}. {@code main.lake.unwritten} is a Delta table with no
- * log, {@code main.lake.raw} has no format, and {@code main.lake.future} requires a reader feature
- * Kernel does not know.
+ * and one {@code long} column, {@code id}. {@code main.sales.orders} also has a checksum file for
+ * its latest version, so its metaData carries the table size and file count. {@code
+ * main.lake.unwritten} is a Delta table with no log, {@code main.lake.raw} has no format, and
+ * {@code main.lake.future} requires a reader feature Kernel does not know.
  */
 abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
 
@@ -27,11 +28,12 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
 
   private static final String PROTOCOL_ACTION =
       "{\"protocol\":{\"minReaderVersion\":1,\"minWriterVersion\":2}}\n";
-  private static final String METADATA_ACTION =
-      "{\"metaData\":{\"id\":\"%s\",\"format\":{\"provider\":\"parquet\",\"options\":{}},"
+  private static final String METADATA_BODY =
+      "{\"id\":\"%s\",\"format\":{\"provider\":\"parquet\",\"options\":{}},"
           + "\"schemaString\":\"{\\\"type\\\":\\\"struct\\\",\\\"fields\\\":[{\\\"name\\\":"
           + "\\\"id\\\",\\\"type\\\":\\\"long\\\",\\\"nullable\\\":true,\\\"metadata\\\":{}}]}\","
-          + "\"partitionColumns\":[],\"configuration\":{},\"createdTime\":0}}\n";
+          + "\"partitionColumns\":[],\"configuration\":{},\"createdTime\":0}";
+  private static final String METADATA_ACTION = "{\"metaData\":" + METADATA_BODY + "}\n";
   private static final String ADD_ACTION =
       "{\"add\":{\"path\":\"part-%d.parquet\",\"partitionValues\":{},\"size\":1,"
           + "\"modificationTime\":0,\"dataChange\":true}}\n";
@@ -132,7 +134,27 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
     for (int version = 0; version < commits; version++) {
       writeCommit(name, version, files);
     }
+    if (name.equals("orders")) {
+      for (int version = 1; version < commits; version++) {
+        write(
+            name + "/_delta_log/%020d.crc".formatted(version),
+            checksum(name, version, version + 1));
+      }
+    }
     return location(name);
+  }
+
+  /**
+   * The checksum file Kernel reads for version {@code version} of a table whose every commit
+   * added one one-byte file: the size and count after {@code version} commits, and the version's
+   * metaData and protocol.
+   */
+  private static String checksum(String name, int version, int numFiles) {
+    return ("{\"tableSizeBytes\":%d,\"numFiles\":%d,\"numMetadata\":1,\"numProtocol\":1,"
+            + "\"metadata\":"
+            + METADATA_BODY.formatted(name)
+            + ",\"protocol\":{\"minReaderVersion\":1,\"minWriterVersion\":2}}")
+        .formatted(numFiles, numFiles);
   }
 
   /** Appends commit {@code version}, with no data file, to the log of table {@code name}. */

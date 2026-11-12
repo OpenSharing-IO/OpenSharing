@@ -136,7 +136,7 @@ public class DeltaTableQueryReader {
     if (version != null && timestamp != null) {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
-    // A time-travel query reports the snapshot version in metaData and on every file.
+    // A version or timestamp query reports the snapshot version and timestamp on every file.
     boolean historical = version != null || timestamp != null;
     // A refresh token pins the version it was issued for without making the query historical.
     if (refreshToken != null) {
@@ -148,11 +148,14 @@ public class DeltaTableQueryReader {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
       out.requireReaderFeatures(impl.getProtocol());
+      // Files of a version or timestamp query carry the snapshot's version and timestamp in
+      // the Delta Sharing order, latest-snapshot files carry neither, and metaData carries no
+      // version - the queried version is only in the Delta-Table-Version header.
       Long fileVersion = historical ? snapshot.getVersion() : null;
       Long fileTimestamp = historical ? snapshot.getTimestamp(session.engine()) : null;
       out.begin(snapshot.getVersion());
       out.protocol(impl.getProtocol(), null);
-      out.metadata(impl.getMetadata(), fileVersion, DeltaSnapshots.crcFor(impl));
+      out.metadata(impl.getMetadata(), null, DeltaSnapshots.crcFor(impl));
 
       long numRecords = 0;
       ScanBuilder builder = snapshot.getScanBuilder();
@@ -332,7 +335,15 @@ public class DeltaTableQueryReader {
                   && header.getVersion() == range.start()
               ? header.getVersion()
               : null);
-      out.metadata(header.getMetadata(), header.getVersion(), DeltaSnapshots.crcFor(header));
+      // A data-change response's head metaData is the starting version's, with its checksum's
+      // size and file count. A Change Data Feed's head metaData carries a version only for
+      // includeHistoricalMetadata, and never size or numFiles.
+      out.metadata(
+          header.getMetadata(),
+          range.changeDataFeed() && !range.includeHistoricalMetadata()
+              ? null
+              : header.getVersion(),
+          range.changeDataFeed() ? null : DeltaSnapshots.crcFor(header));
       try {
         for (FileStatus file : commitFiles) {
           if (range.changeDataFeed()) {
@@ -540,7 +551,11 @@ public class DeltaTableQueryReader {
       sink.line(TableActions.protocol(protocol, version, format));
     }
 
-    /** {@code crc} supplies the table size and file count; null omits them. */
+    /**
+     * {@code version} is null for a snapshot or metadata response, the starting version for a data
+     * change one, and the historical metaData's version for a Change Data Feed one. {@code crc}
+     * supplies the table size and file count; null omits them.
+     */
     void metadata(Metadata metadata, Long version, CRCInfo crc) {
       sink.line(
           TableActions.metadata(

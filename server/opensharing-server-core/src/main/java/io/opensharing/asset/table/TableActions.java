@@ -19,6 +19,7 @@ import io.delta.kernel.internal.util.VectorUtils;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.catalog.ResolvedAsset;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,7 +149,7 @@ public final class TableActions {
         expirationTimestamp,
         version,
         timestamp,
-        new DeltaSingleAction(add.toRow(), null, null));
+        new DeltaSingleAction(withRedactedTags(add.toRow()), null, null));
   }
 
   /** {@code action} is the add, remove, or cdc row; {@code type} picks its action key. */
@@ -167,9 +168,10 @@ public final class TableActions {
         version,
         timestamp,
         switch (type) {
-          case ADD -> new DeltaSingleAction(action, null, null);
-          case REMOVE -> new DeltaSingleAction(null, action, null);
-          case CDC -> new DeltaSingleAction(null, null, withDataChangeFalse(action));
+          case ADD -> new DeltaSingleAction(withRedactedTags(action), null, null);
+          case REMOVE -> new DeltaSingleAction(null, withoutTags(action), null);
+          case CDC ->
+              new DeltaSingleAction(null, null, withDataChangeFalse(withRedactedTags(action)));
         });
   }
 
@@ -181,6 +183,47 @@ public final class TableActions {
   private static Row withDataChangeFalse(Row action) {
     int ordinal = action.getSchema().indexOf("dataChange");
     return ordinal < 0 ? action : new DelegateRow(action, Map.of(ordinal, false));
+  }
+
+  /**
+   * Redacts a file action's tags to an empty map, as Delta Sharing serves them: tags carry
+   * customer information the recipient does not need.
+   */
+  private static Row withRedactedTags(Row action) {
+    int ordinal = action.getSchema().indexOf("tags");
+    return ordinal < 0
+        ? action
+        : new DelegateRow(action, Map.of(ordinal, VectorUtils.stringStringMapValue(Map.of())));
+  }
+
+  /**
+   * Drops a file action's tags: Delta Sharing's remove model has no tags field, so its remove
+   * responses never carry them.
+   */
+  private static Row withoutTags(Row action) {
+    int ordinal = action.getSchema().indexOf("tags");
+    return ordinal < 0
+        ? action
+        : new DelegateRow(action, Collections.singletonMap(ordinal, null));
+  }
+
+  /**
+   * A metaData's format writes its provider and its options, empty when the log omits them, as
+   * Delta Sharing's format model does.
+   */
+  private static Row withFormatOptions(Row metadataRow) {
+    int formatOrdinal = metadataRow.getSchema().indexOf("format");
+    if (formatOrdinal < 0 || metadataRow.isNullAt(formatOrdinal)) {
+      return metadataRow;
+    }
+    Row format = metadataRow.getStruct(formatOrdinal);
+    int optionsOrdinal = format.getSchema().indexOf("options");
+    if (optionsOrdinal < 0 || !format.isNullAt(optionsOrdinal)) {
+      return metadataRow;
+    }
+    Row formatWithOptions =
+        new DelegateRow(format, Map.of(optionsOrdinal, VectorUtils.stringStringMapValue(Map.of())));
+    return new DelegateRow(metadataRow, Map.of(formatOrdinal, formatWithOptions));
   }
 
   private static String deltaFile(
@@ -274,7 +317,7 @@ public final class TableActions {
       if (value instanceof Protocol protocol) {
         row = protocol.toRow();
       } else if (value instanceof Metadata metadata) {
-        row = metadata.toRow();
+        row = withFormatOptions(metadata.toRow());
       } else if (value instanceof Row action) {
         row = action;
       } else {

@@ -51,6 +51,10 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
     assertTrue(metaData.path("configuration").isObject());
     assertEquals(0, metaData.path("configuration").size());
 
+    // The checksum's table size and file count are returned while the snapshot has them.
+    assertEquals(3, metaData.path("size").asLong());
+    assertEquals(3, metaData.path("numFiles").asLong());
+
     // responseformat=delta wraps Kernel protocol and metadata as deltaProtocol/deltaMetadata.
     Response delta = metadata(orders, bearer, "responseformat=delta");
     assertEquals(200, delta.status());
@@ -69,15 +73,29 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
     assertEquals(200, unknown.status());
     assertEquals("responseformat=delta", unknown.headers().get("delta-sharing-capabilities"));
 
-    // A historical version or timestamp is echoed in metaData.version.
+    // metaData carries no version even for a historical query; the
+    // snapshot version is only in the Delta-Table-Version header. Size and numFiles stay.
     Response atVersion = metadata(orders + "?version=1", bearer, null);
     assertEquals(200, atVersion.status());
     assertEquals("1", atVersion.headers().get("Delta-Table-Version"));
-    assertEquals(1, lines(atVersion).get(1).path("metaData").path("version").asLong());
+    JsonNode atVersionMetadata = lines(atVersion).get(1).path("metaData");
+    assertTrue(atVersionMetadata.path("version").isMissingNode());
+    assertEquals(2, atVersionMetadata.path("size").asLong());
+    assertEquals(2, atVersionMetadata.path("numFiles").asLong());
     String salaries = PROTOCOL + "/shares/table-metadata/schemas/hr/tables/SALARIES/metadata";
     Response atTimestamp = metadata(salaries + "?timestamp=2024-01-01T01:30:00Z", bearer, null);
     assertEquals(200, atTimestamp.status());
     assertEquals("1", atTimestamp.headers().get("Delta-Table-Version"));
+    assertTrue(lines(atTimestamp).get(1).path("metaData").path("version").isMissingNode());
+
+    // A snapshot without a checksum carries neither size nor numFiles.
+    String events = PROTOCOL + "/shares/table-metadata/schemas/ops/tables/EVENTS/metadata";
+    addObject("table-metadata", "TABLE", "main.ops.events", "ops.events");
+    Response withoutChecksum = metadata(events, bearer, null);
+    assertEquals(200, withoutChecksum.status());
+    JsonNode withoutChecksumMetadata = lines(withoutChecksum).get(1).path("metaData");
+    assertTrue(withoutChecksumMetadata.path("size").isMissingNode());
+    assertTrue(withoutChecksumMetadata.path("numFiles").isMissingNode());
 
     assertInvalid(metadata(orders + "?version=9", bearer, null));
     assertInvalid(metadata(orders + "?version=1&timestamp=2024-01-01T01:30:00Z", bearer, null));

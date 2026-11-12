@@ -148,6 +148,25 @@ class DeltaTableQueryReaderTest {
   }
 
   @Test
+  void historicalFilesCarryVersionAndTimestampAndLatestFilesNeither() {
+    // A latest snapshot's files carry neither a version nor a timestamp, in either format.
+    String latest = ndjson(null, null);
+    assertFalse(latest.contains("\"version\""), latest);
+    assertFalse(latest.contains("\"timestamp\""), latest);
+    String latestDelta = ndjsonAt(null, "responseformat=delta");
+    assertFalse(latestDelta.contains("\"version\":"), latestDelta);
+    assertFalse(latestDelta.contains("\"timestamp\":"), latestDelta);
+
+    // A version query's files carry the version and its commit timestamp, in either format.
+    String atVersion = ndjsonAt(0L, null);
+    assertTrue(atVersion.contains("\"version\":0"), atVersion);
+    assertTrue(atVersion.contains("\"timestamp\":"), atVersion);
+    String deltaAtVersion = ndjsonAt(0L, "responseformat=delta");
+    assertTrue(deltaAtVersion.contains("\"version\":0"), deltaAtVersion);
+    assertTrue(deltaAtVersion.contains("\"timestamp\":"), deltaAtVersion);
+  }
+
+  @Test
   void startingVersionReturnsDataChangeFilesAndHistoricalMetadata() throws IOException {
     writeChanges();
     List<String> lines = changes(1L, 2L, null, false);
@@ -224,8 +243,12 @@ class DeltaTableQueryReaderTest {
   void changeDataFeedPrefersCdcFilesAndSkipsNoOpMerges() throws IOException {
     writeChangeDataFeed();
     List<String> lines = changeDataFeed(0L, null, 3L, null, null, false);
-    // Without includeHistoricalMetadata, protocol and metaData come from the latest version.
-    assertTrue(lines.get(1).contains("\"version\":4"), lines.get(1));
+    // Without includeHistoricalMetadata, protocol and metaData come from the latest version, and
+    // the metaData carries no version, size, or numFiles.
+    assertTrue(lines.get(1).contains("\"id\":\"t\""), lines.get(1));
+    assertFalse(lines.get(1).contains("\"version\""), lines.get(1));
+    assertFalse(lines.get(1).contains("\"size\""), lines.get(1));
+    assertFalse(lines.get(1).contains("\"numFiles\""), lines.get(1));
     assertEquals(
         List.of("add a 0", "add b 0", "cdf c 1", "remove b 2"),
         describe(lines.subList(2, lines.size())));
@@ -277,6 +300,41 @@ class DeltaTableQueryReaderTest {
     assertEquals(List.of("cdc c 1"), describe(delta.subList(2, delta.size())));
     // The override wins: a cdc action's dataChange is false whatever the commit wrote.
     assertFalse(parse(delta.get(2)).path("cdc").path("dataChange").asBoolean(), delta.get(2));
+  }
+
+  @Test
+  void changeDataFeedRedactsTagsPerActionKind() throws IOException {
+    // Commits whose add, remove, and cdc actions all carry tags. A commit with a cdc action
+    // returns only that, so the cdc action is written alone in its own commit.
+    writeChangeDataFeed();
+    Files.writeString(
+        dir.resolve("_delta_log/00000000000000000001.json"),
+        String.join(
+                "\n",
+                remove("a", "2021-01-01", true)
+                    .replace("\"size\":1}", "\"size\":1,\"tags\":{\"k\":\"v\"}}"),
+                add("d", "2021-01-01", 1, 10)
+                    .replace(
+                        "\"dataChange\":true,", "\"dataChange\":true,\"tags\":{\"k\":\"v\"},"))
+            + "\n");
+    Files.writeString(
+        dir.resolve("_delta_log/00000000000000000002.json"),
+        "{\"cdc\":{\"path\":\"_change_data/date=2021-01-01/c.parquet\","
+            + "\"partitionValues\":{\"date\":\"2021-01-01\"},\"size\":1,"
+            + "\"tags\":{\"k\":\"v\"}}}\n");
+    List<String> delta = changeDataFeed(1L, null, 1L, null, "responseformat=delta", false);
+    assertEquals(List.of("remove a 1", "add d 1"), describe(delta.subList(2, delta.size())));
+    // An add carries its tags redacted to an empty object; a remove, whose Delta Sharing model
+    // has no tags, carries none.
+    JsonNode addLine = parse(delta.get(3)).path("file").path("deltaSingleAction").path("add");
+    assertEquals("{}", addLine.path("tags").toString(), delta.get(3));
+    JsonNode removeLine = parse(delta.get(2)).path("file").path("deltaSingleAction").path("remove");
+    assertTrue(removeLine.has("path"), delta.get(2));
+    assertFalse(removeLine.has("tags"), delta.get(2));
+    List<String> cdc = changeDataFeed(2L, null, 2L, null, "responseformat=delta", false);
+    assertEquals(List.of("cdc c 2"), describe(cdc.subList(2, cdc.size())));
+    JsonNode cdcLine = parse(cdc.get(2)).path("file").path("deltaSingleAction").path("cdc");
+    assertEquals("{}", cdcLine.path("tags").toString(), cdc.get(2));
   }
 
   @Test
@@ -547,13 +605,23 @@ class DeltaTableQueryReaderTest {
   }
 
   private String ndjson(String jsonPredicateHints, Long limitHint) {
+    return ndjsonAt(null, null, jsonPredicateHints, limitHint);
+  }
+
+  /** The NDJSON of a snapshot query as of {@code version}, in the capabilities' format. */
+  private String ndjsonAt(Long version, String capabilities) {
+    return ndjsonAt(version, capabilities, null, null);
+  }
+
+  private String ndjsonAt(
+      Long version, String capabilities, String jsonPredicateHints, Long limitHint) {
     Lines lines = new Lines();
     reader.read(
         table,
         null,
-        new DeltaTableQueryReader.ResponseOptions(null, null, false),
+        new DeltaTableQueryReader.ResponseOptions(capabilities, null, false),
         lines,
-        null,
+        version,
         null,
         null,
         false,
