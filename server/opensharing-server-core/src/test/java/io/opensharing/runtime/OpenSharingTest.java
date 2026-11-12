@@ -47,6 +47,36 @@ class OpenSharingTest {
     assertEquals(
         "invalid value 'ftp://sharing.example.com' for publicUrl; expected an http or https URL",
         invalid.getMessage());
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> builder().publicUrl("https://user:secret@sharing.example.com").build());
+  }
+
+  @Test
+  void requiresBasePathsWithALeadingSlashAndDropsTrailingOnes() {
+    OpenSharing openSharing =
+        builder()
+            .publicUrl("https://sharing.example.com/")
+            .protocolBasePath("/sharing/")
+            .activationBasePath("/sharing/activations//")
+            .build();
+    assertEquals("/sharing", openSharing.protocolBasePath());
+    assertEquals("/sharing/activations", openSharing.activationBasePath());
+    IllegalArgumentException relative =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                builder().publicUrl("https://sharing.example.com").protocolBasePath("api").build());
+    assertEquals(
+        "invalid value 'api' for protocolBasePath; expected a path such as /api/1.0",
+        relative.getMessage());
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> builder().publicUrl("https://sharing.example.com").activationBasePath(null).build());
+  }
+
+  private static OpenSharing.Builder builder() {
+    return OpenSharing.builder().catalog(refusing(new ArrayList<>())).transactions(unused());
   }
 
   @Test

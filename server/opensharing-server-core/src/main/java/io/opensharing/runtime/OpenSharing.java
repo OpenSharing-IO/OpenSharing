@@ -193,14 +193,26 @@ public final class OpenSharing {
       if (transactions == null) {
         throw new IllegalStateException("OpenSharing requires Transactions from the host");
       }
-      String normalizedPublicUrl = normalizePublicUrl(publicUrl);
       return new OpenSharing(
           catalog,
           serverId,
           transactions,
-          normalizedPublicUrl,
-          protocolBasePath,
-          activationBasePath);
+          normalizePublicUrl(publicUrl),
+          normalizePath("protocolBasePath", protocolBasePath),
+          normalizePath("activationBasePath", activationBasePath));
+    }
+
+    /**
+     * The paths are appended to the public URL in activation links and profile files, and mounted
+     * as route prefixes, so each needs one leading slash and none trailing.
+     */
+    private static String normalizePath(String name, String value) {
+      String path = value == null ? "" : value.trim().replaceAll("/+$", "");
+      if (!path.startsWith("/") || path.contains("?") || path.contains("#")) {
+        throw new IllegalArgumentException(
+            "invalid value '" + value + "' for " + name + "; expected a path such as /api/1.0");
+      }
+      return path;
     }
 
     private static String normalizePublicUrl(String value) {
@@ -219,6 +231,8 @@ public final class OpenSharing {
           || !("http".equalsIgnoreCase(uri.getScheme())
               || "https".equalsIgnoreCase(uri.getScheme()))
           || uri.getHost() == null
+          // Userinfo would be copied into every activation link and profile file.
+          || uri.getRawUserInfo() != null
           || uri.getRawQuery() != null
           || uri.getRawFragment() != null) {
         throw new IllegalArgumentException(
