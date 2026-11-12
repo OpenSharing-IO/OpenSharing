@@ -7,14 +7,9 @@
 #   AI_REVIEW_MODEL   Model ID exposed by the gateway.
 # Optional repository variable:
 #   AI_REVIEW_ALLOWLIST  JSON array of GitHub logins allowed to trigger reviews.
-# Optional repository setting:
-#   "Allow GitHub Actions to create and approve pull requests" lets the workflow
-#   approve a pull request whose merge recommendation succeeds and whose author
-#   has write access. It approves only while the base branch's rules dismiss
-#   approvals on new pushes or require the last push to be approved. The bot
-#   approval counts toward the branch's review requirement, so a PR the policy
-#   judges safe may merge without any human review; that is intentional for
-#   this repository's low-risk changes.
+#
+# The merge recommendation status is advisory: the workflow never approves or
+# requests changes on a pull request, so it cannot satisfy a review requirement.
 #
 # Dependency provenance: https://github.com/alibaba/open-code-review,
 # Apache-2.0, pinned below to an exact commit. The nested OCR package is also
@@ -438,114 +433,4 @@ jobs:
               description: description.slice(0, 140),
               target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
                 `/actions/runs/${context.runId}`,
-            });
-
-      - name: Approve recommended pull request
-        if: >-
-          steps.recommendation.outcome == 'success' &&
-          steps.recommendation.outputs.state == 'success'
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          BASE_REF: ${{ needs.authorize.outputs.base_ref }}
-          EXPECTED_BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
-          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
-          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            const pullNumber = Number(process.env.PR_NUMBER);
-            const head = process.env.EXPECTED_HEAD_SHA;
-
-            // An approval that outlived a later push would approve unreviewed code.
-            const rules = await github.paginate(
-              'GET /repos/{owner}/{repo}/rules/branches/{branch}',
-              { owner, repo, branch: process.env.BASE_REF, per_page: 100 },
-            );
-            const qualifyingRulesetIds = [
-              ...new Set(
-                rules
-                  .filter((rule) => rule.type === 'pull_request' && (
-                    rule.parameters?.dismiss_stale_reviews_on_push === true ||
-                    rule.parameters?.require_last_push_approval === true
-                  ))
-                  .map((rule) => rule.ruleset_id)
-                  .filter((rulesetId) => Number.isInteger(rulesetId)),
-              ),
-            ];
-            if (!qualifyingRulesetIds.length) {
-              core.notice('Not approving: the branch rules keep approvals after new pushes.');
-              return;
-            }
-
-            // A bypass actor can push without the ruleset firing, so an approval
-            // could survive onto an unreviewed commit.
-            for (const rulesetId of qualifyingRulesetIds) {
-              let ruleset;
-              try {
-                ({ data: ruleset } = await github.request(
-                  'GET /repos/{owner}/{repo}/rulesets/{ruleset_id}',
-                  { owner, repo, ruleset_id: rulesetId },
-                ));
-              } catch (error) {
-                if (error.status !== 404) throw error;
-                core.notice(`Not approving: the source of ruleset ${rulesetId} could not be read.`);
-                return;
-              }
-              // The API omits bypass_actors for callers who may not see them; unknown is not empty.
-              if (!Array.isArray(ruleset.bypass_actors)) {
-                core.notice(`Not approving: bypass actors of ruleset ${rulesetId} are not visible.`);
-                return;
-              }
-              if (ruleset.bypass_actors.some((actor) => actor.bypass_mode === 'always')) {
-                core.notice('Not approving: a ruleset bypass actor could push without resetting approvals.');
-                return;
-              }
-            }
-
-            const { data: pull } = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number: pullNumber,
-            });
-            if (pull.state !== 'open' || pull.draft ||
-                pull.base.sha !== process.env.EXPECTED_BASE_SHA || pull.head.sha !== head) {
-              core.notice('Not approving: the pull request changed after review.');
-              return;
-            }
-
-            let authorPermission = 'none';
-            try {
-              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
-                owner,
-                repo,
-                username: pull.user.login,
-              });
-              authorPermission = data.permission;
-            } catch (error) {
-              if (error.status !== 404) throw error;
-            }
-            if (!['admin', 'maintain', 'write'].includes(authorPermission)) {
-              core.notice('Not approving: the pull request author does not have write access.');
-              return;
-            }
-
-            const reviews = await github.paginate(github.rest.pulls.listReviews, {
-              owner,
-              repo,
-              pull_number: pullNumber,
-              per_page: 100,
-            });
-            if (reviews.some((review) => review.user?.login === 'github-actions[bot]' &&
-                review.state === 'APPROVED' && review.commit_id === head)) {
-              return;
-            }
-
-            await github.rest.pulls.createReview({
-              owner,
-              repo,
-              pull_number: pullNumber,
-              commit_id: head,
-              event: 'APPROVE',
-              body: `AI review of ${head.slice(0, 8)} found no medium-or-higher issues, ` +
-                'and the change touches no protocol, schema, or security-sensitive paths.',
             });
