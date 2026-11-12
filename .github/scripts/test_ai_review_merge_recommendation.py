@@ -92,9 +92,9 @@ class ClassifyTest(unittest.TestCase):
         core = "server/opensharing-server-core/src/main/java/io/opensharing"
         for path in (f"{core}/share/CreateShareRequest.java", f"{core}/share/ShareResponse.java"):
             with self.subTest(path=path):
-                self.assertEqual(
-                    "success", MODULE.classify(complete_result(), BASE, HEAD, [path])["state"]
-                )
+                result = complete_result()
+                result["manifest"]["coverage"]["selected"][0]["path"] = path
+                self.assertEqual("success", MODULE.classify(result, BASE, HEAD, [path])["state"])
 
     def test_blocks_incomplete_coverage(self):
         result = complete_result()
@@ -121,6 +121,43 @@ class ClassifyTest(unittest.TestCase):
                     "failure",
                     MODULE.classify(result, BASE, HEAD, ["server/Example.java"])["state"],
                 )
+
+    def test_blocks_changed_path_missing_from_coverage(self):
+        result = complete_result()
+        result["manifest"]["coverage"]["selected"] = [
+            {"item_id": "item-1", "path": "server/Example.java"},
+        ]
+        decision = MODULE.classify(
+            result, BASE, HEAD, ["server/Example.java", "server/NotReviewed.java"]
+        )
+        self.assertEqual("failure", decision["state"])
+        self.assertIn("did not cover 1 changed file", " ".join(decision["reasons"]))
+
+    def test_counts_old_rename_path_as_covered(self):
+        result = complete_result()
+        result["manifest"]["coverage"]["selected"] = [
+            {"item_id": "item-1", "path": "server/Renamed.java", "old_path": "server/Old.java"},
+        ]
+        decision = MODULE.classify(
+            result, BASE, HEAD, ["server/Renamed.java", "server/Old.java"]
+        )
+        self.assertEqual("success", decision["state"])
+
+    def test_sensitive_uncovered_path_needs_no_coverage_reason(self):
+        decision = MODULE.classify(
+            complete_result(), BASE, HEAD, ["server/auth/UserContext.java"]
+        )
+        self.assertEqual("failure", decision["state"])
+        reasons = " ".join(decision["reasons"])
+        self.assertIn("sensitive paths", reasons)
+        self.assertNotIn("did not cover", reasons)
+
+    def test_blocks_coverage_item_without_path(self):
+        result = complete_result()
+        result["manifest"]["coverage"]["selected"] = [{"item_id": "item-1"}]
+        decision = MODULE.classify(result, BASE, HEAD, ["server/Example.java"])
+        self.assertEqual("error", decision["state"])
+        self.assertIn("without a path", " ".join(decision["reasons"]))
 
     def test_blocks_tool_failure(self):
         result = complete_result()

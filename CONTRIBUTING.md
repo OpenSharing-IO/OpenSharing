@@ -99,7 +99,10 @@ can also approve the PR at that commit; GitHub counts that approval toward the
 required review. It approves only if the repository allows GitHub Actions to
 approve pull requests, the base branch's rules dismiss approvals on new pushes
 or require the last push to be approved, and the PR has not changed since the
-review. Every other PR still needs a maintainer's approval.
+review. Every other PR still needs a maintainer's approval. Because that
+approval counts toward the required review, a PR the policy judges safe can
+merge without any human review; that trade-off is deliberate — the conditions
+above, not a human sign-off, are what gate such merges.
 
 ## Contribution guidelines
 

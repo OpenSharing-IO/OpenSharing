@@ -38,6 +38,24 @@ def _item_ids(value: Any, field: str, errors: list[str]) -> set[str]:
     return item_ids
 
 
+def _item_paths(value: Any, field: str, errors: list[str]) -> set[str]:
+    if not isinstance(value, list):
+        return set()
+
+    paths = set()
+    for item in value:
+        path = item.get("path") if isinstance(item, dict) else None
+        if not isinstance(path, str) or not path:
+            errors.append(f"manifest.coverage.{field} contains an item without a path")
+            continue
+        paths.add(path)
+        # A rename's old path is also part of the change and must be covered.
+        old_path = item.get("old_path")
+        if isinstance(old_path, str) and old_path:
+            paths.add(old_path)
+    return paths
+
+
 def classify(
     result: Any,
     expected_base: str,
@@ -80,6 +98,7 @@ def classify(
             reasons.append("reviewed commit does not match the pull request head")
 
     coverage = manifest.get("coverage")
+    covered_paths: set[str] = set()
     if not isinstance(coverage, dict):
         errors.append("manifest.coverage is missing or invalid")
     else:
@@ -88,6 +107,7 @@ def classify(
         reused = _item_ids(coverage.get("reused"), "reused", errors)
         failed = _item_ids(coverage.get("failed"), "failed", errors)
         waived = _item_ids(coverage.get("waived"), "waived", errors)
+        covered_paths = _item_paths(coverage.get("selected"), "selected", errors)
         if not selected:
             reasons.append("review selected no files")
         if selected - completed - reused:
@@ -129,6 +149,17 @@ def classify(
     )
     if sensitive_paths:
         reasons.append("protocol, schema, or security-sensitive paths require human review")
+
+    # Sensitive paths are already routed to a human, but every other changed
+    # path must be inside the reviewed coverage: OCR can legitimately skip
+    # deleted, binary, or ignored files, and there is no way to tell that skip
+    # apart from a selection gap, so any such path keeps the human in the loop.
+    unreviewed_paths = sorted(set(changed_paths) - set(sensitive_paths) - covered_paths)
+    if unreviewed_paths:
+        reasons.append(
+            f"review did not cover {len(unreviewed_paths)} changed file(s): "
+            + ", ".join(unreviewed_paths[:3])
+        )
 
     if errors:
         return _decision("error", errors + reasons)
