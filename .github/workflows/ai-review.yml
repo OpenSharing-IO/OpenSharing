@@ -9,9 +9,9 @@
 #   AI_REVIEW_ALLOWLIST  JSON array of GitHub logins allowed to trigger reviews.
 # Optional repository setting:
 #   "Allow GitHub Actions to create and approve pull requests" lets the workflow
-#   approve a pull request whose merge recommendation succeeds. It approves only
-#   while the base branch's rules dismiss approvals on new pushes or require the
-#   last push to be approved.
+#   approve a pull request whose merge recommendation succeeds and whose author
+#   has write access. It approves only while the base branch's rules dismiss
+#   approvals on new pushes or require the last push to be approved.
 #
 # Dependency provenance: https://github.com/alibaba/open-code-review,
 # Apache-2.0, pinned below to an exact commit. The nested OCR package is also
@@ -272,7 +272,7 @@ jobs:
   publish:
     name: Publish AI PR Review
     needs: [authorize, review]
-    if: always() && needs.authorize.outputs.allowed == 'true'
+    if: ${{ !cancelled() && needs.authorize.outputs.allowed == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -346,7 +346,9 @@ jobs:
             });
             fs.writeFileSync(
               '/tmp/ai-review/changed-paths.json',
-              JSON.stringify(files.map((file) => file.filename)),
+              JSON.stringify(
+                files.flatMap((file) => [file.filename, file.previous_filename].filter(Boolean)),
+              ),
             );
 
       - name: Evaluate merge recommendation
@@ -390,7 +392,7 @@ jobs:
             });
 
       - name: Publish merge recommendation
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
@@ -456,6 +458,22 @@ jobs:
             if (pull.state !== 'open' || pull.draft ||
                 pull.base.sha !== process.env.EXPECTED_BASE_SHA || pull.head.sha !== head) {
               core.notice('Not approving: the pull request changed after review.');
+              return;
+            }
+
+            let authorPermission = 'none';
+            try {
+              const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner,
+                repo,
+                username: pull.user.login,
+              });
+              authorPermission = data.permission;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            if (!['admin', 'maintain', 'write'].includes(authorPermission)) {
+              core.notice('Not approving: the pull request author does not have write access.');
               return;
             }
 

@@ -94,11 +94,12 @@ found no medium-or-higher issues, and did not touch workflow, protocol spec,
 protocol request or response, entity, Flyway migration, authentication,
 credential, token, or signing paths. Low-severity findings remain advisory.
 
-When the status succeeds, the workflow also approves the PR at that commit, and
-the approval counts toward the required review. It approves only while the
-branch rules dismiss approvals on new pushes or require the last push to be
-approved, so the approval never carries over to later commits. Every other PR
-still needs a maintainer's approval.
+When the status succeeds and the PR's author has write access, the workflow
+can also approve the PR at that commit; GitHub counts that approval toward the
+required review. It approves only if the repository allows GitHub Actions to
+approve pull requests, the base branch's rules dismiss approvals on new pushes
+or require the last push to be approved, and the PR has not changed since the
+review. Every other PR still needs a maintainer's approval.
 
 ## Contribution guidelines
 
