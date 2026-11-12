@@ -35,15 +35,15 @@ class OpenSharingRecipientApiTest {
       port = socket.getLocalPort();
     }
     ServerBuilder builder = Server.builder().http(port);
-    OpenSharingRecipientApi.mount(
-        builder.virtualHost(port),
-        "http://127.0.0.1:" + port,
-        "/sharing",
-        "/sharing/activations",
+    OpenSharing openSharing =
         OpenSharing.builder()
             .catalog(new UnusedCatalog())
             .transactions(new UnusedDatabase())
-            .build());
+            .publicUrl("http://127.0.0.1:" + port)
+            .protocolBasePath("/sharing")
+            .activationBasePath("/sharing/activations")
+            .build();
+    OpenSharingRecipientApi.mount(builder.virtualHost(port), openSharing);
     Server server = builder.build();
     server.start().join();
     try {
@@ -53,6 +53,33 @@ class OpenSharingRecipientApiTest {
       assertEquals(
           ErrorCodes.UNAUTHENTICATED,
           ApiJson.MAPPER.readValue(response.contentUtf8(), ErrorResponse.class).errorCode());
+    } finally {
+      server.stop().join();
+    }
+  }
+
+  @Test
+  void servesTheProtocolAtTheRoot() throws IOException {
+    int port;
+    try (ServerSocket socket = new ServerSocket(0)) {
+      port = socket.getLocalPort();
+    }
+    ServerBuilder builder = Server.builder().http(port);
+    OpenSharing openSharing =
+        OpenSharing.builder()
+            .catalog(new UnusedCatalog())
+            .transactions(new UnusedDatabase())
+            .publicUrl("http://127.0.0.1:" + port)
+            .protocolBasePath("/")
+            .activationBasePath("/activations")
+            .build();
+    OpenSharingRecipientApi.mount(builder.defaultVirtualHost(), openSharing);
+    Server server = builder.build();
+    server.start().join();
+    try {
+      AggregatedHttpResponse response =
+          WebClient.of("http://127.0.0.1:" + port).get("/shares").aggregate().join();
+      assertEquals(401, response.status().code());
     } finally {
       server.stop().join();
     }

@@ -43,7 +43,7 @@ class RecipientReadPrivilegeTest {
     RecipientService recipients = server.server().openSharing().recipients();
     assertEquals(
         List.of("alice_recipient", "carol_recipient"),
-        recipients.listAll(null, null, "http://host/activations").items().stream()
+        recipients.listAll(null, null).items().stream()
             .map(RecipientResponse::name)
             .toList());
   }
