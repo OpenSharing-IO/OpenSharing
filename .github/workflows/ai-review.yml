@@ -333,23 +333,29 @@ jobs:
       - name: Collect changed paths
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
+          EXPECTED_BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
         with:
           script: |
             const fs = require('fs');
             const pullNumber = Number(process.env.PR_NUMBER);
-            const { data: pull } = await github.rest.pulls.get({
-              ...context.repo,
-              pull_number: pullNumber,
-            });
             const files = await github.paginate(github.rest.pulls.listFiles, {
               ...context.repo,
               pull_number: pullNumber,
               per_page: 100,
             });
+            // Read after listing, so a push during the listing shows up as a moved head.
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: pullNumber,
+            });
             // listFiles stops at 3000 files; an empty list makes the classifier report an error.
             let paths = [];
-            if (files.length === pull.changed_files && files.length < 3000) {
+            if (pull.head.sha !== process.env.EXPECTED_HEAD_SHA ||
+                pull.base.sha !== process.env.EXPECTED_BASE_SHA) {
+              core.warning('The pull request changed after review; not recommending merge.');
+            } else if (files.length === pull.changed_files && files.length < 3000) {
               paths = files.flatMap(
                 (file) => [file.filename, file.previous_filename].filter(Boolean),
               );
