@@ -92,7 +92,9 @@ status. It recommends merging only when the review covered every selected file,
 used the current PR commit, had no failed or waived work, had no tool failures,
 found no medium-or-higher issues, and did not touch workflow, protocol spec,
 protocol request or response, entity, Flyway migration, authentication,
-credential, token, or signing paths. Low-severity findings remain advisory.
+credential, token, signing, pagination, build, dependency, or container paths.
+Low-severity findings remain advisory. The recommendation also appears at the
+top of the AI review's summary comment.
 
 The recommendation is advisory, like the findings. The workflow never approves
 or requests changes on a PR, so it cannot satisfy the required review: every

@@ -404,6 +404,7 @@ jobs:
             });
 
       - name: Publish merge recommendation
+        id: merge-recommendation
         if: ${{ !cancelled() }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -422,9 +423,9 @@ jobs:
               publicationSucceeded && evaluated && allowedStates.has(recommendationState)
                 ? recommendationState
                 : 'error';
-            const description = publicationSucceeded && process.env.RECOMMENDATION_DESCRIPTION
-              ? process.env.RECOMMENDATION_DESCRIPTION
-              : 'AI review was not published; no merge recommendation';
+            const description = !publicationSucceeded
+              ? 'AI review was not published; no merge recommendation'
+              : process.env.RECOMMENDATION_DESCRIPTION || 'AI review policy could not be evaluated';
             await github.rest.repos.createCommitStatus({
               ...context.repo,
               sha: process.env.EXPECTED_HEAD_SHA,
@@ -433,4 +434,59 @@ jobs:
               description: description.slice(0, 140),
               target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
                 `/actions/runs/${context.runId}`,
+            });
+            core.setOutput('state', state);
+            core.setOutput('description', description);
+
+      - name: Add merge recommendation to the summary comment
+        if: ${{ !cancelled() && steps.publish-findings.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          STATE: ${{ steps.merge-recommendation.outputs.state }}
+          DESCRIPTION: ${{ steps.merge-recommendation.outputs.description }}
+        with:
+          script: |
+            const start = '<!-- ai-merge-recommendation -->';
+            const end = '<!-- /ai-merge-recommendation -->';
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: Number(process.env.PR_NUMBER),
+              per_page: 100,
+            });
+            const summary = comments.reverse().find(
+              (comment) => comment.user?.login === 'github-actions[bot]' &&
+                comment.body?.includes('<!-- ocr-summary -->'),
+            );
+            if (!summary) {
+              core.notice('No AI review summary comment to add the merge recommendation to.');
+              return;
+            }
+
+            const labels = {
+              success: '✅ recommended',
+              failure: '❌ not recommended',
+              error: '⚠️ not evaluated',
+            };
+            const block = `${start}\n**Merge recommendation** for ` +
+              `\`${process.env.EXPECTED_HEAD_SHA.slice(0, 7)}\`: ` +
+              `${labels[process.env.STATE] || labels.error}. ${process.env.DESCRIPTION} ` +
+              "_Advisory: a maintainer's approval is still required._\n" +
+              end;
+            // The review helper rewrites the summary on every run, keeping only its own
+            // markers, so the block goes after the leading markers and replaces any older one.
+            const lines = summary.body
+              .replace(new RegExp(`${start}[\\s\\S]*?${end}\\n*`), '')
+              .split('\n');
+            let markers = 0;
+            while (markers < lines.length && /^<!--.*-->$/.test(lines[markers].trim())) {
+              markers++;
+            }
+            lines.splice(markers, 0, block, '');
+            await github.rest.issues.updateComment({
+              ...context.repo,
+              comment_id: summary.id,
+              body: lines.join('\n'),
             });
