@@ -233,6 +233,50 @@ class DeltaTableQueryReaderTest {
 
     List<String> delta = changeDataFeed(1L, null, 2L, null, "responseformat=delta", false);
     assertEquals(List.of("cdc c 1", "remove b 2"), describe(delta.subList(2, delta.size())));
+    // Delta readers require dataChange on a cdc action, which the protocol fixes at false.
+    JsonNode cdc =
+        parse(delta.get(2)).path("file").path("deltaSingleAction").path("cdc");
+    assertTrue(cdc.path("dataChange").isBoolean(), delta.get(2));
+    assertFalse(cdc.path("dataChange").asBoolean(), delta.get(2));
+    // The parquet cdc line carries no dataChange.
+    String parquet = changeDataFeed(1L, null, 2L, null, null, false).get(2);
+    assertTrue(parquet.startsWith("{\"cdf\":"), parquet);
+    assertFalse(parquet.contains("dataChange"), parquet);
+    // Add and remove actions keep the dataChange their commit wrote.
+    List<String> deltaChanges = changeDataFeed(0L, null, 2L, null, "responseformat=delta", false);
+    assertEquals(
+        List.of("add a 0", "add b 0", "cdc c 1", "remove b 2"),
+        describe(deltaChanges.subList(2, deltaChanges.size())));
+    assertTrue(
+        parse(deltaChanges.get(2)).path("file").path("deltaSingleAction").path("add")
+            .path("dataChange")
+            .asBoolean(),
+        deltaChanges.get(2));
+    assertTrue(
+        parse(deltaChanges.get(5)).path("file").path("deltaSingleAction").path("remove")
+            .path("dataChange")
+            .asBoolean(),
+        deltaChanges.get(5));
+  }
+
+  @Test
+  void changeDataFeedWritesCdcDataChangeFalseWhateverTheCommitWrote() throws IOException {
+    writeChangeDataFeed();
+    // The cdc action of commit 1 wrote dataChange false; write one with true instead.
+    Files.writeString(
+        dir.resolve("_delta_log/00000000000000000001.json"),
+        String.join(
+            "\n",
+            remove("a", "2021-01-01", true),
+            add("d", "2021-01-01", 1, 10),
+            "{\"cdc\":{\"path\":\"_change_data/date=2021-01-01/c.parquet\","
+                + "\"partitionValues\":{\"date\":\"2021-01-01\"},\"size\":1,"
+                + "\"dataChange\":true}}")
+            + "\n");
+    List<String> delta = changeDataFeed(1L, null, 1L, null, "responseformat=delta", false);
+    assertEquals(List.of("cdc c 1"), describe(delta.subList(2, delta.size())));
+    // The override wins: a cdc action's dataChange is false whatever the commit wrote.
+    assertFalse(parse(delta.get(2)).path("cdc").path("dataChange").asBoolean(), delta.get(2));
   }
 
   @Test

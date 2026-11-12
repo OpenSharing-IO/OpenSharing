@@ -169,8 +169,18 @@ public final class TableActions {
         switch (type) {
           case ADD -> new DeltaSingleAction(action, null, null);
           case REMOVE -> new DeltaSingleAction(null, action, null);
-          case CDC -> new DeltaSingleAction(null, null, action);
+          case CDC -> new DeltaSingleAction(null, null, withDataChangeFalse(action));
         });
+  }
+
+  /**
+   * Fixes a cdc action's dataChange at false, which the protocol requires of cdc actions and Delta
+   * readers need on the wire, whatever the commit wrote. The action's schema must carry the slot,
+   * which the reader's cdc schema adds for this override.
+   */
+  private static Row withDataChangeFalse(Row action) {
+    int ordinal = action.getSchema().indexOf("dataChange");
+    return ordinal < 0 ? action : new DelegateRow(action, Map.of(ordinal, false));
   }
 
   private static String deltaFile(
