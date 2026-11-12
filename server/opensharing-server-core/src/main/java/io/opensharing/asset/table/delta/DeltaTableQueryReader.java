@@ -314,11 +314,12 @@ public class DeltaTableQueryReader {
             DeltaLogActionUtils.getCommitFilesForVersionRange(
                 session.engine(), tablePath, range.start(), Optional.of(range.end()));
       } catch (KernelException | IllegalArgumentException missing) {
-        throw ApiException.invalidParameter(
-            "the table no longer has every commit from version "
-                + range.start()
-                + " to "
-                + range.end());
+        log.error(
+            "Table '{}' no longer has every commit from version {} to {}",
+            table.fullName(),
+            range.start(),
+            range.end());
+        throw ApiException.tableFilesMissing();
       }
 
       // The protocol reports the starting version as the table version of a change response.

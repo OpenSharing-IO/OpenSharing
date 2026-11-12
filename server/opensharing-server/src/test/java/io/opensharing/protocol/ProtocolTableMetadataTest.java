@@ -94,7 +94,7 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
   }
 
   @Test
-  void reportsADeltaTableWithoutALogAsACatalogError() {
+  void reportsADeltaTableWithoutALogAsMissingTableFiles() {
     createShare("unwritten-metadata");
     addObject("unwritten-metadata", "TABLE", "main.lake.unwritten", "lake.unwritten");
     String bearer = createAndActivateRecipient("unwritten-metadata-partner");
@@ -105,8 +105,11 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
             PROTOCOL + "/shares/unwritten-metadata/schemas/lake/tables/unwritten/metadata",
             bearer,
             null);
-    assertEquals(502, unwritten.status());
-    assertEquals(ErrorCodes.CATALOG_ERROR, unwritten.errorCode());
+    assertEquals(400, unwritten.status());
+    assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, unwritten.errorCode());
+    assertTrue(unwritten.body().toString().contains("table files missing"));
+    assertTrue(unwritten.body().toString().contains("Contact the data provider"));
+    assertFalse(unwritten.body().toString().contains(tables.toString()));
   }
 
   @Test

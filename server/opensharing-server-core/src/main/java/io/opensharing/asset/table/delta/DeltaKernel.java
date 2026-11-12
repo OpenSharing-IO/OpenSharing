@@ -61,26 +61,26 @@ public class DeltaKernel {
   }
 
   /**
-   * The table's latest snapshot. A catalog Delta table without a log is a catalog error, and a
-   * protocol Kernel cannot read is the recipient's.
+   * The table's latest snapshot. A catalog Delta table whose log is missing or incomplete is the
+   * source table's own state, and a protocol Kernel cannot read is the recipient's.
    */
   static Snapshot latestSnapshot(Table table, Engine engine) {
     try {
       return table.getLatestSnapshot(engine);
     } catch (TableNotFoundException missing) {
       log.error("Delta table at '{}' has no log", table.getPath(engine));
-      throw new CatalogException("the table has no Delta log");
+      throw ApiException.tableFilesMissing();
     } catch (KernelException failed) {
       if (unsupportedProtocol(failed)) {
         throw unreadableTable(failed);
       }
       if (failed instanceof InvalidTableException invalid) {
-        // A log that starts after version 0 is the same inconsistency as a missing log.
+        // A log that starts after version 0 is missing commits just like a fully missing one.
         log.error(
             "Delta table at '{}' has an incomplete log: {}",
             table.getPath(engine),
             invalid.getMessage());
-        throw new CatalogException("the table's Delta log is incomplete");
+        throw ApiException.tableFilesMissing();
       }
       throw failed;
     }
@@ -99,7 +99,8 @@ public class DeltaKernel {
   static ApiException unreadableTable(KernelException failed) {
     log.warn("Kernel cannot read a shared table: {}", failed.getMessage());
     return ApiException.invalidParameter(
-        "the table requires a Delta reader version or feature this server cannot read");
+        "the table requires a Delta reader version or feature this server cannot read."
+            + " Contact the data provider.");
   }
 
   /** Opens the table's root with read credentials the catalog vends to {@code auth}. */

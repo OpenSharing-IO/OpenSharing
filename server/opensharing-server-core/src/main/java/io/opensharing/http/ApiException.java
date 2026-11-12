@@ -24,6 +24,20 @@ public class ApiException extends RuntimeException {
     return new ApiException(404, ErrorCodes.RESOURCE_DOES_NOT_EXIST, message);
   }
 
+  /**
+   * The shared source table's own state, which the data provider controls, failed the request. The
+   * message tells the recipient whom to contact; server-side detail, such as paths, stays in the
+   * log.
+   */
+  public static ApiException sourceTable(int status, String message) {
+    return new ApiException(status, ErrorCodes.RESOURCE_DOES_NOT_EXIST, message);
+  }
+
+  /** The table's files, including its log, cannot be read where the catalog says they are. */
+  public static ApiException tableFilesMissing() {
+    return sourceTable(400, "table files missing. Contact the data provider.");
+  }
+
   public static ApiException alreadyExists(String message) {
     return new ApiException(409, ErrorCodes.RESOURCE_ALREADY_EXISTS, message);
   }

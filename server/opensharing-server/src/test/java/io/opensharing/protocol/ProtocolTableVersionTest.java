@@ -69,14 +69,20 @@ class ProtocolTableVersionTest extends LocalDeltaTableSupport {
     grant("unreadable-version", "unreadable-version-partner");
     String lake = PROTOCOL + "/shares/unreadable-version/schemas/lake/tables/";
 
-    // A Delta table with no log is the catalog's inconsistency, not the recipient's mistake.
+    // A Delta table whose log is missing, or lacks its first commit, is the source table's own
+    // state: the recipient is told the files are missing and to contact the data provider, and
+    // the table's storage path stays out of the response.
     Response unwritten = version(lake + "unwritten/version", bearer, null);
-    assertEquals(502, unwritten.status());
-    assertEquals(ErrorCodes.CATALOG_ERROR, unwritten.errorCode());
-    // A log without its first commit is inconsistent in the same way.
+    assertEquals(400, unwritten.status());
+    assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, unwritten.errorCode());
+    assertTrue(unwritten.body().toString().contains("table files missing"));
+    assertTrue(unwritten.body().toString().contains("Contact the data provider"));
+    assertFalse(unwritten.body().toString().contains(tables.toString()));
+    // A log without its first commit is missing files in the same way.
     Response gapped = version(lake + "gapped/version", bearer, null);
-    assertEquals(502, gapped.status());
-    assertEquals(ErrorCodes.CATALOG_ERROR, gapped.errorCode());
+    assertEquals(400, gapped.status());
+    assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, gapped.errorCode());
+    assertTrue(gapped.body().toString().contains("table files missing"));
     Response raw = version(lake + "raw/version", bearer, null);
     assertEquals(400, raw.status());
     assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, raw.errorCode());

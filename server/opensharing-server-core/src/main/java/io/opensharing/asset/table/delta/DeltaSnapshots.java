@@ -1,6 +1,7 @@
 package io.opensharing.asset.table.delta;
 
 import io.delta.kernel.Snapshot;
+import io.delta.kernel.exceptions.InvalidTableException;
 import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.internal.checksum.CRCInfo;
@@ -55,6 +56,10 @@ final class DeltaSnapshots {
   private static ApiException unavailable(RuntimeException failed, String message) {
     if (failed instanceof KernelException kernel && DeltaKernel.unsupportedProtocol(kernel)) {
       return DeltaKernel.unreadableTable(kernel);
+    }
+    if (failed instanceof InvalidTableException) {
+      // The log lost commits, or its beginning, since the latest snapshot was read.
+      return ApiException.tableFilesMissing();
     }
     return ApiException.invalidParameter(message);
   }
