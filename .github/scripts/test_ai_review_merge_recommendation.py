@@ -5,6 +5,7 @@ import importlib.util
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 
 MODULE_PATH = pathlib.Path(__file__).with_name("ai_review_merge_recommendation.py")
@@ -233,6 +234,25 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(
             "error", MODULE.classify(result, BASE, HEAD, ["server/Example.java"])["state"]
         )
+
+    def test_unreadable_evidence_is_an_error_decision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = pathlib.Path(directory, "result.json")
+            result.write_bytes(b"\xff\xfe not utf-8")
+            changed = pathlib.Path(directory, "changed.json")
+            changed.write_text('["server/Example.java"]')
+            output = pathlib.Path(directory, "output")
+            argv = [
+                "ai_review_merge_recommendation.py",
+                "--result", str(result),
+                "--changed-paths", str(changed),
+                "--expected-base", BASE,
+                "--expected-head", HEAD,
+                "--github-output", str(output),
+            ]
+            with mock.patch("sys.argv", argv), mock.patch("builtins.print"):
+                MODULE.main()
+            self.assertEqual("state=error", output.read_text().splitlines()[-1])
 
     def test_does_not_mutate_evidence(self):
         result = complete_result()

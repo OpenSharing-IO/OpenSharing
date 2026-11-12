@@ -223,7 +223,8 @@ def main() -> None:
         result = json.loads(args.result.read_text())
         changed_paths = json.loads(args.changed_paths.read_text())
         decision = classify(result, args.expected_base, args.expected_head, changed_paths)
-    except (OSError, json.JSONDecodeError) as error:
+    # ValueError covers both malformed JSON and evidence that isn't UTF-8.
+    except (OSError, ValueError) as error:
         decision = _decision("error", [f"could not read review evidence: {error}"])
 
     print(json.dumps(decision, sort_keys=True))

@@ -368,6 +368,8 @@ jobs:
 
       - name: Evaluate merge recommendation
         id: recommendation
+        # Findings still publish when the policy can't evaluate; the status falls back to error.
+        continue-on-error: true
         env:
           EXPECTED_BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
           EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
@@ -412,16 +414,19 @@ jobs:
         env:
           EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           PUBLICATION_OUTCOME: ${{ steps.publish-findings.outcome }}
+          RECOMMENDATION_OUTCOME: ${{ steps.recommendation.outcome }}
           RECOMMENDATION_STATE: ${{ steps.recommendation.outputs.state }}
           RECOMMENDATION_DESCRIPTION: ${{ steps.recommendation.outputs.description }}
         with:
           script: |
             const publicationSucceeded = process.env.PUBLICATION_OUTCOME === 'success';
+            const evaluated = process.env.RECOMMENDATION_OUTCOME === 'success';
             const allowedStates = new Set(['error', 'failure', 'success']);
             const recommendationState = process.env.RECOMMENDATION_STATE;
-            const state = publicationSucceeded && allowedStates.has(recommendationState)
-              ? recommendationState
-              : 'error';
+            const state =
+              publicationSucceeded && evaluated && allowedStates.has(recommendationState)
+                ? recommendationState
+                : 'error';
             const description = publicationSucceeded && process.env.RECOMMENDATION_DESCRIPTION
               ? process.env.RECOMMENDATION_DESCRIPTION
               : 'AI review was not published; no merge recommendation';
@@ -436,7 +441,9 @@ jobs:
             });
 
       - name: Approve recommended pull request
-        if: steps.recommendation.outputs.state == 'success'
+        if: >-
+          steps.recommendation.outcome == 'success' &&
+          steps.recommendation.outputs.state == 'success'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           BASE_REF: ${{ needs.authorize.outputs.base_ref }}
@@ -484,7 +491,12 @@ jobs:
                 core.notice(`Not approving: the source of ruleset ${rulesetId} could not be read.`);
                 return;
               }
-              if ((ruleset.bypass_actors ?? []).some((actor) => actor.bypass_mode === 'always')) {
+              // The API omits bypass_actors for callers who may not see them; unknown is not empty.
+              if (!Array.isArray(ruleset.bypass_actors)) {
+                core.notice(`Not approving: bypass actors of ruleset ${rulesetId} are not visible.`);
+                return;
+              }
+              if (ruleset.bypass_actors.some((actor) => actor.bypass_mode === 'always')) {
                 core.notice('Not approving: a ruleset bypass actor could push without resetting approvals.');
                 return;
               }
