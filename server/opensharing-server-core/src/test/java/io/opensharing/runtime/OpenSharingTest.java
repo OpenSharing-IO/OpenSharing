@@ -75,6 +75,18 @@ class OpenSharingTest {
         () -> builder().publicUrl("https://sharing.example.com").activationBasePath(null).build());
   }
 
+  @Test
+  void acceptsTheRootAsABasePath() {
+    OpenSharing openSharing =
+        builder()
+            .publicUrl("https://sharing.example.com")
+            .protocolBasePath("/")
+            .activationBasePath("//")
+            .build();
+    assertEquals("/", openSharing.protocolBasePath());
+    assertEquals("/", openSharing.activationBasePath());
+  }
+
   private static OpenSharing.Builder builder() {
     return OpenSharing.builder().catalog(refusing(new ArrayList<>())).transactions(unused());
   }

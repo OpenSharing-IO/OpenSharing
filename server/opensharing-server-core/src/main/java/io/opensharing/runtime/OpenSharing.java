@@ -51,8 +51,8 @@ public final class OpenSharing {
     this.catalog = catalog;
     this.protocolBasePath = protocolBasePath;
     this.activationBasePath = activationBasePath;
-    String profileEndpoint = publicUrl + protocolBasePath;
-    String activationBaseUrl = publicUrl + activationBasePath;
+    String profileEndpoint = under(publicUrl, protocolBasePath);
+    String activationBaseUrl = under(publicUrl, activationBasePath);
     ShareStore shareStore = new ShareStore(tx);
     SharedDataObjectStore objectStore = new SharedDataObjectStore(tx);
     SharePermissionStore permissionStore = new SharePermissionStore(tx);
@@ -101,6 +101,11 @@ public final class OpenSharing {
 
   public RecipientService recipients() {
     return recipients;
+  }
+
+  /** The URL of {@code path} on {@code publicUrl}, which has no trailing slash. */
+  private static String under(String publicUrl, String path) {
+    return path.equals("/") ? publicUrl : publicUrl + path;
   }
 
   /** The path under which the sharing protocol is served. */
@@ -203,16 +208,17 @@ public final class OpenSharing {
     }
 
     /**
-     * The paths are appended to the public URL in activation links and profile files, and mounted
-     * as route prefixes, so each needs one leading slash and none trailing.
+     * The paths are mounted as route prefixes and appended to the public URL in activation links
+     * and profile files, so each has one leading slash and none trailing; the root is {@code /}.
      */
     private static String normalizePath(String name, String value) {
-      String path = value == null ? "" : value.trim().replaceAll("/+$", "");
+      String path = value == null ? "" : value.trim();
       if (!path.startsWith("/") || path.contains("?") || path.contains("#")) {
         throw new IllegalArgumentException(
             "invalid value '" + value + "' for " + name + "; expected a path such as /api/1.0");
       }
-      return path;
+      path = path.replaceAll("/+$", "");
+      return path.isEmpty() ? "/" : path;
     }
 
     private static String normalizePublicUrl(String value) {

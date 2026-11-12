@@ -58,6 +58,33 @@ class OpenSharingRecipientApiTest {
     }
   }
 
+  @Test
+  void servesTheProtocolAtTheRoot() throws IOException {
+    int port;
+    try (ServerSocket socket = new ServerSocket(0)) {
+      port = socket.getLocalPort();
+    }
+    ServerBuilder builder = Server.builder().http(port);
+    OpenSharing openSharing =
+        OpenSharing.builder()
+            .catalog(new UnusedCatalog())
+            .transactions(new UnusedDatabase())
+            .publicUrl("http://127.0.0.1:" + port)
+            .protocolBasePath("/")
+            .activationBasePath("/activations")
+            .build();
+    OpenSharingRecipientApi.mount(builder.defaultVirtualHost(), openSharing);
+    Server server = builder.build();
+    server.start().join();
+    try {
+      AggregatedHttpResponse response =
+          WebClient.of("http://127.0.0.1:" + port).get("/shares").aggregate().join();
+      assertEquals(401, response.status().code());
+    } finally {
+      server.stop().join();
+    }
+  }
+
   private static final class UnusedCatalog implements CatalogConnector {
     @Override
     public String name() {
