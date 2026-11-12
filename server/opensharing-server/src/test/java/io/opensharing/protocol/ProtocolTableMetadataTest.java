@@ -69,11 +69,12 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
     assertEquals(200, unknown.status());
     assertEquals("responseformat=delta", unknown.headers().get("delta-sharing-capabilities"));
 
-    // A historical version or timestamp is echoed in metaData.version.
+    // Like the reference server, metaData carries no version even for a historical query; the
+    // snapshot version is only in the Delta-Table-Version header.
     Response atVersion = metadata(orders + "?version=1", bearer, null);
     assertEquals(200, atVersion.status());
     assertEquals("1", atVersion.headers().get("Delta-Table-Version"));
-    assertEquals(1, lines(atVersion).get(1).path("metaData").path("version").asLong());
+    assertTrue(lines(atVersion).get(1).path("metaData").path("version").isMissingNode());
     String salaries = PROTOCOL + "/shares/table-metadata/schemas/hr/tables/SALARIES/metadata";
     Response atTimestamp = metadata(salaries + "?timestamp=2024-01-01T01:30:00Z", bearer, null);
     assertEquals(200, atTimestamp.status());

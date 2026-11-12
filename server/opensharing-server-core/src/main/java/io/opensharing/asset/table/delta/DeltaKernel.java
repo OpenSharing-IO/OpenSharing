@@ -40,24 +40,43 @@ public class DeltaKernel {
 
   /**
    * The table's latest version, or with {@code startingTimestamp} the earliest version committed
-   * at or after it. Reads the table as {@code auth}.
+   * at or after it. Reads the table as {@code auth}. A timestamp before the first commit resolves
+   * to version 0, as the reference server's version endpoint does.
    */
   public long getVersion(ResolvedAsset table, Instant startingTimestamp, AuthContext auth) {
     try (Session session = open(table, auth)) {
-      return versionAtOrAfter((TableImpl) session.table(), session.engine(), startingTimestamp);
+      if (startingTimestamp == null) {
+        return latestSnapshot(session.table(), session.engine()).getVersion();
+      }
+      try {
+        return ((TableImpl) session.table())
+            .getVersionAtOrAfterTimestamp(session.engine(), startingTimestamp.toEpochMilli());
+      } catch (KernelException | IllegalArgumentException failed) {
+        if (failed.getMessage() != null
+            && failed.getMessage().contains("Please use a timestamp greater than or equal")) {
+          return 0;
+        }
+        throw invalidParameter(failed);
+      }
     }
   }
 
+  /**
+   * The earliest version committed at or after {@code startingTimestamp}, for a Change Data Feed
+   * start. A timestamp outside the log is the recipient's bad request, reported with Kernel's
+   * message.
+   */
   static long versionAtOrAfter(TableImpl table, Engine engine, Instant startingTimestamp) {
-    Snapshot latest = latestSnapshot(table, engine);
-    if (startingTimestamp == null) {
-      return latest.getVersion();
+    try {
+      return table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
+    } catch (KernelException | IllegalArgumentException failed) {
+      throw invalidParameter(failed);
     }
-    if (startingTimestamp.toEpochMilli() > latest.getTimestamp(engine)) {
-      throw ApiException.invalidParameter(
-          "startingTimestamp is after the latest table version timestamp");
-    }
-    return table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
+  }
+
+  /** Kernel's message names the log, but reports the bad parameter, not any storage path. */
+  private static ApiException invalidParameter(RuntimeException failed) {
+    return ApiException.invalidParameter(failed.getMessage());
   }
 
   /**

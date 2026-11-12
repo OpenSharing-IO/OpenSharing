@@ -50,10 +50,10 @@ class TableActionsTest {
     Protocol readerV1 = new Protocol(1, 2, Set.of(), Set.of());
     assertEquals(
         parquetBody("{\"enableChangeDataFeed\":\"true\"}", ""),
-        encode(readerV1, ResponseFormat.PARQUET, null, null, null));
+        encode(readerV1, ResponseFormat.PARQUET, null));
     assertEquals(
         parquetBody("{\"enableChangeDataFeed\":\"true\"}", ",\"version\":20"),
-        encode(readerV1, ResponseFormat.PARQUET, 20L, null, null));
+        encode(readerV1, ResponseFormat.PARQUET, 20L));
   }
 
   @Test
@@ -69,15 +69,13 @@ class TableActionsTest {
             "ignored");
     assertEquals(
         parquetBody("{\"enableChangeDataFeed\":\"true\"}", ""),
-        encode(readerV1, metadata(source), ResponseFormat.PARQUET, null, null, null));
+        encode(readerV1, metadata(source), ResponseFormat.PARQUET, null));
     assertEquals(
         parquetBody("{}", ""),
         encode(
             readerV1,
             metadata(Map.of("delta.enableChangeDataFeed", "false")),
             ResponseFormat.PARQUET,
-            null,
-            null,
             null));
   }
 
@@ -190,12 +188,8 @@ class TableActionsTest {
     Metadata metadata = metadata();
     String deltaProtocol = JsonUtils.rowToJson(protocol.toRow());
     String deltaMetadata = JsonUtils.rowToJson(metadata.toRow());
-    assertEquals(
-        deltaBody(deltaProtocol, "", deltaMetadata),
-        encode(ResponseFormat.DELTA, null, null, null));
-    assertEquals(
-        deltaBody(deltaProtocol, "\"size\":123456,\"numFiles\":5,", deltaMetadata),
-        encode(ResponseFormat.DELTA, null, 123456L, 5L));
+    // metaData carries no size or numFiles, like the reference server.
+    assertEquals(deltaBody(deltaProtocol, "", deltaMetadata), encode(ResponseFormat.DELTA, null));
     assertEquals(
         """
         {"protocol":{"version":5,"deltaProtocol":%s}}
@@ -204,24 +198,18 @@ class TableActionsTest {
         TableActions.protocol(protocol, 5L, ResponseFormat.DELTA));
   }
 
-  private static String encode(ResponseFormat format, Long version, Long size, Long numFiles) {
-    return encode(protocol(), format, version, size, numFiles);
+  private static String encode(ResponseFormat format, Long version) {
+    return encode(protocol(), format, version);
+  }
+
+  private static String encode(Protocol protocol, ResponseFormat format, Long version) {
+    return encode(protocol, metadata(), format, version);
   }
 
   private static String encode(
-      Protocol protocol, ResponseFormat format, Long version, Long size, Long numFiles) {
-    return encode(protocol, metadata(), format, version, size, numFiles);
-  }
-
-  private static String encode(
-      Protocol protocol,
-      Metadata metadata,
-      ResponseFormat format,
-      Long version,
-      Long size,
-      Long numFiles) {
+      Protocol protocol, Metadata metadata, ResponseFormat format, Long version) {
     return TableActions.protocol(protocol, null, format)
-        + TableActions.metadata(metadata, TABLE, version, size, numFiles, format);
+        + TableActions.metadata(metadata, TABLE, version, format);
   }
 
   private static String parquetBody(String configuration, String versionField) {

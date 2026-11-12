@@ -39,20 +39,20 @@ public final class TableActions {
                 : new ParquetProtocol(protocol.getMinReaderVersion())));
   }
 
+  /**
+   * The protocol's metaData action. The reference server sends no size or numFiles in it, and
+   * clients compare whole metadata objects, so they are omitted even though the protocol allows
+   * them; {@code version} is set only on Change Data Feed metaData, as the reference server does.
+   */
   public static String metadata(
-      Metadata metadata,
-      ResolvedAsset table,
-      Long version,
-      Long size,
-      Long numFiles,
-      ResponseFormat format) {
+      Metadata metadata, ResolvedAsset table, Long version, ResponseFormat format) {
     if (format == ResponseFormat.DELTA) {
       return line(
           new MetadataLine(
               new DeltaMetadata(
                   version,
-                  size,
-                  numFiles,
+                  null,
+                  null,
                   location(table),
                   auxiliaryLocations(table),
                   TableAccessModes.forTable(table),
@@ -73,8 +73,8 @@ public final class TableActions {
                 VectorUtils.toJavaList(metadata.getPartitionColumns()),
                 parquetConfiguration(metadata.getConfiguration()),
                 version,
-                size,
-                numFiles)));
+                null,
+                null)));
   }
 
   public static String parquetFile(

@@ -4,7 +4,6 @@ import io.delta.kernel.Snapshot;
 import io.delta.kernel.exceptions.InvalidTableException;
 import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.internal.SnapshotImpl;
-import io.delta.kernel.internal.checksum.CRCInfo;
 import io.opensharing.http.ApiException;
 import java.time.Instant;
 
@@ -14,46 +13,27 @@ final class DeltaSnapshots {
   private DeltaSnapshots() {}
 
   static Snapshot open(DeltaKernel.Session session, Long version, Instant timestamp) {
-    Snapshot latest = DeltaKernel.latestSnapshot(session.table(), session.engine());
+    // Kernel's own errors, such as a version after the latest or a timestamp outside the log,
+    // are the recipient's bad request; they are reported with Kernel's message.
     if (version != null) {
-      if (version > latest.getVersion()) {
-        throw ApiException.invalidParameter(
-            "version " + version + " is after the latest table version " + latest.getVersion());
-      }
       try {
         return session.table().getSnapshotAsOfVersion(session.engine(), version);
       } catch (KernelException | IllegalArgumentException unavailable) {
-        throw unavailable(unavailable, "version " + version + " is no longer available");
+        throw unavailable(unavailable);
       }
     }
     if (timestamp != null) {
-      if (timestamp.toEpochMilli() > latest.getTimestamp(session.engine())) {
-        throw ApiException.invalidParameter(
-            "timestamp is after the latest table version timestamp");
-      }
       try {
         return session.table().getSnapshotAsOfTimestamp(session.engine(), timestamp.toEpochMilli());
       } catch (KernelException | IllegalArgumentException unavailable) {
-        throw unavailable(
-            unavailable, "timestamp is before the earliest available table version timestamp");
+        throw unavailable(unavailable);
       }
     }
-    return latest;
-  }
-
-  /**
-   * The snapshot's checksum file, if it was written for exactly the snapshot's version. Its size
-   * and file count go into metaData; without it they are omitted rather than computed by a scan.
-   */
-  static CRCInfo crcFor(SnapshotImpl snapshot) {
-    return snapshot
-        .getCurrentCrcInfo()
-        .filter(crc -> crc.getVersion() == snapshot.getVersion())
-        .orElse(null);
+    return DeltaKernel.latestSnapshot(session.table(), session.engine());
   }
 
   /** An earlier snapshot can need a protocol Kernel cannot read even when the latest does not. */
-  private static ApiException unavailable(RuntimeException failed, String message) {
+  private static ApiException unavailable(RuntimeException failed) {
     if (failed instanceof KernelException kernel && DeltaKernel.unsupportedProtocol(kernel)) {
       return DeltaKernel.unreadableTable(kernel);
     }
@@ -61,6 +41,6 @@ final class DeltaSnapshots {
       // The log lost commits, or its beginning, since the latest snapshot was read.
       return ApiException.tableFilesMissing();
     }
-    return ApiException.invalidParameter(message);
+    return ApiException.invalidParameter(failed.getMessage());
   }
 }

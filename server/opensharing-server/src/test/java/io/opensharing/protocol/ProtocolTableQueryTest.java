@@ -67,11 +67,12 @@ class ProtocolTableQueryTest extends LocalDeltaTableSupport {
     assertEquals("events", lines.get(1).path("metaData").path("deltaMetadata").path("id").asText());
     assertInvalid(query(events, bearer, "{}", "responseformat=json", null));
 
-    // A historical version or timestamp is echoed in metaData.version.
+    // Like the reference server, metaData carries no version even for a historical query; the
+    // snapshot version is only in the Delta-Table-Version header.
     Response atVersion = query(events, bearer, "{\"version\":0}", null, null);
     assertEquals(200, atVersion.status());
     assertEquals("0", atVersion.headers().get("Delta-Table-Version"));
-    assertEquals(0, lines(atVersion).get(1).path("metaData").path("version").asLong());
+    assertTrue(lines(atVersion).get(1).path("metaData").path("version").isMissingNode());
     Response atTimestamp =
         query(events, bearer, "{\"timestamp\":\"2024-01-01T00:30:00Z\"}", null, null);
     assertEquals(200, atTimestamp.status());

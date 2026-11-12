@@ -123,9 +123,12 @@ public class ProtocolTables {
       String tableAlias,
       String startingTimestamp) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    SharedTable table = findTable(share, schemaAlias, tableAlias);
+    if (startingTimestamp != null) {
+      requireHistoryShared(table, share.getName());
+    }
     Instant timestamp = parseTimestamp("startingTimestamp", startingTimestamp);
-    return kernel.getVersion(
-        findTable(share, schemaAlias, tableAlias).catalogTable(), timestamp, owner(share));
+    return kernel.getVersion(table.catalogTable(), timestamp, owner(share));
   }
 
   /**
@@ -142,9 +145,18 @@ public class ProtocolTables {
       String timestamp,
       String capabilities) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    if (version != null && timestamp != null) {
+      throw ApiException.invalidParameter("Please only provide one of: version,timestamp");
+    }
+    if (version != null && version < 0) {
+      throw ApiException.invalidParameter("version cannot be negative.");
+    }
+    SharedTable table = findTable(share, schemaAlias, tableAlias);
+    if (version != null || timestamp != null) {
+      requireHistoryShared(table, share.getName());
+    }
     Instant asOf = parseTimestamp("timestamp", timestamp);
-    ResolvedAsset table = findTable(share, schemaAlias, tableAlias).catalogTable();
-    return metadataReader.read(table, version, asOf, owner(share), capabilities);
+    return metadataReader.read(table.catalogTable(), version, asOf, owner(share), capabilities);
   }
 
   /**
@@ -207,8 +219,15 @@ public class ProtocolTables {
             findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     if (body.startingVersion() != null || body.endingVersion() != null) {
-      queryChanges(body, catalogTable, share, options, sink);
+      queryChanges(body, catalogTable, share, schemaAlias, tableAlias, options, sink);
       return;
+    }
+    if (body.version() != null && body.timestamp() != null) {
+      throw ApiException.invalidParameter(
+          "Please only provide one of: version,timestamp,startingVersion");
+    }
+    if (body.version() != null && body.version() < 0) {
+      throw ApiException.invalidParameter("table version cannot be negative.");
     }
     boolean historical = body.version() != null || body.timestamp() != null;
     boolean includeRefreshToken = Boolean.TRUE.equals(body.includeRefreshToken());
@@ -219,6 +238,10 @@ public class ProtocolTables {
     if (body.refreshToken() != null && historical) {
       throw ApiException.invalidParameter(
           "refreshToken cannot be used when querying a specific version.");
+    }
+    if (historical) {
+      requireHistoryShared(
+          findTable(share, schemaAlias, tableAlias), share.getName());
     }
     if (body.predicateHints() != null && !body.predicateHints().isEmpty()) {
       log.debug("Ignoring deprecated predicateHints {}", body.predicateHints());
@@ -251,11 +274,11 @@ public class ProtocolTables {
       DeltaTableQueryReader.ResponseOptions options,
       DeltaTableQueryReader.ResponseSink sink) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    ResolvedAsset catalogTable =
-        requireUrlAccess(
-            findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
+    SharedTable table = findTable(share, schemaAlias, tableAlias);
+    requireUrlAccess(table.catalogTable(), schemaAlias, tableAlias);
+    requireCdfEnabled(table, share.getName());
     queryReader.readChangeDataFeed(
-        catalogTable,
+        table.catalogTable(),
         owner(share),
         options,
         sink,
@@ -279,6 +302,38 @@ public class ProtocolTables {
   }
 
   /**
+   * Reading a table as of a version or timestamp, including its Change Data Feed, needs the data
+   * provider's opt-in to share the table's history.
+   */
+  private static void requireHistoryShared(SharedTable table, String shareName) {
+    if (table.catalogTable().additionalProperties() instanceof TableProperties properties
+        && !properties.historyShared()) {
+      throw ApiException.invalidParameter(
+          "Reading table by version or timestamp is not supported because history sharing is not"
+              + " enabled on table: "
+              + shareName
+              + "."
+              + table.schemaAlias()
+              + "."
+              + table.tableAlias());
+    }
+  }
+
+  /** The Change Data Feed needs the same opt-in, reported in the reference server's words. */
+  private static void requireCdfEnabled(SharedTable table, String shareName) {
+    if (table.catalogTable().additionalProperties() instanceof TableProperties properties
+        && !properties.historyShared()) {
+      throw ApiException.invalidParameter(
+          "cdf is not enabled on table "
+              + shareName
+              + "."
+              + table.schemaAlias()
+              + "."
+              + table.tableAlias());
+    }
+  }
+
+  /**
    * Reads the data change files from {@code startingVersion} into {@code sink}. Predicate and limit
    * hints apply to snapshot files only, so they are ignored here.
    */
@@ -286,6 +341,8 @@ public class ProtocolTables {
       QueryTableRequest body,
       ResolvedAsset table,
       ShareEntity share,
+      String schemaAlias,
+      String tableAlias,
       DeltaTableQueryReader.ResponseOptions options,
       DeltaTableQueryReader.ResponseSink sink) {
     Long startingVersion = body.startingVersion();
@@ -295,19 +352,21 @@ public class ProtocolTables {
     }
     if (body.version() != null || body.timestamp() != null) {
       throw ApiException.invalidParameter(
-          "Only one of version, timestamp, and startingVersion can be set");
+          "Please only provide one of: version,timestamp,startingVersion");
     }
     if (Boolean.TRUE.equals(body.includeRefreshToken()) || body.refreshToken() != null) {
       throw ApiException.invalidParameter(
           "includeRefreshToken and refreshToken cannot be used with startingVersion");
     }
     if (startingVersion < 0) {
-      throw ApiException.invalidParameter("startingVersion must be non-negative");
+      throw ApiException.invalidParameter("startingVersion cannot be negative.");
     }
     if (endingVersion != null && endingVersion < startingVersion) {
       throw ApiException.invalidParameter(
-          "endingVersion must be greater than or equal to startingVersion");
+          "startingVersion(" + startingVersion + ") must be smaller than or equal to "
+              + "endingVersion(" + endingVersion + ").");
     }
+    requireHistoryShared(findTable(share, schemaAlias, tableAlias), share.getName());
     queryReader.readChanges(
         table,
         owner(share),

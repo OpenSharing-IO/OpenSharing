@@ -2,7 +2,6 @@ package io.opensharing.asset.table.delta;
 
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.internal.SnapshotImpl;
-import io.delta.kernel.internal.checksum.CRCInfo;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.asset.table.TableActions;
@@ -35,21 +34,13 @@ public class DeltaTableMetadataReader {
     try (DeltaKernel.Session session = kernel.open(table, auth)) {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
-      boolean historical = version != null || timestamp != null;
       ResponseFormat format =
           DeltaSharingCapabilities.choose(capabilities, impl.getProtocol().getMinReaderVersion());
-      CRCInfo crc = DeltaSnapshots.crcFor(impl);
       return new Result(
           snapshot.getVersion(),
           format,
           TableActions.protocol(impl.getProtocol(), null, format)
-              + TableActions.metadata(
-                  impl.getMetadata(),
-                  table,
-                  historical ? snapshot.getVersion() : null,
-                  crc == null ? null : crc.getTableSizeBytes(),
-                  crc == null ? null : crc.getNumFiles(),
-                  format));
+              + TableActions.metadata(impl.getMetadata(), table, null, format));
     }
   }
 
