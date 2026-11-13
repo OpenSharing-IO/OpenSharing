@@ -69,6 +69,7 @@ jobs:
       base_ref: ${{ steps.request.outputs.base_ref }}
       base_sha: ${{ steps.request.outputs.base_sha }}
       head_sha: ${{ steps.request.outputs.head_sha }}
+      merge_base_sha: ${{ steps.request.outputs.merge_base_sha }}
       pr_number: ${{ steps.request.outputs.pr_number }}
     steps:
       - name: Resolve and authorize request
@@ -146,6 +147,12 @@ jobs:
             core.setOutput('base_ref', pull.base.ref);
             core.setOutput('base_sha', pull.base.sha);
             core.setOutput('head_sha', pull.head.sha);
+            const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
+              owner,
+              repo,
+              basehead: `${pull.base.sha}...${pull.head.sha}`,
+            });
+            core.setOutput('merge_base_sha', comparison.merge_base_commit.sha);
             core.setOutput('pr_number', String(pull.number));
 
   review:
@@ -372,13 +379,13 @@ jobs:
         # Findings still publish when the policy can't evaluate; the status falls back to error.
         continue-on-error: true
         env:
-          EXPECTED_BASE_SHA: ${{ needs.authorize.outputs.base_sha }}
+          EXPECTED_MERGE_BASE_SHA: ${{ needs.authorize.outputs.merge_base_sha }}
           EXPECTED_HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
         run: |
           python3 .review-policy/.github/scripts/ai_review_merge_recommendation.py \
             --result /tmp/ai-review/ocr-result.json \
             --changed-paths /tmp/ai-review/changed-paths.json \
-            --expected-base "$EXPECTED_BASE_SHA" \
+            --expected-base "$EXPECTED_MERGE_BASE_SHA" \
             --expected-head "$EXPECTED_HEAD_SHA" \
             --github-output "$GITHUB_OUTPUT"
 

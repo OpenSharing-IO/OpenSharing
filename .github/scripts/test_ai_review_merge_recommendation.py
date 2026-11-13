@@ -16,6 +16,7 @@ SPEC.loader.exec_module(MODULE)
 
 HEAD = "a" * 40
 BASE = "b" * 40
+MERGE_BASE = "d" * 40
 
 
 def complete_result():
@@ -212,6 +213,13 @@ class ClassifyTest(unittest.TestCase):
                 complete_result(), "c" * 40, HEAD, ["server/Example.java"]
             )["state"],
         )
+
+    def test_accepts_merge_base_that_differs_from_the_branch_tip(self):
+        result = complete_result()
+        result["manifest"]["input"]["resolved_base"] = MERGE_BASE
+        decision = MODULE.classify(result, MERGE_BASE, HEAD, ["server/Example.java"])
+        self.assertEqual("success", decision["state"])
+        self.assertNotIn("base", " ".join(decision["reasons"]))
 
     def test_file_name_cannot_inject_an_output_line(self):
         result = complete_result()

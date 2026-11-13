@@ -103,7 +103,7 @@ def classify(
         errors.append("manifest.input is missing or invalid")
     else:
         if manifest_input.get("resolved_base") != expected_base:
-            reasons.append("reviewed base does not match the pull request base")
+            reasons.append("reviewed base does not match the pull request's merge base")
         if manifest_input.get("resolved_head") != expected_head:
             reasons.append("reviewed commit does not match the pull request head")
 
