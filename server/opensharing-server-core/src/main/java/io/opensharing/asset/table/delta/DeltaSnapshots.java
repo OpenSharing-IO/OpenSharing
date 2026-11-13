@@ -5,6 +5,7 @@ import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.internal.checksum.CRCInfo;
 import io.opensharing.http.ApiException;
+import io.opensharing.http.ErrorCodes;
 import java.time.Instant;
 
 /** Opens a Kernel snapshot for a version, timestamp, or the latest log, and reads its checksum. */
@@ -14,30 +15,31 @@ final class DeltaSnapshots {
 
   static Snapshot open(DeltaKernel.Session session, Long version, Instant timestamp) {
     Snapshot latest = DeltaKernel.latestSnapshot(session.table(), session.engine());
-    if (version != null) {
-      if (version > latest.getVersion()) {
-        throw ApiException.invalidParameter(
-            "version " + version + " is after the latest table version " + latest.getVersion());
-      }
-      try {
-        return session.table().getSnapshotAsOfVersion(session.engine(), version);
-      } catch (KernelException | IllegalArgumentException unavailable) {
-        throw unavailable(unavailable, "version " + version + " is no longer available");
-      }
+    if (version == null && timestamp == null) {
+      return latest;
     }
-    if (timestamp != null) {
-      if (timestamp.toEpochMilli() > latest.getTimestamp(session.engine())) {
-        throw ApiException.invalidParameter(
-            "timestamp is after the latest table version timestamp");
-      }
-      try {
-        return session.table().getSnapshotAsOfTimestamp(session.engine(), timestamp.toEpochMilli());
-      } catch (KernelException | IllegalArgumentException unavailable) {
-        throw unavailable(
-            unavailable, "timestamp is before the earliest available table version timestamp");
-      }
+    if (version != null && version > latest.getVersion()) {
+      // Kernel's message, table path included, without the search back through the log that it
+      // makes for a version this far ahead, which takes minutes on object storage.
+      throw new ApiException(
+          400,
+          ErrorCodes.BAD_REQUEST,
+          session.table().getPath(session.engine())
+              + ": Cannot load table version "
+              + version
+              + " as it does not exist. The latest available version is "
+              + latest.getVersion()
+              + ".");
     }
-    return latest;
+    try {
+      return version != null
+          ? session.table().getSnapshotAsOfVersion(session.engine(), version)
+          : session.table().getSnapshotAsOfTimestamp(session.engine(), timestamp.toEpochMilli());
+    } catch (KernelException unavailable) {
+      throw DeltaKernel.unsupportedProtocol(unavailable)
+          ? DeltaKernel.unreadableTable(unavailable)
+          : unavailable;
+    }
   }
 
   /**
@@ -49,13 +51,5 @@ final class DeltaSnapshots {
         .getCurrentCrcInfo()
         .filter(crc -> crc.getVersion() == snapshot.getVersion())
         .orElse(null);
-  }
-
-  /** An earlier snapshot can need a protocol Kernel cannot read even when the latest does not. */
-  private static ApiException unavailable(RuntimeException failed, String message) {
-    if (failed instanceof KernelException kernel && DeltaKernel.unsupportedProtocol(kernel)) {
-      return DeltaKernel.unreadableTable(kernel);
-    }
-    return ApiException.invalidParameter(message);
   }
 }

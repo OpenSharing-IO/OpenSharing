@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import io.delta.kernel.exceptions.KernelException;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
@@ -32,6 +33,17 @@ class ApiFailureTest {
         ApiException.unauthenticated("token is missing"));
     assertFailure(
         501, ErrorCodes.NOT_IMPLEMENTED, "not yet", ApiException.notImplemented("not yet"));
+  }
+
+  @Test
+  void relaysKernelsReportOnATableAsABadRequest() {
+    assertFailure(
+        400,
+        ErrorCodes.BAD_REQUEST,
+        "Cannot load table version 6 as it does not exist. The latest available version is 3.",
+        new KernelException(
+            "Cannot load table version 6 as it does not exist. The latest available version is"
+                + " 3."));
   }
 
   @Test

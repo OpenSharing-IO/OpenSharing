@@ -79,7 +79,13 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
     assertEquals(200, atTimestamp.status());
     assertEquals("1", atTimestamp.headers().get("Delta-Table-Version"));
 
-    assertInvalid(metadata(orders + "?version=9", bearer, null));
+    // A version after the latest is Kernel's report.
+    Response afterLatest = metadata(orders + "?version=9", bearer, null);
+    assertEquals(400, afterLatest.status());
+    assertEquals(ErrorCodes.BAD_REQUEST, afterLatest.errorCode());
+    assertTrue(afterLatest
+            .text()
+            .contains("/orders: Cannot load table version 9 as it does not exist. The latest available"), afterLatest.text());
     assertInvalid(metadata(orders + "?version=1&timestamp=2024-01-01T01:30:00Z", bearer, null));
     assertInvalid(metadata(orders + "?timestamp=not-a-timestamp", bearer, null));
 

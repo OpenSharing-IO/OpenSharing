@@ -49,14 +49,9 @@ public class DeltaKernel {
 
   static long versionAtOrAfter(TableImpl table, Engine engine, Instant startingTimestamp) {
     Snapshot latest = latestSnapshot(table, engine);
-    if (startingTimestamp == null) {
-      return latest.getVersion();
-    }
-    if (startingTimestamp.toEpochMilli() > latest.getTimestamp(engine)) {
-      throw ApiException.invalidParameter(
-          "startingTimestamp is after the latest table version timestamp");
-    }
-    return table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
+    return startingTimestamp == null
+        ? latest.getVersion()
+        : table.getVersionAtOrAfterTimestamp(engine, startingTimestamp.toEpochMilli());
   }
 
   /**

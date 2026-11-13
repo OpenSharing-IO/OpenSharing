@@ -3,6 +3,7 @@ package io.opensharing.http;
 /** Error codes used in {@link ErrorResponse#errorCode()}. */
 public final class ErrorCodes {
 
+  public static final String BAD_REQUEST = "BAD_REQUEST";
   public static final String MALFORMED_REQUEST = "MALFORMED_REQUEST";
   public static final String INVALID_PARAMETER_VALUE = "INVALID_PARAMETER_VALUE";
   public static final String UNAUTHENTICATED = "UNAUTHENTICATED";

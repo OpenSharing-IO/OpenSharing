@@ -61,8 +61,9 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
     assertVersion("0", query(endpoint, bearer, "{\"version\":0}", null));
     assertVersion(
         "0", query(endpoint, bearer, "{\"timestamp\":\"2021-05-04T17:24:06Z\"}", null));
-    // As of before version 0 is INVALID_PARAMETER_VALUE.
-    assertInvalid(query(endpoint, bearer, "{\"timestamp\":\"1970-01-01T00:00:00Z\"}", null));
+    // As of before version 0 is Kernel's report.
+    assertKernelRejected(
+        query(endpoint, bearer, "{\"timestamp\":\"1970-01-01T00:00:00Z\"}", null));
     // version and timestamp together are mutually exclusive.
     assertInvalid(
         query(endpoint, bearer, "{\"version\":1,\"timestamp\":\"2021-05-04T17:24:06Z\"}", null));
@@ -127,8 +128,8 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
     assertVersion("0", historical);
     assertEquals(
         2, historical.text().split("\"version\":0", -1).length - 1);
-    // A version after the latest is INVALID_PARAMETER_VALUE.
-    assertInvalid(query(endpoint, bearer, "{\"version\":1}", null));
+    // A version after the latest is Kernel's report.
+    assertKernelRejected(query(endpoint, bearer, "{\"version\":1}", null));
   }
 
   private static void assertParquetQuery(String ndjson) {

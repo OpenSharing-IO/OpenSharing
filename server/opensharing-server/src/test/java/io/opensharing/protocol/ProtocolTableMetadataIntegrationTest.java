@@ -58,8 +58,8 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     // Historical version 0, and as of the first commit time, return that snapshot.
     assertVersion("0", metadata(endpoint + "?version=0", bearer, null));
     assertVersion("0", metadata(endpoint + "?timestamp=2021-05-04T17:24:06Z", bearer, null));
-    // As of before version 0 is INVALID_PARAMETER_VALUE.
-    assertInvalid(metadata(endpoint + "?timestamp=1970-01-01T00:00:00Z", bearer, null));
+    // As of before version 0 is Kernel's report.
+    assertKernelRejected(metadata(endpoint + "?timestamp=1970-01-01T00:00:00Z", bearer, null));
     // version and timestamp together are mutually exclusive.
     assertInvalid(metadata(endpoint + "?version=1&timestamp=2021-05-04T17:24:06Z", bearer, null));
   }

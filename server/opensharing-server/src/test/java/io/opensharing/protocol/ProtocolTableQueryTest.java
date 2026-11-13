@@ -77,7 +77,11 @@ class ProtocolTableQueryTest extends LocalDeltaTableSupport {
     assertEquals(200, atTimestamp.status());
     assertEquals("0", atTimestamp.headers().get("Delta-Table-Version"));
 
-    assertInvalid(query(events, bearer, "{\"version\":9}", null, null));
+    // A version after the latest is Kernel's report.
+    Response afterLatest = query(events, bearer, "{\"version\":9}", null, null);
+    assertEquals(400, afterLatest.status());
+    assertEquals(ErrorCodes.BAD_REQUEST, afterLatest.errorCode());
+    assertTrue(afterLatest.text().contains("Cannot load table version 9"), afterLatest.text());
     String both = "{\"version\":1,\"timestamp\":\"2024-01-01T00:30:00Z\"}";
     assertInvalid(query(events, bearer, both, null, null));
     assertInvalid(query(events, bearer, "{\"timestamp\":\"not-a-timestamp\"}", null, null));
