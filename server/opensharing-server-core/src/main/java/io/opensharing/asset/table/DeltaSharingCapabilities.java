@@ -2,9 +2,11 @@ package io.opensharing.asset.table;
 
 import io.delta.kernel.internal.actions.Protocol;
 import io.opensharing.http.ApiException;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -51,37 +53,99 @@ public final class DeltaSharingCapabilities {
   }
 
   /**
+   * The Delta table properties that stand for reader features, in the order they are checked, each
+   * with the reader feature that covers it and the value that turns the feature off.
+   */
+  private static final List<PropertyWithOffValue> FEATURE_PROPERTIES =
+      List.of(
+          new PropertyWithOffValue("delta.columnMapping.mode", "columnmapping", "none"),
+          new PropertyWithOffValue("delta.enableDeletionVectors", "deletionvectors", "false"));
+
+  private record PropertyWithOffValue(String property, String feature, String offValue) {}
+
+  /** What to do about table features the client did not advertise. */
+  private static final String ADVERTISE_OR_DISABLE =
+      "Query with responseFormat=delta and advertise the features in delta-sharing-capabilities,"
+          + " or ask your data provider to disable them.";
+
+  /** Deletion vectors stay in a protocol after they are turned off; their property decides. */
+  private static final String DELETION_VECTORS = "deletionvectors";
+
+  /** What a client declared in {@code delta-sharing-capabilities}, parsed once per request. */
+  public record Declared(Set<ResponseFormat> formats, Set<String> readerFeatures) {}
+
+  public static Declared declared(String header) {
+    Map<String, String> capabilities = parse(header);
+    String value = capabilities.get("readerfeatures");
+    Set<String> readerFeatures = new LinkedHashSet<>();
+    if (value != null) {
+      for (String token : value.split(",")) {
+        readerFeatures.add(token.trim());
+      }
+    }
+    return new Declared(responseFormats(capabilities), readerFeatures);
+  }
+
+  /**
+   * A table whose Delta properties enable a reader feature the client did not advertise cannot be
+   * served to it: a property may only be present with the value that turns its feature off. This
+   * covers the table's version {@code version}.
+   */
+  public static void requireSupportedProperties(
+      Declared declared, Map<String, String> configuration, long version) {
+    if (configuration == null || configuration.isEmpty()) {
+      return;
+    }
+    List<String> unsupported = new ArrayList<>();
+    for (PropertyWithOffValue checked : FEATURE_PROPERTIES) {
+      String value = configuration.get(checked.property());
+      if (value != null
+          && !declared.readerFeatures().contains(checked.feature())
+          && !checked.offValue().equals(value.trim())) {
+        unsupported.add(checked.property());
+      }
+    }
+    if (!unsupported.isEmpty()) {
+      throw ApiException.unsupportedFeatures(unsupported, version, ADVERTISE_OR_DISABLE);
+    }
+  }
+
+  /**
    * A parquet response only carries protocols with reader version 1. A client that accepts delta
    * must advertise every reader feature the table requires; one that accepts only parquet gets
    * delta for an advanced table and raises the error itself. Advertised features the server does
    * not know are ignored. Metadata does not enforce this so clients can inspect protocol before
-   * querying files.
+   * querying files. {@code version} is the table version {@code protocol} is of.
    */
   public static void requireReaderFeatures(
-      String header, ResponseFormat format, Protocol protocol) {
+      Declared declared, ResponseFormat format, Protocol protocol, long version) {
+    Set<String> required = protocol.getReaderFeatures();
     if (format != ResponseFormat.DELTA) {
       if (protocol.getMinReaderVersion() > 1) {
-        throw ApiException.invalidParameter(
-            "The table requires reader features that are only available in delta format");
+        throw ApiException.unsupportedFeatures(
+            required == null || required.isEmpty()
+                ? List.of("reader version " + protocol.getMinReaderVersion())
+                : lowerCase(required),
+            version,
+            ADVERTISE_OR_DISABLE);
       }
       return;
     }
-    if (!responseFormats(parse(header)).contains(ResponseFormat.DELTA)) {
+    if (!declared.formats().contains(ResponseFormat.DELTA) || required == null) {
       return;
     }
-    Set<String> required = protocol.getReaderFeatures();
-    if (required == null || required.isEmpty()) {
-      return;
+    List<String> unadvertised =
+        lowerCase(required).stream()
+            .filter(feature -> !feature.equals(DELETION_VECTORS))
+            .filter(feature -> !declared.readerFeatures().contains(feature))
+            .toList();
+    if (!unadvertised.isEmpty()) {
+      throw ApiException.unsupportedFeatures(unadvertised, version, ADVERTISE_OR_DISABLE);
     }
-    Set<String> advertised = advertisedReaderFeatures(header);
-    for (String feature : required) {
-      if (!advertised.contains(feature.toLowerCase(Locale.ROOT))) {
-        throw ApiException.invalidParameter(
-            "The table requires reader feature '"
-                + feature
-                + "' which was not specified in delta-sharing-capabilities");
-      }
-    }
+  }
+
+  private static List<String> lowerCase(Set<String> features) {
+    return features.stream().map(feature -> feature.toLowerCase(Locale.ROOT)).toList();
   }
 
   /**
@@ -132,17 +196,5 @@ public final class DeltaSharingCapabilities {
       }
     }
     return requested;
-  }
-
-  private static Set<String> advertisedReaderFeatures(String header) {
-    String value = parse(header).get("readerfeatures");
-    if (value == null) {
-      return Set.of();
-    }
-    Set<String> advertised = new LinkedHashSet<>();
-    for (String token : value.split(",")) {
-      advertised.add(token.trim());
-    }
-    return advertised;
   }
 }

@@ -33,6 +33,10 @@ public class DeltaTableMetadataReader {
     try (DeltaKernel.Session session = kernel.open(table, auth)) {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
+      DeltaSharingCapabilities.requireSupportedProperties(
+          DeltaSharingCapabilities.declared(capabilities),
+          impl.getMetadata().getConfiguration(),
+          snapshot.getVersion());
       boolean historical = version != null || timestamp != null;
       ResponseFormat format =
           DeltaSharingCapabilities.choose(capabilities, impl.getProtocol().getMinReaderVersion());

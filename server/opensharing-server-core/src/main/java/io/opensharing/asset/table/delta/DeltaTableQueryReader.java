@@ -144,7 +144,8 @@ public class DeltaTableQueryReader {
         ResponseWriter out = new ResponseWriter(session, table, options, sink)) {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
-      out.requireReaderFeatures(impl.getProtocol());
+      out.requireSupportedProperties(impl.getMetadata(), snapshot.getVersion());
+      out.requireReaderFeatures(impl.getProtocol(), snapshot.getVersion());
       Long fileVersion = historical ? snapshot.getVersion() : null;
       Long fileTimestamp = historical ? snapshot.getTimestamp(session.engine()) : null;
       out.begin(snapshot.getVersion());
@@ -325,7 +326,8 @@ public class DeltaTableQueryReader {
       ResponseOptions options,
       ResponseSink sink) {
     try (ResponseWriter out = new ResponseWriter(session, table, options, sink)) {
-      out.requireReaderFeatures(header.getProtocol());
+      out.requireSupportedProperties(header.getMetadata(), header.getVersion());
+      out.requireReaderFeatures(header.getProtocol(), header.getVersion());
       Path tablePath = new Path(session.table().getPath(session.engine()));
       List<FileStatus> commitFiles;
       try {
@@ -377,8 +379,8 @@ public class DeltaTableQueryReader {
   }
 
   /**
-   * Checks the reader features and, for a Change Data Feed, the change data recording of each
-   * protocol and metaData in the commits of {@code range}.
+   * Checks the reader features, the Delta properties and, for a Change Data Feed, the change data
+   * recording of each protocol and metaData in the commits of {@code range}.
    */
   private static void checkCommits(
       DeltaKernel.Session session, ResponseWriter out, ChangeRange range, List<FileStatus> files)
@@ -391,11 +393,14 @@ public class DeltaTableQueryReader {
           PROTOCOL_AND_METADATA_SCHEMA,
           (row, columns) -> {
             if (!row.isNullAt(columns.protocol())) {
-              out.requireReaderFeatures(Protocol.fromRow(row.getStruct(columns.protocol())));
-            } else if (!row.isNullAt(columns.metadata())
-                && range.changeDataFeed()
-                && !changeDataFeedEnabled(Metadata.fromRow(row.getStruct(columns.metadata())))) {
-              throw SourceTableException.changeDataNotRecorded(version);
+              Protocol protocol = Protocol.fromRow(row.getStruct(columns.protocol()));
+              out.requireReaderFeatures(protocol, version);
+            } else if (!row.isNullAt(columns.metadata())) {
+              Metadata metadata = Metadata.fromRow(row.getStruct(columns.metadata()));
+              out.requireSupportedProperties(metadata, version);
+              if (range.changeDataFeed() && !changeDataFeedEnabled(metadata)) {
+                throw SourceTableException.changeDataNotRecorded(version);
+              }
             }
           });
     }
@@ -522,6 +527,7 @@ public class DeltaTableQueryReader {
     private final DeltaKernel.Session session;
     private final ResolvedAsset table;
     private final String capabilities;
+    private final DeltaSharingCapabilities.Declared declared;
     private final String fileIdHash;
     private final SigningSession signer;
     private final ResponseSink sink;
@@ -537,6 +543,7 @@ public class DeltaTableQueryReader {
       this.session = session;
       this.table = table;
       this.capabilities = options.capabilities();
+      this.declared = DeltaSharingCapabilities.declared(capabilities);
       this.fileIdHash = options.fileIdHash();
       this.signer = signers.open(session.credentials());
       this.sink = sink;
@@ -544,13 +551,20 @@ public class DeltaTableQueryReader {
 
     /**
      * Picks the format from the first protocol, before any line is written, then checks each, as a
-     * later protocol can need reader features the client did not declare.
+     * later protocol can need reader features the client did not declare. {@code version} is the
+     * table version {@code protocol} is of.
      */
-    void requireReaderFeatures(Protocol protocol) {
+    void requireReaderFeatures(Protocol protocol, long version) {
       if (format == null) {
         format = DeltaSharingCapabilities.choose(capabilities, protocol.getMinReaderVersion());
       }
-      DeltaSharingCapabilities.requireReaderFeatures(capabilities, format, protocol);
+      DeltaSharingCapabilities.requireReaderFeatures(declared, format, protocol, version);
+    }
+
+    /** Checks the Delta properties of {@code metadata}, the table's metadata at {@code version}. */
+    void requireSupportedProperties(Metadata metadata, long version) {
+      DeltaSharingCapabilities.requireSupportedProperties(
+          declared, metadata.getConfiguration(), version);
     }
 
     /** Null until {@link #requireReaderFeatures} picks it. */

@@ -27,9 +27,11 @@ import org.junit.jupiter.api.io.TempDir;
  * commit is missing, {@code main.lake.noncontiguous} has commits 0 and 2, so version 1 is
  * missing, {@code main.lake.invalidlog}, in a directory with a space in its name, enables in-commit
  * timestamps but its first commit has no CommitInfo, and {@code main.lake.futuresince} needs a
- * reader feature Kernel does not know at version 0 but not at its latest. {@code
- * main.lake.cdfmid} records change data at version 0, commits no change at version 1, and stops
- * recording at version 2.
+ * reader feature Kernel does not know at version 0 but not at its latest. {@code main.lake.cm}
+ * enables column mapping by name and {@code main.lake.dv} deletion vectors, {@code
+ * main.lake.propsoff} has both turned off, and {@code main.lake.cmlater} records change data and
+ * enables column mapping from version 1. {@code main.lake.cdfmid} records change data at version 0,
+ * commits no change at version 1, and stops recording at version 2.
  */
 abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
 
@@ -59,10 +61,29 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
               + "\"delta.inCommitTimestampEnablementVersion\":\"0\","
               + "\"delta.inCommitTimestampEnablementTimestamp\":\"1704067200000\"}");
 
+  private static final String CM_PROTOCOL_ACTION =
+      "{\"protocol\":{\"minReaderVersion\":2,\"minWriterVersion\":5,"
+          + "\"readerFeatures\":[\"columnMapping\"],\"writerFeatures\":[\"columnMapping\"]}}\n";
+  private static final String DV_PROTOCOL_ACTION =
+      "{\"protocol\":{\"minReaderVersion\":3,\"minWriterVersion\":7,"
+          + "\"readerFeatures\":[\"deletionVectors\"],\"writerFeatures\":[\"deletionVectors\"]}}\n";
+  private static final String LEGACY_CM_PROTOCOL_ACTION =
+      "{\"protocol\":{\"minReaderVersion\":2,\"minWriterVersion\":5}}\n";
+  private static final String CM_CONFIGURATION =
+      "\"delta.columnMapping.mode\":\"name\",\"delta.columnMapping.maxColumnId\":\"1\"";
+  private static final String CDF_CONFIGURATION = "\"delta.enableChangeDataFeed\":\"true\"";
+
   /** A directory name with a space, which a table path spells two ways: raw and URI-escaped. */
   protected static final String INVALID_LOG_DIRECTORY = "invalid log";
 
   @TempDir static Path tables;
+
+  /** Metadata for table {@code name} with Delta properties {@code configuration}, as JSON. */
+  private static String metadataWith(String name, String configuration) {
+    return METADATA_ACTION
+        .formatted(name)
+        .replace("\"configuration\":{}", "\"configuration\":{" + configuration + "}");
+  }
 
   @BeforeAll
   static void startLocalDeltaServer() {
@@ -73,6 +94,31 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
     write(
         "future/_delta_log/%020d.json".formatted(0),
         FUTURE_PROTOCOL_ACTION + METADATA_ACTION.formatted("future"));
+    // Column mapping by name, and deletion vectors, are enabled by table properties.
+    write(
+        "cm/_delta_log/%020d.json".formatted(0),
+        CM_PROTOCOL_ACTION + metadataWith("cm", CM_CONFIGURATION));
+    write(
+        "dv/_delta_log/%020d.json".formatted(0),
+        DV_PROTOCOL_ACTION + metadataWith("dv", "\"delta.enableDeletionVectors\":\"true\""));
+    // Both properties at their off values, deletion vectors still in the protocol, and a property
+    // no feature depends on.
+    write(
+        "propsoff/_delta_log/%020d.json".formatted(0),
+        DV_PROTOCOL_ACTION
+            + metadataWith(
+                "propsoff",
+                "\"delta.enableDeletionVectors\":\"false\",\"delta.columnMapping.mode\":\"none\","
+                    + "\"delta.appendOnly\":\"true\""));
+    // Plain and recording change data at version 0; column mapping by name from version 1 on.
+    write(
+        "cmlater/_delta_log/%020d.json".formatted(0),
+        PROTOCOL_ACTION + metadataWith("cmlater", CDF_CONFIGURATION) + COMMIT_INFO_ACTION);
+    write(
+        "cmlater/_delta_log/%020d.json".formatted(1),
+        LEGACY_CM_PROTOCOL_ACTION
+            + metadataWith("cmlater", CDF_CONFIGURATION + "," + CM_CONFIGURATION)
+            + COMMIT_INFO_ACTION);
     // Change data recorded at version 0, a commit that changes nothing at version 1, and a
     // metaData at version 2 that stops recording it.
     write(
@@ -176,6 +222,26 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
               subtype: MANAGED
             storageLocation: %s
             format: delta
+          - identifier: main.lake.cm
+            attributes:
+              subtype: MANAGED
+            storageLocation: %s
+            format: delta
+          - identifier: main.lake.dv
+            attributes:
+              subtype: MANAGED
+            storageLocation: %s
+            format: delta
+          - identifier: main.lake.propsoff
+            attributes:
+              subtype: MANAGED
+            storageLocation: %s
+            format: delta
+          - identifier: main.lake.cmlater
+            attributes:
+              subtype: MANAGED
+            storageLocation: %s
+            format: delta
           - identifier: main.lake.cdfmid
             attributes:
               subtype: MANAGED
@@ -194,6 +260,10 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
                 location("noncontiguous"),
                 unescapedLocation(INVALID_LOG_DIRECTORY),
                 location("futuresince"),
+                location("cm"),
+                location("dv"),
+                location("propsoff"),
+                location("cmlater"),
                 location("cdfmid"));
     Properties properties = new Properties();
     properties.setProperty("catalog.local.file", write("local-catalog.yml", catalog).toString());
