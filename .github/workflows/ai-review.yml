@@ -483,9 +483,14 @@ jobs:
               failure: '❌ not recommended',
               error: '⚠️ not evaluated',
             };
+            // The description can quote changed file names, which the PR author controls. A
+            // code span keeps mentions, links and HTML inert; without backticks and angle
+            // brackets the text can neither close the span nor forge this block's markers.
+            const description = (process.env.DESCRIPTION || '').replace(/[`<>]/g, "'").trim();
             const block = `${start}\n**Merge recommendation** for ` +
               `\`${process.env.EXPECTED_HEAD_SHA.slice(0, 7)}\`: ` +
-              `${labels[process.env.STATE] || labels.error}. ${process.env.DESCRIPTION} ` +
+              `${labels[process.env.STATE] || labels.error}. ` +
+              (description ? `\`${description}\` ` : '') +
               "_Advisory: a maintainer's approval is still required._\n" +
               end;
             // The review helper rewrites the summary on every run, keeping only its own
