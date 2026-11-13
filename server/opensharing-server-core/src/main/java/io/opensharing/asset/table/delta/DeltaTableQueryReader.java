@@ -227,9 +227,9 @@ public class DeltaTableQueryReader {
 
   /**
    * Reads the Change Data Feed from the start through the end version or timestamp, or the latest
-   * version. An end after the latest version is capped, as in the OSS server. Protocol and metaData
-   * lines come from the start version with {@code includeHistoricalMetadata}, which also returns
-   * later metaData changes, and from the latest version otherwise.
+   * version. An end after the latest version is capped. Protocol and metaData lines come from the
+   * start version with {@code includeHistoricalMetadata}, which also returns later metaData
+   * changes, and from the latest version otherwise.
    */
   public void readChangeDataFeed(
       ResolvedAsset table,
