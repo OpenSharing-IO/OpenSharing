@@ -169,7 +169,8 @@ public class ShareService {
                     addition.type(),
                     addition.resolved(),
                     addition.alias().schema(),
-                    addition.alias().table());
+                    addition.alias().table(),
+                    addition.startVersion());
               }
               shares.update(entity, displayName, comment, properties, newOwnerId);
               return entity;
@@ -302,7 +303,10 @@ public class ShareService {
       throw new CatalogException(
           "catalog resolved '" + name + "' as " + resolved.type() + " instead of " + type);
     }
-    return new Addition(name, type, resolved, alias);
+    if (dataObject.startVersion() != null && dataObject.startVersion() < 0) {
+      throw ApiException.invalidParameter("dataObject.startVersion must not be negative");
+    }
+    return new Addition(name, type, resolved, alias, dataObject.startVersion());
   }
 
   // Removes by alias when sharedAs is given, otherwise by catalog name.
@@ -391,7 +395,8 @@ public class ShareService {
 
   private record Alias(String schema, String table) {}
 
-  private record Addition(String name, AssetType type, ResolvedAsset resolved, Alias alias) {}
+  private record Addition(
+      String name, AssetType type, ResolvedAsset resolved, Alias alias, Long startVersion) {}
 
   private record RecipientChange(
       RecipientEntity recipient, UpdateSharePermissionsRequest.Change change) {}

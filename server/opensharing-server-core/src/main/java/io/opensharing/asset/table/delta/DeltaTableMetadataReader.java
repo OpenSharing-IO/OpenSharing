@@ -25,6 +25,7 @@ public class DeltaTableMetadataReader {
 
   public Result read(
       ResolvedAsset table,
+      long startVersion,
       Long version,
       Instant timestamp,
       AuthContext auth,
@@ -33,7 +34,7 @@ public class DeltaTableMetadataReader {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
     try (DeltaKernel.Session session = kernel.open(table, auth)) {
-      Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
+      Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp, startVersion);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
       boolean historical = version != null || timestamp != null;
       ResponseFormat format =

@@ -166,6 +166,71 @@ class DeltaTableQueryReaderTest {
   }
 
   @Test
+  void refusesVersionsBeforeTheTablesStartVersion() throws IOException {
+    writeChanges();
+    for (int version = 0; version <= 4; version++) {
+      Files.setLastModifiedTime(
+          dir.resolve("_delta_log/%020d.json".formatted(version)),
+          FileTime.fromMillis((version + 1) * 1000L));
+    }
+    DeltaTableQueryReader.ResponseOptions options =
+        new DeltaTableQueryReader.ResponseOptions(null, null, false);
+    String refused = "You can only query table data since version 2.";
+    // The latest snapshot is at the start version or later, so it is served.
+    reader.read(table, 2, null, options, new Lines(), null, null, null, false, null, null);
+    // A version, a timestamp resolving to a version, and a change range starting before it are not.
+    ApiException byVersion =
+        assertThrows(
+            ApiException.class,
+            () ->
+                reader.read(table, 2, null, options, new Lines(), 1L, null, null, false, null, null));
+    assertEquals(403, byVersion.getStatus());
+    assertEquals(refused, byVersion.getMessage());
+    assertEquals(
+        refused,
+        assertThrows(
+                ApiException.class,
+                () ->
+                    reader.read(
+                        table,
+                        2,
+                        null,
+                        options,
+                        new Lines(),
+                        null,
+                        Instant.ofEpochMilli(1500),
+                        null,
+                        false,
+                        null,
+                        null))
+            .getMessage());
+    assertEquals(
+        refused,
+        assertThrows(
+                ApiException.class,
+                () -> reader.readChanges(table, 2, null, options, new Lines(), 1L, null, false))
+            .getMessage());
+    reader.readChanges(
+        table,
+        2,
+        null,
+        new DeltaTableQueryReader.ResponseOptions(
+            "responseformat=delta;readerfeatures=deletionvectors", null, false),
+        new Lines(),
+        2L,
+        null,
+        false);
+    assertEquals(
+        refused,
+        assertThrows(
+                ApiException.class,
+                () ->
+                    reader.readChangeDataFeed(
+                        table, 2, null, options, new Lines(), 0L, null, null, null, false, false))
+            .getMessage());
+  }
+
+  @Test
   void includeHistoricalProtocolAddsLaterProtocolsToDeltaResponses() throws IOException {
     writeChanges();
     String delta = "responseformat=delta;readerfeatures=deletionvectors";
@@ -205,6 +270,7 @@ class DeltaTableQueryReaderTest {
             })
         .readChanges(
             table(root),
+            0,
             null,
             new DeltaTableQueryReader.ResponseOptions(null, null, false),
             new Lines(),
@@ -289,6 +355,7 @@ class DeltaTableQueryReaderTest {
     Lines lines = new Lines();
     reader.readChangeDataFeed(
         table,
+        0,
         null,
         new DeltaTableQueryReader.ResponseOptions("responseformat=delta", null, false),
         lines,
@@ -311,6 +378,7 @@ class DeltaTableQueryReaderTest {
     Lines lines = new Lines();
     reader.readChangeDataFeed(
         table,
+        0,
         null,
         new DeltaTableQueryReader.ResponseOptions(capabilities, null, false),
         lines,
@@ -371,6 +439,7 @@ class DeltaTableQueryReaderTest {
     Lines lines = new Lines();
     reader.readChanges(
         table,
+        0,
         null,
         new DeltaTableQueryReader.ResponseOptions(capabilities, null, false),
         lines,
@@ -493,6 +562,7 @@ class DeltaTableQueryReaderTest {
     reader(root)
         .read(
             table(root),
+            0,
             null,
             new DeltaTableQueryReader.ResponseOptions(
                 "responseformat=delta;readerfeatures=deletionvectors", null, false),
@@ -521,6 +591,7 @@ class DeltaTableQueryReaderTest {
     Lines lines = new Lines();
     reader.read(
         table,
+        0,
         null,
         new DeltaTableQueryReader.ResponseOptions(null, null, false),
         lines,

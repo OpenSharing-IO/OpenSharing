@@ -144,8 +144,9 @@ public class ProtocolTables {
       String capabilities) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     Instant asOf = parseTimestamp(timestamp);
-    ResolvedAsset table = findTable(share, schemaAlias, tableAlias).catalogTable();
-    return metadataReader.read(table, version, asOf, owner(share), capabilities);
+    SharedTable table = findTable(share, schemaAlias, tableAlias);
+    return metadataReader.read(
+        table.catalogTable(), table.startVersion(), version, asOf, owner(share), capabilities);
   }
 
   /**
@@ -203,9 +204,9 @@ public class ProtocolTables {
       DeltaTableQueryReader.ResponseOptions options,
       DeltaTableQueryReader.ResponseSink sink) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    SharedTable sharedTable = findTable(share, schemaAlias, tableAlias);
     ResolvedAsset catalogTable =
-        requireUrlAccess(
-            findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
+        requireUrlAccess(sharedTable.catalogTable(), schemaAlias, tableAlias);
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     int selectors =
         (body.version() != null ? 1 : 0)
@@ -216,7 +217,7 @@ public class ProtocolTables {
           "Please only provide one of: version,timestamp,startingVersion.");
     }
     if (body.startingVersion() != null || body.endingVersion() != null) {
-      queryChanges(body, catalogTable, share, options, sink);
+      queryChanges(body, catalogTable, sharedTable.startVersion(), share, options, sink);
       return;
     }
     boolean historical = body.version() != null || body.timestamp() != null;
@@ -234,6 +235,7 @@ public class ProtocolTables {
     }
     queryReader.read(
         catalogTable,
+        sharedTable.startVersion(),
         owner(share),
         options,
         sink,
@@ -260,12 +262,13 @@ public class ProtocolTables {
       DeltaTableQueryReader.ResponseOptions options,
       DeltaTableQueryReader.ResponseSink sink) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    SharedTable sharedTable = findTable(share, schemaAlias, tableAlias);
     ResolvedAsset catalogTable =
-        requireUrlAccess(
-            findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
+        requireUrlAccess(sharedTable.catalogTable(), schemaAlias, tableAlias);
     try {
       queryReader.readChangeDataFeed(
           catalogTable,
+          sharedTable.startVersion(),
           owner(share),
           options,
           sink,
@@ -308,6 +311,7 @@ public class ProtocolTables {
   private void queryChanges(
       QueryTableRequest body,
       ResolvedAsset table,
+      long tableStartVersion,
       ShareEntity share,
       DeltaTableQueryReader.ResponseOptions options,
       DeltaTableQueryReader.ResponseSink sink) {
@@ -333,6 +337,7 @@ public class ProtocolTables {
     }
     queryReader.readChanges(
         table,
+        tableStartVersion,
         owner(share),
         options,
         sink,
@@ -359,8 +364,13 @@ public class ProtocolTables {
     if (sharedTable.isPresent()) {
       ResolvedAsset catalogTable = resolveSharedAsset(share, sharedTable.get());
       if (catalogTable != null) {
+        Long startVersion = sharedTable.get().getStartVersion();
         return new SharedTable(
-            schemaAlias, tableAlias, sharedTable.get().getSourceAssetId(), catalogTable);
+            schemaAlias,
+            tableAlias,
+            sharedTable.get().getSourceAssetId(),
+            catalogTable,
+            startVersion == null ? 0 : startVersion);
       }
     }
     // Recipients see aliases only, so the catalog's own not-found message must not reach them.
@@ -415,7 +425,11 @@ public class ProtocolTables {
 
   /** A table of the share, with the catalog table it resolved to. */
   private record SharedTable(
-      String schemaAlias, String tableAlias, String tableId, ResolvedAsset catalogTable) {}
+      String schemaAlias,
+      String tableAlias,
+      String tableId,
+      ResolvedAsset catalogTable,
+      long startVersion) {}
 
   /** The tables {@code sharedObjects} puts on the listing, by schema alias and table alias. */
   private List<TableResponse> listTables(

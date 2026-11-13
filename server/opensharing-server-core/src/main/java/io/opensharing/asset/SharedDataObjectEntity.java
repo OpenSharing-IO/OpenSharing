@@ -66,6 +66,13 @@ public class SharedDataObjectEntity extends BaseEntity {
   @Column(name = "auxiliary_locations", length = 8192)
   private String auxiliaryLocations;
 
+  /**
+   * The first version of a table that recipients may read, or null for all of them. A read that
+   * resolves to an earlier version is refused.
+   */
+  @Column(name = "start_version")
+  private Long startVersion;
+
   /** Lowercase schema name recipients see. */
   @Column(name = "shared_as_schema", nullable = false, length = 255)
   private String sharedAsSchema;
@@ -129,6 +136,14 @@ public class SharedDataObjectEntity extends BaseEntity {
   public void setAuxiliaryLocations(List<String> auxiliaryLocations) {
     this.auxiliaryLocations =
         auxiliaryLocations.isEmpty() ? null : String.join("\n", auxiliaryLocations);
+  }
+
+  public Long getStartVersion() {
+    return startVersion;
+  }
+
+  public void setStartVersion(Long startVersion) {
+    this.startVersion = startVersion;
   }
 
   public String getSharedAsSchema() {

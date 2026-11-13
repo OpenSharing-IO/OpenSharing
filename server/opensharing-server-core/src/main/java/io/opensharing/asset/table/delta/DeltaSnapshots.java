@@ -13,7 +13,17 @@ final class DeltaSnapshots {
 
   private DeltaSnapshots() {}
 
-  static Snapshot open(DeltaKernel.Session session, Long version, Instant timestamp) {
+  static Snapshot open(
+      DeltaKernel.Session session, Long version, Instant timestamp, long startVersion) {
+    Snapshot snapshot = openAt(session, version, timestamp);
+    if (snapshot.getVersion() < startVersion) {
+      throw ApiException.permissionDenied(
+          "You can only query table data since version " + startVersion + ".");
+    }
+    return snapshot;
+  }
+
+  private static Snapshot openAt(DeltaKernel.Session session, Long version, Instant timestamp) {
     Snapshot latest = DeltaKernel.latestSnapshot(session.table(), session.engine());
     if (version == null && timestamp == null) {
       return latest;

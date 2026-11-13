@@ -30,9 +30,10 @@ public record UpdateShareRequest(
   /**
    * A catalog table. {@code name} is the full catalog name; {@code sharedAs} is the alias
    * recipients see, {@code schema.table}, and defaults to {@code name} without its catalog. A
-   * remove needs {@code name} or {@code sharedAs}.
+   * remove needs {@code name} or {@code sharedAs}. {@code startVersion}, if set, is the first
+   * version of the table that recipients may read.
    */
-  public record DataObject(String name, AssetType type, String sharedAs) {}
+  public record DataObject(String name, AssetType type, String sharedAs, Long startVersion) {}
 
   public enum Action {
     ADD,

@@ -17,7 +17,8 @@ import java.util.Map;
  *   "displayName": "<display name>",
  *   "comment": "<comment>",
  *   "properties": {"<key>": "<value>"},
- *   "objects": [{"name": "<asset name>", "type": "TABLE", "sharedAs": "<alias>"}],
+ *   "objects": [{"name": "<asset name>", "type": "TABLE", "sharedAs": "<alias>",
+ *                "startVersion": 1}],
  *   "ownerId": "<owner user id>"
  * }
  * }</pre>
@@ -55,11 +56,16 @@ public record ShareResponse(
   }
 
   /** A catalog asset included in a share, with the alias recipients see it under. */
-  public record SharedDataObjectResponse(String name, AssetType type, String sharedAs) {
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  public record SharedDataObjectResponse(
+      String name, AssetType type, String sharedAs, Long startVersion) {
 
     static SharedDataObjectResponse from(SharedDataObjectEntity object) {
       return new SharedDataObjectResponse(
-          object.getFullName(), object.getType(), object.getSharedAs());
+          object.getFullName(),
+          object.getType(),
+          object.getSharedAs(),
+          object.getStartVersion());
     }
   }
 }

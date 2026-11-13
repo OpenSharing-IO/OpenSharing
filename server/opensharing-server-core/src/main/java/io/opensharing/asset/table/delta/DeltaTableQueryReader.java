@@ -119,6 +119,7 @@ public class DeltaTableQueryReader {
    */
   public void read(
       ResolvedAsset table,
+      long startVersion,
       AuthContext auth,
       ResponseOptions options,
       ResponseSink sink,
@@ -140,7 +141,7 @@ public class DeltaTableQueryReader {
 
     try (DeltaKernel.Session session = kernel.open(table, auth, URL_TTL);
         ResponseWriter out = new ResponseWriter(session, table, options, sink)) {
-      Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
+      Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp, startVersion);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
       DeltaSharingCapabilities.requireColumnMappingSupport(
           options.capabilities(), impl.getMetadata().getConfiguration(), snapshot.getVersion());
@@ -196,6 +197,7 @@ public class DeltaTableQueryReader {
    */
   public void readChanges(
       ResolvedAsset table,
+      long startVersion,
       AuthContext auth,
       ResponseOptions options,
       ResponseSink sink,
@@ -203,7 +205,7 @@ public class DeltaTableQueryReader {
       Long endingVersion,
       boolean includeHistoricalProtocol) {
     try (DeltaKernel.Session session = kernel.open(table, auth, URL_TTL)) {
-      long latest = DeltaSnapshots.open(session, null, null).getVersion();
+      long latest = DeltaSnapshots.open(session, null, null, startVersion).getVersion();
       requireAtMostLatest("startingVersion", startingVersion, latest);
       if (endingVersion != null) {
         requireAtMostLatest("endingVersion", endingVersion, latest);
@@ -211,7 +213,7 @@ public class DeltaTableQueryReader {
       changes(
           session,
           table,
-          (SnapshotImpl) DeltaSnapshots.open(session, startingVersion, null),
+          (SnapshotImpl) DeltaSnapshots.open(session, startingVersion, null, startVersion),
           ChangeRange.dataChanges(
               startingVersion,
               endingVersion == null ? latest : endingVersion,
@@ -230,6 +232,7 @@ public class DeltaTableQueryReader {
    */
   public void readChangeDataFeed(
       ResolvedAsset table,
+      long startVersion,
       AuthContext auth,
       ResponseOptions options,
       ResponseSink sink,
@@ -240,7 +243,7 @@ public class DeltaTableQueryReader {
       boolean includeHistoricalMetadata,
       boolean includeHistoricalProtocol) {
     try (DeltaKernel.Session session = kernel.open(table, auth, URL_TTL)) {
-      SnapshotImpl latest = (SnapshotImpl) DeltaSnapshots.open(session, null, null);
+      SnapshotImpl latest = (SnapshotImpl) DeltaSnapshots.open(session, null, null, startVersion);
       TableImpl delta = (TableImpl) session.table();
       if (endingTimestamp != null) {
         requireEndingTimestampAtMostLatest(endingTimestamp, latest, session);
@@ -268,7 +271,7 @@ public class DeltaTableQueryReader {
             "endingVersion " + end + " is before startingVersion " + start);
       }
       long resolvedEnd = end == null ? latest.getVersion() : Math.min(end, latest.getVersion());
-      SnapshotImpl first = (SnapshotImpl) DeltaSnapshots.open(session, start, null);
+      SnapshotImpl first = (SnapshotImpl) DeltaSnapshots.open(session, start, null, startVersion);
       if (!changeDataFeedEnabled(first.getMetadata())) {
         throw new ChangeDataNotRecordedException(start);
       }

@@ -66,6 +66,21 @@ public abstract class ProtocolApiSupport {
     assertEquals(200, added.status());
   }
 
+  /**
+   * Adds the catalog asset {@code name} of {@code type} to the share as {@code sharedAs}, readable
+   * from {@code startVersion} on.
+   */
+  protected static void addObject(
+      String share, String type, String name, String sharedAs, long startVersion) {
+    String body =
+        "{\"updates\":[{\"action\":\"ADD\",\"dataObject\":"
+            + "{\"name\":\"%s\",\"type\":\"%s\",\"sharedAs\":\"%s\",\"startVersion\":%d}}]}";
+    Response added =
+        server.patch(
+            PROVIDER + "/shares/" + share, ALICE, body.formatted(name, type, sharedAs, startVersion));
+    assertEquals(200, added.status());
+  }
+
   /** Creates a TOKEN recipient, redeems its activation URL, and returns the bearer token. */
   protected static String createAndActivateRecipient(String name) {
     Response created =

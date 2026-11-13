@@ -31,7 +31,8 @@ public class SharedDataObjectStore {
       AssetType type,
       ResolvedAsset resolved,
       String sharedAsSchema,
-      String sharedAsTable) {
+      String sharedAsTable,
+      Long startVersion) {
     if (findByAlias(em, share, sharedAsSchema, sharedAsTable).isPresent()) {
       throw ApiException.alreadyExists(
           "alias '"
@@ -61,6 +62,7 @@ public class SharedDataObjectStore {
     }
     object.setSharedAsSchema(sharedAsSchema);
     object.setSharedAsTable(sharedAsTable);
+    object.setStartVersion(startVersion);
     em.persist(object);
     return object;
   }
