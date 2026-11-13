@@ -34,7 +34,9 @@ final class HadoopStorageConfiguration {
     String scheme = StorageLocations.scheme(location);
     if (!SUPPORTED_SCHEMES.contains(scheme)) {
       throw ApiException.notImplemented(
-          "this build cannot read tables in '" + scheme + "' storage");
+          "NOT_IMPLEMENTED: DS_UNSUPPORTED_STORAGE_SCHEME: Unsupported storage scheme: "
+              + scheme
+              + ".");
     }
   }
 

@@ -60,7 +60,10 @@ class ProtocolUnsupportedStorageTest extends ProtocolApiSupport {
 
     String tables = PROTOCOL + "/shares/unsupported-storage/schemas/lake/tables/";
     for (String table : List.of("wasb", "wasbs")) {
-      String message = "this build cannot read tables in '" + table + "' storage";
+      String message =
+          "NOT_IMPLEMENTED: DS_UNSUPPORTED_STORAGE_SCHEME: Unsupported storage scheme: "
+              + table
+              + ".";
       assertNotImplemented(message, server.get(tables + table + "/version", bearer));
       assertNotImplemented(message, server.get(tables + table + "/metadata", bearer));
       assertNotImplemented(message, server.post(tables + table + "/query", bearer, "{}"));

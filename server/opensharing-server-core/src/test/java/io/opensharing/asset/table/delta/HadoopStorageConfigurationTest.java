@@ -60,7 +60,10 @@ class HadoopStorageConfigurationTest {
               () -> HadoopStorageConfiguration.requireSupported(scheme + "://bucket/table"));
       assertEquals(501, rejected.getStatus());
       assertEquals(
-          "this build cannot read tables in '" + scheme + "' storage", rejected.getMessage());
+          "NOT_IMPLEMENTED: DS_UNSUPPORTED_STORAGE_SCHEME: Unsupported storage scheme: "
+              + scheme
+              + ".",
+          rejected.getMessage());
     }
   }
 

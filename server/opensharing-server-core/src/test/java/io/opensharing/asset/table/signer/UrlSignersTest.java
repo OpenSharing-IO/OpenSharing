@@ -102,7 +102,10 @@ class UrlSignersTest {
                       Duration.ofMinutes(5)));
       assertEquals(501, rejected.getStatus());
       assertEquals(
-          "this build cannot sign urls for '" + scheme + "' storage", rejected.getMessage());
+          "NOT_IMPLEMENTED: DS_UNSUPPORTED_STORAGE_SCHEME: Unsupported storage scheme: "
+              + scheme
+              + ".",
+          rejected.getMessage());
     }
   }
 

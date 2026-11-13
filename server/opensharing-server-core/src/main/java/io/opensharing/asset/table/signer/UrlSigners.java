@@ -66,7 +66,10 @@ public class UrlSigners {
     String scheme = StorageLocations.scheme(path);
     UrlSigner signer = byScheme.get(scheme);
     if (signer == null) {
-      throw ApiException.notImplemented("this build cannot sign urls for '" + scheme + "' storage");
+      throw ApiException.notImplemented(
+          "NOT_IMPLEMENTED: DS_UNSUPPORTED_STORAGE_SCHEME: Unsupported storage scheme: "
+              + scheme
+              + ".");
     }
     return signer;
   }
