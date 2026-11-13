@@ -88,8 +88,8 @@ public final class DeltaSharingCapabilities {
 
   /**
    * A table whose Delta properties enable a reader feature the client did not advertise cannot be
-   * served to it: a property may only be present with the value that turns its feature off. This
-   * covers the table's version {@code version}.
+   * served to it: a property may only be present with the value that turns its feature off, in any
+   * case as Delta reads it. This covers the table's version {@code version}.
    */
   public static void requireSupportedProperties(
       Declared declared, Map<String, String> configuration, long version) {
@@ -101,7 +101,7 @@ public final class DeltaSharingCapabilities {
       String value = configuration.get(checked.property());
       if (value != null
           && !declared.readerFeatures().contains(checked.feature())
-          && !checked.offValue().equals(value.trim())) {
+          && !checked.offValue().equalsIgnoreCase(value.trim())) {
         unsupported.add(checked.property());
       }
     }

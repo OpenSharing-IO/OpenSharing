@@ -182,6 +182,15 @@ class DeltaSharingCapabilitiesTest {
                     "delta.columnMapping.mode", "none",
                     "delta.appendOnly", "true"),
                 3));
+    // Delta reads the off values in any case.
+    assertDoesNotThrow(
+        () ->
+            DeltaSharingCapabilities.requireSupportedProperties(
+                DeltaSharingCapabilities.declared("responseformat=delta"),
+                Map.of(
+                    "delta.enableDeletionVectors", "False",
+                    "delta.columnMapping.mode", "NONE"),
+                3));
     assertDoesNotThrow(
         () ->
             DeltaSharingCapabilities.requireSupportedProperties(
