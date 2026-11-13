@@ -231,7 +231,7 @@ class SparkSharedTableQueryIntegrationTest extends ProtocolApiSupport {
                       .load(table)
                       .collectAsList());
       assertTrue(
-          afterLatest.contains("startingTimestamp is after the latest table version timestamp"),
+          afterLatest.contains("is after the latest available version"),
           afterLatest);
     }
   }

@@ -3,6 +3,7 @@ package io.opensharing.http;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import io.delta.kernel.exceptions.KernelException;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.CatalogAuthenticationException;
@@ -43,6 +44,9 @@ public record ApiFailure(int status, String errorCode, String message) {
     }
     if (e instanceof CatalogException failed) {
       return catalogFailure(failed);
+    }
+    if (e instanceof KernelException rejected) {
+      return new ApiFailure(400, ErrorCodes.BAD_REQUEST, rejected.getMessage());
     }
     if (e instanceof JsonProcessingException unreadable) {
       return describe(unreadable);

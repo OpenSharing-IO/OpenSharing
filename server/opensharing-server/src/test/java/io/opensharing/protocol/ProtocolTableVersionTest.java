@@ -39,7 +39,8 @@ class ProtocolTableVersionTest extends LocalDeltaTableSupport {
 
     Response afterLatest = version(salaries, bearer, "2024-01-01T03:00:01Z");
     assertEquals(400, afterLatest.status());
-    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, afterLatest.errorCode());
+    assertEquals(ErrorCodes.BAD_REQUEST, afterLatest.errorCode());
+    assertTrue(afterLatest.text().contains("is after the latest available version"));
     Response invalid = version(orders, bearer, "not-a-timestamp");
     assertEquals(400, invalid.status());
     assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, invalid.errorCode());
