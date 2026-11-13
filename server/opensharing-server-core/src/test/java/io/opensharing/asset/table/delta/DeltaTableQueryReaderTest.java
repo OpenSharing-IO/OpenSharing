@@ -224,8 +224,12 @@ class DeltaTableQueryReaderTest {
   void changeDataFeedPrefersCdcFilesAndSkipsNoOpMerges() throws IOException {
     writeChangeDataFeed();
     List<String> lines = changeDataFeed(0L, null, 3L, null, null, false);
-    // Without includeHistoricalMetadata, protocol and metaData come from the latest version.
-    assertTrue(lines.get(1).contains("\"version\":4"), lines.get(1));
+    // Without includeHistoricalMetadata, protocol and metaData come from the latest version, and
+    // the metaData carries no version, size, or numFiles.
+    assertTrue(lines.get(1).contains("\"id\":\"t\""), lines.get(1));
+    assertFalse(lines.get(1).contains("\"version\""), lines.get(1));
+    assertFalse(lines.get(1).contains("\"size\""), lines.get(1));
+    assertFalse(lines.get(1).contains("\"numFiles\""), lines.get(1));
     assertEquals(
         List.of("add a 0", "add b 0", "cdf c 1", "remove b 2"),
         describe(lines.subList(2, lines.size())));
