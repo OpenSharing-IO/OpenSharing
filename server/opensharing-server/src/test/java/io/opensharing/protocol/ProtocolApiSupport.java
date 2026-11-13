@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import io.opensharing.TestServer;
 import io.opensharing.TestServer.Response;
 import io.opensharing.asset.SharedDataObjectEntity;
+import io.opensharing.http.ErrorCodes;
 import io.opensharing.share.ShareEntity;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -79,6 +80,12 @@ public abstract class ProtocolApiSupport {
     Response profile = server.get(activationPath, null);
     assertEquals(200, profile.status());
     return profile.body().path("bearerToken").asText();
+  }
+
+  /** Kernel's report on a version or timestamp the log cannot answer. */
+  protected static void assertKernelRejected(Response response) {
+    assertEquals(400, response.status());
+    assertEquals(ErrorCodes.BAD_REQUEST, response.errorCode());
   }
 
   /** Grants {@code recipient} SELECT on Alice's {@code share} through the provider API. */

@@ -38,7 +38,7 @@ class ProtocolTableVersionIntegrationTest extends ProtocolApiSupport {
     assertVersion("2", latest);
     assertTrue(latest.body().isMissingNode());
     assertVersion("0", version(endpoint, bearer, "1970-01-01T00:00:00Z"));
-    assertInvalid(version(endpoint, bearer, "2099-01-01T00:00:00Z"));
+    assertKernelRejected(version(endpoint, bearer, "2099-01-01T00:00:00Z"));
     assertInvalid(version(endpoint, bearer, "not-a-timestamp"));
   }
 
@@ -56,7 +56,7 @@ class ProtocolTableVersionIntegrationTest extends ProtocolApiSupport {
     assertVersion("3", version(endpoint, bearer, "2023-05-09T08:32:55.517Z"));
     assertVersion("4", version(endpoint, bearer, "2023-05-09T08:45:00Z"));
     assertVersion("5", version(endpoint, bearer, "2023-05-09T09:09:58.088Z"));
-    assertInvalid(version(endpoint, bearer, "2023-05-09T10:00:00Z"));
+    assertKernelRejected(version(endpoint, bearer, "2023-05-09T10:00:00Z"));
   }
 
   @Test
@@ -90,7 +90,7 @@ class ProtocolTableVersionIntegrationTest extends ProtocolApiSupport {
     String header = latest.headers().get("Delta-Table-Version");
     assertTrue(header != null && Long.parseLong(header) >= 0, "latest version was " + header);
     assertVersion("0", version(endpoint, bearer, "1970-01-01T00:00:00Z"));
-    assertInvalid(version(endpoint, bearer, "2099-01-01T00:00:00Z"));
+    assertKernelRejected(version(endpoint, bearer, "2099-01-01T00:00:00Z"));
   }
 
   private static Response version(String path, String bearer, String startingTimestamp) {
