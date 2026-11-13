@@ -135,6 +135,34 @@ class DeltaKernelErrorsTest {
   }
 
   @Test
+  void stripsTheTablePathInEveryStorageScheme() {
+    for (String table :
+        new String[] {
+          "s3://bucket/my tables/t/",
+          "s3a://bucket/my tables/t",
+          "abfss://container@account.dfs.core.windows.net/my tables/t",
+          "gs://bucket/my tables/t/",
+          "file:/tmp/my tables/t",
+        }) {
+      String escaped = table.replace(" ", "%20");
+      String plain = table.replaceAll("/$", "");
+      String encoded = java.net.URLEncoder.encode(plain, java.nio.charset.StandardCharsets.UTF_8);
+      for (String spelling :
+          new String[] {plain, plain + "/", escaped, escaped.replace(":", "%3A"), encoded}) {
+        ApiException error =
+            DeltaKernel.kernelError(
+                new KernelException(
+                    "Invalid table found at " + spelling + ": no file " + spelling + "/_delta_log"),
+                table,
+                "");
+        assertFalse(
+            error.getMessage().matches("(?s).*(bucket|container|account|/tmp|my.tables).*"),
+            table + " as " + spelling + " -> " + error.getMessage());
+      }
+    }
+  }
+
+  @Test
   void aStorageFailureOfItsOwnStaysAServerError() {
     KernelEngineException storage =
         new KernelEngineException("read failed", new IOException("timeout"));

@@ -23,6 +23,8 @@ import io.opensharing.catalog.TableProperties;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import java.io.FileNotFoundException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.time.Duration;
 import java.time.Instant;
@@ -104,8 +106,14 @@ public class DeltaKernel {
    * @param version the table version the failed read was for, if the request named one
    */
   static RuntimeException classify(RuntimeException failed, String tablePath, Long version) {
-    if (failed instanceof TableNotFoundException || storageUnavailable(failed)) {
-      log.warn("Delta table at '{}' is unavailable: {}", tablePath, failed.toString());
+    if (failed instanceof TableNotFoundException) {
+      log.warn("Delta table at '{}' has no log: {}", tablePath, failed.toString());
+      return SourceTableException.unreadable(failed.toString());
+    }
+    if (storageUnavailable(failed)) {
+      // A denied read can be this server's own expired or misconfigured credential, so operators
+      // see it as an error, while the recipient is told to contact the data provider.
+      log.error("Delta table at '{}' has files that cannot be read", tablePath, failed);
       return SourceTableException.unreadable(failed.toString());
     }
     if (failed instanceof KernelEngineException) {
@@ -175,7 +183,8 @@ public class DeltaKernel {
   /**
    * The spellings of a table path a Kernel message can carry: as given, a local path with and
    * without its {@code file:} scheme, which Kernel normalizes to one slash, and with spaces escaped
-   * or unescaped, since a path and its URI form differ in all of those. Longer spellings come
+   * or unescaped or fully percent-encoded, since a path and its URI form differ in all of those.
+   * Longer spellings come
    * first, so replacing one never leaves a stub of another behind.
    */
   private static List<String> pathForms(String tablePath) {
@@ -187,7 +196,15 @@ public class DeltaKernel {
     Set<String> forms = new HashSet<>();
     for (String path : paths) {
       String base = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
-      forms.addAll(List.of(base, base.replace(" ", "%20"), base.replace("%20", " ")));
+      String fullyEncoded = URLEncoder.encode(base, StandardCharsets.UTF_8);
+      forms.addAll(
+          List.of(
+              base,
+              base.replace(" ", "%20"),
+              base.replace("%20", " "),
+              base.replace(" ", "%20").replace(":", "%3A"),
+              fullyEncoded,
+              fullyEncoded.replace("+", "%20")));
     }
     forms.remove("");
     return forms.stream().sorted(Comparator.comparingInt(String::length).reversed()).toList();
