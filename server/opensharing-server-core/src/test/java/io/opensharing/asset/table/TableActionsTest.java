@@ -179,9 +179,9 @@ class TableActionsTest {
         TableActions.endStreamAction(null, null));
     assertEquals(
         """
-        {"endStreamAction":{"errorMessage":"bad version"}}
+        {"endStreamAction":{"errorMessage":"bad version","httpStatusErrorCode":400}}
         """,
-        TableActions.failedEndStreamAction("bad version"));
+        TableActions.failedEndStreamAction("bad version", 400));
   }
 
   @Test

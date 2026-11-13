@@ -199,12 +199,17 @@ public final class TableActions {
   public static String endStreamAction(String refreshToken, Long minUrlExpirationTimestamp) {
     return line(
         new EndStreamLine(
-            new EndStreamAction(refreshToken, null, minUrlExpirationTimestamp, null)));
+            new EndStreamAction(refreshToken, null, minUrlExpirationTimestamp, null, null)));
   }
 
-  /** Ends a response that failed after it began; clients treat the response as failed. */
-  public static String failedEndStreamAction(String errorMessage) {
-    return line(new EndStreamLine(new EndStreamAction(null, null, null, errorMessage)));
+  /**
+   * Ends a response that failed after it began; clients treat the response as failed, with {@code
+   * httpStatusErrorCode} as the status the failure would have had.
+   */
+  public static String failedEndStreamAction(String errorMessage, int httpStatusErrorCode) {
+    return line(
+        new EndStreamLine(
+            new EndStreamAction(null, null, null, errorMessage, httpStatusErrorCode)));
   }
 
   /**
@@ -498,7 +503,8 @@ public final class TableActions {
    *
    * <pre>{@code
    * {"refreshToken": "<refresh token>", "nextPageToken": "<page token>",
-   *  "minUrlExpirationTimestamp": 1652144400000, "errorMessage": "<error>"}
+   *  "minUrlExpirationTimestamp": 1652144400000, "errorMessage": "<error>",
+   *  "httpStatusErrorCode": 403}
    * }</pre>
    */
   @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -506,5 +512,6 @@ public final class TableActions {
       String refreshToken,
       String nextPageToken,
       Long minUrlExpirationTimestamp,
-      String errorMessage) {}
+      String errorMessage,
+      Integer httpStatusErrorCode) {}
 }

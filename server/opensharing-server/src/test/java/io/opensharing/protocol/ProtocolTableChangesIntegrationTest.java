@@ -49,7 +49,8 @@ class ProtocolTableChangesIntegrationTest extends ProtocolApiSupport {
         ok(changes(endpoint + "?startingVersion=0", bearer, "includeendstreamaction=true"), "0");
     String last = off.substring(off.stripTrailing().lastIndexOf('\n') + 1);
     assertTrue(last.startsWith("{\"endStreamAction\":{\"errorMessage\":"), last);
-    assertTrue(last.contains("not recorded for version [4]"), last);
+    assertTrue(last.contains("\"httpStatusErrorCode\":403"), last);
+    assertTrue(last.contains("CDF is not enabled on the original delta table for version 4"), last);
     // An end after the latest version is capped rather than rejected.
     ok(changes(endpoint + "?startingVersion=5&endingVersion=1000", bearer, null), "5");
     // A range that ends before it starts is rejected.
@@ -81,8 +82,11 @@ class ProtocolTableChangesIntegrationTest extends ProtocolApiSupport {
     String endpoint = endpoint(share, sharedAs);
 
     Response unrecorded = changes(endpoint + "?startingVersion=0", bearer, null);
-    assertInvalid(unrecorded);
-    assertTrue(unrecorded.text().contains("change data was not recorded"), unrecorded.text());
+    assertEquals(403, unrecorded.status(), unrecorded.text());
+    assertEquals(ErrorCodes.PERMISSION_DENIED, unrecorded.errorCode());
+    assertTrue(
+        unrecorded.text().contains("CDF is not enabled on the original delta table for version 0"),
+        unrecorded.text());
     // A starting version or timestamp is required.
     assertInvalid(changes(endpoint, bearer, null));
   }
