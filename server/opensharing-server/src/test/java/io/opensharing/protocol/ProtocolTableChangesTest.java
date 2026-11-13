@@ -24,11 +24,18 @@ class ProtocolTableChangesTest extends LocalDeltaTableSupport {
     grant("table-cdf", "table-cdf-partner");
     String changes = PROTOCOL + "/shares/TABLE-CDF/schemas/OPS/tables/EVENTS/changes";
 
-    // A table that does not record its Change Data Feed is INVALID_PARAMETER_VALUE.
+    // A table that does not record its Change Data Feed is PERMISSION_DENIED, in the table's
+    // shared name.
     Response unrecorded = server.get(changes + "?startingVersion=0", bearer);
-    assertEquals(400, unrecorded.status(), unrecorded.text());
-    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, unrecorded.errorCode());
-    assertTrue(unrecorded.text().contains("change data was not recorded"), unrecorded.text());
+    assertEquals(403, unrecorded.status(), unrecorded.text());
+    assertEquals(ErrorCodes.PERMISSION_DENIED, unrecorded.errorCode());
+    assertTrue(
+        unrecorded
+            .text()
+            .contains(
+                "Unable to access change data feed for table-cdf.ops.events. CDF is not enabled on"
+                    + " the original delta table for version 0."),
+        unrecorded.text());
 
     // A start is required, and must be a version or an ISO-8601 timestamp.
     for (String invalid : List.of("", "?startingTimestamp=yesterday", "?startingVersion=one")) {

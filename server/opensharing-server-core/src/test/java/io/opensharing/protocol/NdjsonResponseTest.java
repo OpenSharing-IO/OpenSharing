@@ -83,19 +83,25 @@ class NdjsonResponseTest {
   }
 
   @Test
-  void abortsTheStreamWhenTheReadFailsAfterItBegins() {
-    IllegalStateException broken = new IllegalStateException("log unreadable");
-    HttpResponse response =
+  void endsTheStreamWithAnInvalidJsonLineWhenTheReadFailsAfterItBegins() {
+    AggregatedHttpResponse response =
         stream(
-            sink -> {
-              sink.begin(1, ResponseFormat.PARQUET);
-              sink.line("{\"a\":1}\n");
-              throw broken;
-            });
+                sink -> {
+                  sink.begin(1, ResponseFormat.PARQUET);
+                  sink.line("{\"a\":1}\n");
+                  throw new IllegalStateException("log unreadable");
+                })
+            .aggregate()
+            .join();
 
-    CompletionException failed =
-        assertThrows(CompletionException.class, () -> response.aggregate().join());
-    assertSame(broken, failed.getCause());
+    // The status is sent, so the client is made to fail on a line that is not JSON.
+    assertEquals(200, response.status().code());
+    assertEquals(
+        """
+        {"a":1}
+        Forcing_invalid_json_to_fail_streaming_rpc_due_to_error_INTERNAL_ERROR__internal_server_error{
+        """,
+        response.contentUtf8());
   }
 
   @Test
@@ -118,7 +124,7 @@ class NdjsonResponseTest {
     assertEquals(
         """
         {"a":1}
-        {"endStreamAction":{"errorMessage":"change data was not recorded"}}
+        {"endStreamAction":{"errorMessage":"INVALID_PARAMETER_VALUE: change data was not recorded","httpStatusErrorCode":400}}
         """,
         response.contentUtf8());
   }
@@ -138,7 +144,7 @@ class NdjsonResponseTest {
     assertEquals(200, response.status().code());
     assertEquals(
         """
-        {"endStreamAction":{"errorMessage":"the catalog failed to serve the request"}}
+        {"endStreamAction":{"errorMessage":"CATALOG_ERROR: the catalog failed to serve the request","httpStatusErrorCode":502}}
         """,
         response.contentUtf8());
   }

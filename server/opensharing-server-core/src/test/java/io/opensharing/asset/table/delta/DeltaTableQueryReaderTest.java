@@ -23,6 +23,7 @@ import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.TableProperties;
 import io.opensharing.exception.CatalogException;
+import io.opensharing.exception.ChangeDataNotRecordedException;
 import io.opensharing.http.ApiException;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -249,17 +250,31 @@ class DeltaTableQueryReaderTest {
     assertTrue(lines.get(1).contains("\"version\":1"), lines.get(1));
     assertEquals(List.of("cdf c 1", "remove b 2"), describe(lines.subList(2, lines.size())));
     // An end after the latest version is capped; the range then reaches CDF being disabled.
-    assertThrows(ApiException.class, () -> changeDataFeed(0L, null, 9L, null, null, false));
+    assertThrows(
+        ChangeDataNotRecordedException.class,
+        () -> changeDataFeed(0L, null, 9L, null, null, false));
   }
 
   @Test
   void changeDataFeedRejectsInvalidRanges() throws IOException {
     // The table written in setup never enabled the Change Data Feed.
-    assertThrows(ApiException.class, () -> changeDataFeed(0L, null, null, null, null, false));
+    assertThrows(
+        ChangeDataNotRecordedException.class,
+        () -> changeDataFeed(0L, null, null, null, null, false));
     writeChangeDataFeed();
     assertThrows(ApiException.class, () -> changeDataFeed(null, null, null, null, null, false));
     assertThrows(ApiException.class, () -> changeDataFeed(2L, null, 1L, null, null, false));
     assertThrows(ApiException.class, () -> changeDataFeed(5L, null, null, null, null, false));
+    // An ending timestamp after the latest commit is rejected, and names the latest to ask for.
+    ApiException afterLatest =
+        assertThrows(
+            ApiException.class,
+            () ->
+                changeDataFeed(
+                    0L, null, null, Instant.parse("2100-01-01T00:00:00Z"), null, false));
+    assertTrue(
+        afterLatest.getMessage().contains("Please use a timestamp less than or equal to"),
+        afterLatest.getMessage());
   }
 
   @Test

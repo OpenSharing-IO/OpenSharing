@@ -44,6 +44,7 @@ import io.opensharing.asset.table.signer.SigningSession;
 import io.opensharing.asset.table.signer.UrlSigners;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.exception.ChangeDataNotRecordedException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
 import java.io.IOException;
@@ -239,6 +240,9 @@ public class DeltaTableQueryReader {
     try (DeltaKernel.Session session = kernel.open(table, auth, URL_TTL)) {
       SnapshotImpl latest = (SnapshotImpl) DeltaSnapshots.open(session, null, null);
       TableImpl delta = (TableImpl) session.table();
+      if (endingTimestamp != null) {
+        requireEndingTimestampAtMostLatest(endingTimestamp, latest, session);
+      }
       long start;
       if (startingVersion != null) {
         start = startingVersion;
@@ -264,7 +268,7 @@ public class DeltaTableQueryReader {
       long resolvedEnd = end == null ? latest.getVersion() : Math.min(end, latest.getVersion());
       SnapshotImpl first = (SnapshotImpl) DeltaSnapshots.open(session, start, null);
       if (!changeDataFeedEnabled(first.getMetadata())) {
-        throw changeDataNotRecorded(start, start, resolvedEnd);
+        throw new ChangeDataNotRecordedException(start);
       }
       changes(
           session,
@@ -274,6 +278,25 @@ public class DeltaTableQueryReader {
               start, resolvedEnd, includeHistoricalMetadata, includeHistoricalProtocol),
           options,
           sink);
+    }
+  }
+
+  /**
+   * An ending timestamp after the latest commit is the recipient's mistake, and the table's latest
+   * commit time says what to ask for instead.
+   */
+  private static void requireEndingTimestampAtMostLatest(
+      Instant endingTimestamp, SnapshotImpl latest, DeltaKernel.Session session) {
+    long latestTimestamp = latest.getTimestamp(session.engine());
+    if (endingTimestamp.toEpochMilli() > latestTimestamp) {
+      String latestInstant = Instant.ofEpochMilli(latestTimestamp).toString();
+      throw ApiException.invalidParameter(
+          "The provided timestamp("
+              + endingTimestamp
+              + ") is after the latest table version available to this table ("
+              + latestInstant
+              + "). Please use a timestamp less than or equal to "
+              + latestInstant);
     }
   }
 
@@ -384,7 +407,7 @@ public class DeltaTableQueryReader {
     }
     if (commit.metadata != null) {
       if (!changeDataFeedEnabled(commit.metadata)) {
-        throw changeDataNotRecorded(version, range.start(), range.end());
+        throw new ChangeDataNotRecordedException(version);
       }
       if (range.includeHistoricalMetadata() && later) {
         out.metadata(commit.metadata, version, null);
@@ -403,17 +426,6 @@ public class DeltaTableQueryReader {
 
   private static boolean changeDataFeedEnabled(Metadata metadata) {
     return TableConfig.CHANGE_DATA_FEED_ENABLED.fromMetadata(metadata);
-  }
-
-  private static ApiException changeDataNotRecorded(long version, long start, long end) {
-    return ApiException.invalidParameter(
-        "Error getting change data for range ["
-            + start
-            + ", "
-            + end
-            + "] as change data was not recorded for version ["
-            + version
-            + "]");
   }
 
   // MERGE can rewrite files with dataChange but change no rows; its metrics say so, and no cdc

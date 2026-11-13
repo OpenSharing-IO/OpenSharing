@@ -83,8 +83,14 @@ class ProtocolTableQueryTest extends LocalDeltaTableSupport {
     assertEquals(ErrorCodes.BAD_REQUEST, afterLatest.errorCode());
     assertTrue(afterLatest.text().contains("Cannot load table version 9"), afterLatest.text());
     String both = "{\"version\":1,\"timestamp\":\"2024-01-01T00:30:00Z\"}";
-    assertInvalid(query(events, bearer, both, null, null));
-    assertInvalid(query(events, bearer, "{\"timestamp\":\"not-a-timestamp\"}", null, null));
+    Response bothSelectors = query(events, bearer, both, null, null);
+    assertInvalid(bothSelectors);
+    assertTrue(
+        bothSelectors.text().contains("Please only provide one of: version,timestamp,startingVersion."),
+        bothSelectors.text());
+    Response malformed = query(events, bearer, "{\"timestamp\":\"not-a-timestamp\"}", null, null);
+    assertInvalid(malformed);
+    assertTrue(malformed.text().contains("Invalid timestamp: "), malformed.text());
 
     // A table in an ungranted share is 404, not 403.
     Response hidden =
