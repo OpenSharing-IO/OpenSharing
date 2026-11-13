@@ -7,6 +7,7 @@ import io.delta.kernel.Snapshot;
 import io.delta.kernel.data.ColumnarBatch;
 import io.delta.kernel.data.FilteredColumnarBatch;
 import io.delta.kernel.data.Row;
+import io.delta.kernel.exceptions.KernelEngineException;
 import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.expressions.Predicate;
 import io.delta.kernel.internal.DeltaLogActionUtils;
@@ -181,6 +182,8 @@ public class DeltaTableQueryReader {
                     table.catalogAssetId(), snapshot.getVersion(), Instant.now().plus(URL_TTL))
                 : null);
       }
+    } catch (KernelException | KernelEngineException failed) {
+      throw DeltaKernel.classifyRead(failed, table);
     }
   }
 
@@ -215,6 +218,8 @@ public class DeltaTableQueryReader {
               includeHistoricalProtocol),
           options,
           sink);
+    } catch (KernelException | KernelEngineException failed) {
+      throw DeltaKernel.classifyRead(failed, table);
     }
   }
 
@@ -274,6 +279,8 @@ public class DeltaTableQueryReader {
               start, resolvedEnd, includeHistoricalMetadata, includeHistoricalProtocol),
           options,
           sink);
+    } catch (KernelException | KernelEngineException failed) {
+      throw DeltaKernel.classifyRead(failed, table);
     }
   }
 
@@ -281,9 +288,8 @@ public class DeltaTableQueryReader {
       TableImpl table, DeltaKernel.Session session, Instant endingTimestamp) {
     try {
       return table.getVersionBeforeOrAtTimestamp(session.engine(), endingTimestamp.toEpochMilli());
-    } catch (KernelException | IllegalArgumentException invalid) {
-      throw ApiException.invalidParameter(
-          "endingTimestamp is before the earliest table version timestamp");
+    } catch (IllegalArgumentException invalid) {
+      throw DeltaKernel.classify(invalid, table.getPath(session.engine()), null);
     }
   }
 
@@ -307,12 +313,8 @@ public class DeltaTableQueryReader {
         commitFiles =
             DeltaLogActionUtils.getCommitFilesForVersionRange(
                 session.engine(), tablePath, range.start(), Optional.of(range.end()));
-      } catch (KernelException | IllegalArgumentException missing) {
-        throw ApiException.invalidParameter(
-            "the table no longer has every commit from version "
-                + range.start()
-                + " to "
-                + range.end());
+      } catch (IllegalArgumentException failed) {
+        throw DeltaKernel.classify(failed, session.table().getPath(session.engine()), null);
       }
 
       // The protocol reports the starting version as the table version of a change response.

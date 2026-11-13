@@ -58,8 +58,8 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
     // Historical version 0, and as of the first commit time, return that snapshot.
     assertVersion("0", metadata(endpoint + "?version=0", bearer, null));
     assertVersion("0", metadata(endpoint + "?timestamp=2021-05-04T17:24:06Z", bearer, null));
-    // As of before version 0 is INVALID_PARAMETER_VALUE.
-    assertInvalid(metadata(endpoint + "?timestamp=1970-01-01T00:00:00Z", bearer, null));
+    // As of before version 0 is Kernel's report.
+    assertBadRequest(metadata(endpoint + "?timestamp=1970-01-01T00:00:00Z", bearer, null));
     // version and timestamp together are mutually exclusive.
     assertInvalid(metadata(endpoint + "?version=1&timestamp=2021-05-04T17:24:06Z", bearer, null));
   }
@@ -118,6 +118,12 @@ class ProtocolTableMetadataIntegrationTest extends ProtocolApiSupport {
   private static void assertVersion(String expected, Response response) {
     assertEquals(200, response.status());
     assertEquals(expected, response.headers().get("Delta-Table-Version"));
+  }
+
+  /** Kernel's report that the table has no such version or timestamp. */
+  private static void assertBadRequest(Response response) {
+    assertEquals(400, response.status());
+    assertEquals(ErrorCodes.BAD_REQUEST, response.errorCode());
   }
 
   private static void assertInvalid(Response response) {

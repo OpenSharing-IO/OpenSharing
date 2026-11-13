@@ -27,6 +27,14 @@ public abstract class ProtocolApiSupport {
 
   protected static TestServer server;
 
+  /** Asserts the whole answer: HTTP status, protocol error code and message. */
+  protected static void assertError(
+      int status, String errorCode, String message, Response response) {
+    assertEquals(status, response.status(), response.text());
+    assertEquals(errorCode, response.errorCode(), response.text());
+    assertEquals(message, response.body().path("message").asText(), response.text());
+  }
+
   @BeforeAll
   static void startServer() {
     server = TestServer.start();

@@ -7,6 +7,7 @@ import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
 import io.opensharing.asset.table.delta.DeltaTableQueryReader;
+import io.opensharing.asset.table.delta.SourceTableException;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.AssetLocation;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,8 +126,12 @@ public class ProtocolTables {
       String startingTimestamp) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     Instant timestamp = parseTimestamp("startingTimestamp", startingTimestamp);
-    return kernel.getVersion(
-        findTable(share, schemaAlias, tableAlias).catalogTable(), timestamp, owner(share));
+    ResolvedAsset table = findTable(share, schemaAlias, tableAlias).catalogTable();
+    return readingTable(
+        share,
+        schemaAlias,
+        tableAlias,
+        () -> kernel.getVersion(table, timestamp, owner(share)));
   }
 
   /**
@@ -144,7 +150,11 @@ public class ProtocolTables {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     Instant asOf = parseTimestamp("timestamp", timestamp);
     ResolvedAsset table = findTable(share, schemaAlias, tableAlias).catalogTable();
-    return metadataReader.read(table, version, asOf, owner(share), capabilities);
+    return readingTable(
+        share,
+        schemaAlias,
+        tableAlias,
+        () -> metadataReader.read(table, version, asOf, owner(share), capabilities));
   }
 
   /**
@@ -207,7 +217,11 @@ public class ProtocolTables {
             findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     if (body.startingVersion() != null || body.endingVersion() != null) {
-      queryChanges(body, catalogTable, share, options, sink);
+      readingTable(
+          share,
+          schemaAlias,
+          tableAlias,
+          () -> queryChanges(body, catalogTable, share, options, sink));
       return;
     }
     boolean historical = body.version() != null || body.timestamp() != null;
@@ -223,17 +237,23 @@ public class ProtocolTables {
     if (body.predicateHints() != null && !body.predicateHints().isEmpty()) {
       log.debug("Ignoring deprecated predicateHints {}", body.predicateHints());
     }
-    queryReader.read(
-        catalogTable,
-        owner(share),
-        options,
-        sink,
-        body.version(),
-        parseTimestamp("timestamp", body.timestamp()),
-        body.refreshToken(),
-        includeRefreshToken,
-        body.jsonPredicateHints(),
-        limitHint(body));
+    Instant timestamp = parseTimestamp("timestamp", body.timestamp());
+    readingTable(
+        share,
+        schemaAlias,
+        tableAlias,
+        () ->
+            queryReader.read(
+                catalogTable,
+                owner(share),
+                options,
+                sink,
+                body.version(),
+                timestamp,
+                body.refreshToken(),
+                includeRefreshToken,
+                body.jsonPredicateHints(),
+                limitHint(body)));
   }
 
   /**
@@ -254,17 +274,49 @@ public class ProtocolTables {
     ResolvedAsset catalogTable =
         requireUrlAccess(
             findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
-    queryReader.readChangeDataFeed(
-        catalogTable,
-        owner(share),
-        options,
-        sink,
-        request.startingVersion(),
-        parseTimestamp("startingTimestamp", request.startingTimestamp()),
-        request.endingVersion(),
-        parseTimestamp("endingTimestamp", request.endingTimestamp()),
-        Boolean.TRUE.equals(request.includeHistoricalMetadata()),
-        Boolean.TRUE.equals(request.includeHistoricalProtocol()));
+    Instant startingTimestamp = parseTimestamp("startingTimestamp", request.startingTimestamp());
+    Instant endingTimestamp = parseTimestamp("endingTimestamp", request.endingTimestamp());
+    readingTable(
+        share,
+        schemaAlias,
+        tableAlias,
+        () ->
+            queryReader.readChangeDataFeed(
+                catalogTable,
+                owner(share),
+                options,
+                sink,
+                request.startingVersion(),
+                startingTimestamp,
+                request.endingVersion(),
+                endingTimestamp,
+                Boolean.TRUE.equals(request.includeHistoricalMetadata()),
+                Boolean.TRUE.equals(request.includeHistoricalProtocol())));
+  }
+
+  /**
+   * Reads the table, answering a failure of the source table itself in the table's name as the
+   * share gives it, since the recipient knows no other.
+   */
+  private <T> T readingTable(
+      ShareEntity share, String schemaAlias, String tableAlias, Supplier<T> read) {
+    try {
+      return read.get();
+    } catch (SourceTableException failed) {
+      throw failed.forRecipient(share.getName() + "." + schemaAlias + "." + tableAlias);
+    }
+  }
+
+  private void readingTable(
+      ShareEntity share, String schemaAlias, String tableAlias, Runnable read) {
+    readingTable(
+        share,
+        schemaAlias,
+        tableAlias,
+        () -> {
+          read.run();
+          return null;
+        });
   }
 
   /** Returns {@code catalogTable} once it is known to support the {@code url} access mode. */

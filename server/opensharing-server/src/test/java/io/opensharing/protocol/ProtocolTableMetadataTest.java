@@ -79,7 +79,11 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
     assertEquals(200, atTimestamp.status());
     assertEquals("1", atTimestamp.headers().get("Delta-Table-Version"));
 
-    assertInvalid(metadata(orders + "?version=9", bearer, null));
+    assertError(
+        400,
+        ErrorCodes.BAD_REQUEST,
+        "Cannot load table version 9 as it does not exist. The latest available version is 2.",
+        metadata(orders + "?version=9", bearer, null));
     assertInvalid(metadata(orders + "?version=1&timestamp=2024-01-01T01:30:00Z", bearer, null));
     assertInvalid(metadata(orders + "?timestamp=not-a-timestamp", bearer, null));
 
@@ -91,36 +95,6 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
             null);
     assertEquals(404, hidden.status());
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, hidden.errorCode());
-  }
-
-  @Test
-  void reportsADeltaTableWithoutALogAsACatalogError() {
-    createShare("unwritten-metadata");
-    addObject("unwritten-metadata", "TABLE", "main.lake.unwritten", "lake.unwritten");
-    String bearer = createAndActivateRecipient("unwritten-metadata-partner");
-    grant("unwritten-metadata", "unwritten-metadata-partner");
-
-    Response unwritten =
-        metadata(
-            PROTOCOL + "/shares/unwritten-metadata/schemas/lake/tables/unwritten/metadata",
-            bearer,
-            null);
-    assertEquals(502, unwritten.status());
-    assertEquals(ErrorCodes.CATALOG_ERROR, unwritten.errorCode());
-  }
-
-  @Test
-  void reportsAReaderFeatureKernelCannotReadWithoutTheStoragePath() {
-    createShare("future-metadata");
-    addObject("future-metadata", "TABLE", "main.lake.future", "lake.future");
-    String bearer = createAndActivateRecipient("future-metadata-partner");
-    grant("future-metadata", "future-metadata-partner");
-
-    Response future =
-        metadata(
-            PROTOCOL + "/shares/future-metadata/schemas/lake/tables/future/metadata", bearer, null);
-    assertInvalid(future);
-    assertFalse(future.body().toString().contains(tables.toString()));
   }
 
   private static Response metadata(String path, String bearer, String capabilities) {

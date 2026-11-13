@@ -1,6 +1,8 @@
 package io.opensharing.asset.table.delta;
 
 import io.delta.kernel.Snapshot;
+import io.delta.kernel.exceptions.KernelEngineException;
+import io.delta.kernel.exceptions.KernelException;
 import io.delta.kernel.internal.SnapshotImpl;
 import io.delta.kernel.internal.checksum.CRCInfo;
 import io.opensharing.asset.table.DeltaSharingCapabilities;
@@ -50,6 +52,8 @@ public class DeltaTableMetadataReader {
                   crc == null ? null : crc.getTableSizeBytes(),
                   crc == null ? null : crc.getNumFiles(),
                   format));
+    } catch (KernelException | KernelEngineException failed) {
+      throw DeltaKernel.classifyRead(failed, table);
     }
   }
 

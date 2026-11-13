@@ -1,5 +1,8 @@
 package io.opensharing.http;
 
+import java.util.Collection;
+import java.util.TreeSet;
+
 /** An error with an explicit protocol error code and HTTP status. */
 public class ApiException extends RuntimeException {
 
@@ -32,6 +35,11 @@ public class ApiException extends RuntimeException {
     return new ApiException(409, ErrorCodes.RESOURCE_CONFLICT, message);
   }
 
+  /** A request the server cannot serve, such as one Kernel rejected or a table it cannot read. */
+  public static ApiException badRequest(String message) {
+    return new ApiException(400, ErrorCodes.BAD_REQUEST, message);
+  }
+
   public static ApiException invalidParameter(String message) {
     return new ApiException(400, ErrorCodes.INVALID_PARAMETER_VALUE, message);
   }
@@ -46,5 +54,21 @@ public class ApiException extends RuntimeException {
 
   public static ApiException notImplemented(String message) {
     return new ApiException(501, ErrorCodes.NOT_IMPLEMENTED, message);
+  }
+
+  /**
+   * The table needs Delta features or properties that cannot be served, named in a fixed order so
+   * the message is the same on every request. {@code version} is the table version they were found in, if known,
+   * and {@code remedy} tells the recipient what to do about them.
+   */
+  public static ApiException unsupportedFeatures(
+      Collection<String> features, Long version, String remedy) {
+    return invalidParameter(
+        "Table features "
+            + String.join(", ", new TreeSet<>(features))
+            + " are found in table"
+            + (version == null ? "." : " version: " + version + ".")
+            + " "
+            + remedy);
   }
 }

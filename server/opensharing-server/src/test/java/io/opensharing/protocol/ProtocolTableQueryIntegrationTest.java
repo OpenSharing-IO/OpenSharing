@@ -61,8 +61,8 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
     assertVersion("0", query(endpoint, bearer, "{\"version\":0}", null));
     assertVersion(
         "0", query(endpoint, bearer, "{\"timestamp\":\"2021-05-04T17:24:06Z\"}", null));
-    // As of before version 0 is INVALID_PARAMETER_VALUE.
-    assertInvalid(query(endpoint, bearer, "{\"timestamp\":\"1970-01-01T00:00:00Z\"}", null));
+    // As of before version 0 is Kernel's report.
+    assertBadRequest(query(endpoint, bearer, "{\"timestamp\":\"1970-01-01T00:00:00Z\"}", null));
     // version and timestamp together are mutually exclusive.
     assertInvalid(
         query(endpoint, bearer, "{\"version\":1,\"timestamp\":\"2021-05-04T17:24:06Z\"}", null));
@@ -127,8 +127,8 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
     assertVersion("0", historical);
     assertEquals(
         2, historical.text().split("\"version\":0", -1).length - 1);
-    // A version after the latest is INVALID_PARAMETER_VALUE.
-    assertInvalid(query(endpoint, bearer, "{\"version\":1}", null));
+    // A version after the latest is Kernel's report.
+    assertBadRequest(query(endpoint, bearer, "{\"version\":1}", null));
   }
 
   private static void assertParquetQuery(String ndjson) {
@@ -172,6 +172,12 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
   private static void assertVersion(String expected, Response response) {
     assertEquals(200, response.status());
     assertEquals(expected, response.headers().get("Delta-Table-Version"));
+  }
+
+  /** Kernel's report that the table has no such version or timestamp. */
+  private static void assertBadRequest(Response response) {
+    assertEquals(400, response.status());
+    assertEquals(ErrorCodes.BAD_REQUEST, response.errorCode());
   }
 
   private static void assertInvalid(Response response) {
