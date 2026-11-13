@@ -84,7 +84,6 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
         ErrorCodes.BAD_REQUEST,
         "Cannot load table version 9 as it does not exist. The latest available version is 2.",
         metadata(orders + "?version=9", bearer, null));
-    assertInvalid(metadata(orders + "?version=1&timestamp=2024-01-01T01:30:00Z", bearer, null));
     assertInvalid(metadata(orders + "?timestamp=not-a-timestamp", bearer, null));
 
     // A table in an ungranted share is 404, not 403.
@@ -95,6 +94,41 @@ class ProtocolTableMetadataTest extends LocalDeltaTableSupport {
             null);
     assertEquals(404, hidden.status());
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, hidden.errorCode());
+  }
+
+  @Test
+  void answersVersionAndTimestampMistakes() {
+    createShare("mistakes-metadata");
+    addObject("mistakes-metadata", "TABLE", "main.sales.orders", "sales.orders");
+    String bearer = createAndActivateRecipient("mistakes-metadata-partner");
+    grant("mistakes-metadata", "mistakes-metadata-partner");
+    String orders = PROTOCOL + "/shares/mistakes-metadata/schemas/sales/tables/orders/metadata";
+
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "Please only provide one of: version,timestamp",
+        metadata(orders + "?version=1&timestamp=2024-01-01T01:30:00Z", bearer, null));
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "version cannot be negative.",
+        metadata(orders + "?version=-1", bearer, null));
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "version is not a valid number.",
+        metadata(orders + "?version=latest", bearer, null));
+    // A timestamp before the first commit is Kernel's report, without the storage path.
+    Response early = metadata(orders + "?timestamp=2000-01-01T00:00:00Z", bearer, null);
+    assertError(
+        400,
+        ErrorCodes.BAD_REQUEST,
+        "The provided timestamp 946684800000 ms (2000-01-01T00:00:00Z) is before the earliest"
+            + " available version 0. Please use a timestamp greater than or equal to"
+            + " 1704067200000 ms (2024-01-01T00:00:00Z).",
+        early);
+    assertNoStoragePath(early);
   }
 
   private static Response metadata(String path, String bearer, String capabilities) {

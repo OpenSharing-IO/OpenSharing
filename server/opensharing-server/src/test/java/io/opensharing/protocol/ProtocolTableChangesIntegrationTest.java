@@ -44,14 +44,20 @@ class ProtocolTableChangesIntegrationTest extends ProtocolApiSupport {
     String delta = ok(changes(endpoint + range, bearer, "responseformat=delta"), "0");
     assertEquals(changes, count(delta, "file"), delta);
 
-    // Version 4 stops recording change data after the response has begun, so its error ends it.
-    String off =
-        ok(changes(endpoint + "?startingVersion=0", bearer, "includeendstreamaction=true"), "0");
-    String last = off.substring(off.stripTrailing().lastIndexOf('\n') + 1);
-    assertTrue(last.startsWith("{\"endStreamAction\":{\"errorMessage\":"), last);
-    assertTrue(last.contains("not recorded for version [4]"), last);
-    // An end after the latest version is capped rather than rejected.
-    ok(changes(endpoint + "?startingVersion=5&endingVersion=1000", bearer, null), "5");
+    // Version 4 stops recording change data, which is found before the response begins, however
+    // the range is bounded.
+    for (String bounds :
+        new String[] {"startingVersion=0", "startingTimestamp=2000-01-01T00:00:00Z"}) {
+      Response off = changes(endpoint + "?" + bounds, bearer, "includeendstreamaction=true");
+      assertEquals(403, off.status(), off.text());
+      assertEquals(ErrorCodes.PERMISSION_DENIED, off.errorCode(), off.text());
+      assertTrue(
+          off.text().contains("CDF is not enabled on the original delta table for version 4"),
+          off.text());
+    }
+    // An end after the latest version is rejected rather than capped.
+    assertInvalid(changes(endpoint + "?startingVersion=5&endingVersion=1000", bearer, null));
+    ok(changes(endpoint + "?startingVersion=5&endingVersion=5", bearer, null), "5");
     // A range that ends before it starts is rejected.
     assertInvalid(changes(endpoint + "?startingVersion=1&endingVersion=0", bearer, null));
   }
@@ -81,8 +87,13 @@ class ProtocolTableChangesIntegrationTest extends ProtocolApiSupport {
     String endpoint = endpoint(share, sharedAs);
 
     Response unrecorded = changes(endpoint + "?startingVersion=0", bearer, null);
-    assertInvalid(unrecorded);
-    assertTrue(unrecorded.text().contains("change data was not recorded"), unrecorded.text());
+    assertEquals(403, unrecorded.status(), unrecorded.text());
+    assertEquals(ErrorCodes.PERMISSION_DENIED, unrecorded.errorCode());
+    assertTrue(
+        unrecorded
+            .text()
+            .contains("CDF is not enabled on the original delta table for version 0"),
+        unrecorded.text());
     // A starting version or timestamp is required.
     assertInvalid(changes(endpoint, bearer, null));
   }

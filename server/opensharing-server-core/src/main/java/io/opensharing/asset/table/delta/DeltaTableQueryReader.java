@@ -40,6 +40,7 @@ import io.opensharing.asset.table.RefreshTokens;
 import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.asset.table.TableActions;
 import io.opensharing.asset.table.TableActions.ChangeType;
+import io.opensharing.asset.table.TableRequestChecks;
 import io.opensharing.asset.table.signer.SignedUrl;
 import io.opensharing.asset.table.signer.SigningSession;
 import io.opensharing.asset.table.signer.UrlSigners;
@@ -82,6 +83,10 @@ public class DeltaTableQueryReader {
 
   // Commit files are read directly because Kernel 4.0's getChanges requires commitInfo fields that
   // older Delta writers omit; only the commitInfo fields used here are read.
+  private static final StructType PROTOCOL_AND_METADATA_SCHEMA =
+      new StructType()
+          .add(DeltaAction.PROTOCOL.colName, DeltaAction.PROTOCOL.schema)
+          .add(DeltaAction.METADATA.colName, DeltaAction.METADATA.schema);
   private static final StructType CHANGE_SCHEMA =
       new StructType()
           .add(DeltaAction.PROTOCOL.colName, DeltaAction.PROTOCOL.schema)
@@ -128,9 +133,6 @@ public class DeltaTableQueryReader {
       boolean includeRefreshToken,
       String jsonPredicateHints,
       Long limitHint) {
-    if (version != null && timestamp != null) {
-      throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
-    }
     // A time-travel query reports the snapshot version in metaData and on every file.
     boolean historical = version != null || timestamp != null;
     // A refresh token pins the version it was issued for without making the query historical.
@@ -204,9 +206,9 @@ public class DeltaTableQueryReader {
       boolean includeHistoricalProtocol) {
     try (DeltaKernel.Session session = kernel.open(table, auth, URL_TTL)) {
       long latest = DeltaSnapshots.open(session, null, null).getVersion();
-      requireAtMostLatest("startingVersion", startingVersion, latest);
+      TableRequestChecks.requireStartAtMostLatest(startingVersion, latest);
       if (endingVersion != null) {
-        requireAtMostLatest("endingVersion", endingVersion, latest);
+        TableRequestChecks.requireEndAtMostLatest(endingVersion, latest);
       }
       changes(
           session,
@@ -224,11 +226,11 @@ public class DeltaTableQueryReader {
   }
 
   /**
-   * Reads the Change Data Feed from the start through the end version or timestamp, or the latest
-   * version. Versions take precedence over timestamps, and an end after the latest version is
-   * capped, as in the OSS server. Protocol and metaData lines come from the start version with
-   * {@code includeHistoricalMetadata}, which also returns later metaData changes, and from the
-   * latest version otherwise.
+   * Reads the Change Data Feed from the starting version or timestamp, one of which is required,
+   * through the end version or timestamp, or the latest version. A start or end after the latest
+   * version is rejected rather than capped. Protocol and metaData lines come from the start
+   * version with {@code includeHistoricalMetadata}, which also returns later metaData changes, and
+   * from the latest version otherwise.
    */
   public void readChangeDataFeed(
       ResolvedAsset table,
@@ -244,32 +246,30 @@ public class DeltaTableQueryReader {
     try (DeltaKernel.Session session = kernel.open(table, auth, URL_TTL)) {
       SnapshotImpl latest = (SnapshotImpl) DeltaSnapshots.open(session, null, null);
       TableImpl delta = (TableImpl) session.table();
-      long start;
       if (startingVersion != null) {
-        start = startingVersion;
-      } else if (startingTimestamp != null) {
-        start = DeltaKernel.versionAtOrAfter(delta, session.engine(), startingTimestamp);
-      } else {
-        throw ApiException.invalidParameter("startingVersion or startingTimestamp is required");
+        TableRequestChecks.requireStartAtMostLatest(startingVersion, latest.getVersion());
       }
+      if (endingTimestamp != null) {
+        requireEndingTimestampAtMostLatest(endingTimestamp, latest, session);
+      }
+      long start =
+          startingVersion != null
+              ? startingVersion
+              : DeltaKernel.versionAtOrAfter(delta, session.engine(), startingTimestamp);
       Long end =
           endingVersion != null
               ? endingVersion
               : endingTimestamp != null
                   ? versionBeforeOrAt(delta, session, endingTimestamp)
                   : null;
-      if (start < 0) {
-        throw ApiException.invalidParameter("startingVersion must be non-negative");
+      if (end != null) {
+        TableRequestChecks.requireOrderedRange(start, end);
+        TableRequestChecks.requireEndAtMostLatest(end, latest.getVersion());
       }
-      requireAtMostLatest("startingVersion", start, latest.getVersion());
-      if (end != null && end < start) {
-        throw ApiException.invalidParameter(
-            "endingVersion " + end + " is before startingVersion " + start);
-      }
-      long resolvedEnd = end == null ? latest.getVersion() : Math.min(end, latest.getVersion());
+      long resolvedEnd = end == null ? latest.getVersion() : end;
       SnapshotImpl first = (SnapshotImpl) DeltaSnapshots.open(session, start, null);
       if (!changeDataFeedEnabled(first.getMetadata())) {
-        throw changeDataNotRecorded(start, start, resolvedEnd);
+        throw SourceTableException.changeDataNotRecorded(start);
       }
       changes(
           session,
@@ -281,6 +281,25 @@ public class DeltaTableQueryReader {
           sink);
     } catch (KernelException | KernelEngineException failed) {
       throw DeltaKernel.classifyRead(failed, table);
+    }
+  }
+
+  /**
+   * An ending timestamp after the latest commit is the recipient's mistake, and the table's latest
+   * commit time says what to ask for instead.
+   */
+  private static void requireEndingTimestampAtMostLatest(
+      Instant endingTimestamp, SnapshotImpl latest, DeltaKernel.Session session) {
+    long latestTimestamp = latest.getTimestamp(session.engine());
+    if (endingTimestamp.toEpochMilli() > latestTimestamp) {
+      String latestInstant = Instant.ofEpochMilli(latestTimestamp).toString();
+      throw ApiException.invalidParameter(
+          "The provided timestamp("
+              + endingTimestamp
+              + ") is after the latest table version available to this table ("
+              + latestInstant
+              + "). Please use a timestamp less than or equal to "
+              + latestInstant);
     }
   }
 
@@ -317,6 +336,14 @@ public class DeltaTableQueryReader {
         throw DeltaKernel.classify(failed, session.table().getPath(session.engine()), null);
       }
 
+      // A failure after the response has begun can only reset the stream, so every protocol and
+      // metaData the range commits is checked before any line is written.
+      try {
+        checkCommits(session, out, range, commitFiles);
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+
       // The protocol reports the starting version as the table version of a change response.
       out.begin(range.start());
       // With includeHistoricalProtocol, a starting protocol carries its version like later ones. A
@@ -333,10 +360,10 @@ public class DeltaTableQueryReader {
         for (FileStatus file : commitFiles) {
           if (range.changeDataFeed()) {
             Commit commit = new Commit(file);
-            readCommit(session, file, commit::add);
+            readCommit(session, file, CHANGE_SCHEMA, commit::add);
             write(out, range, commit);
           } else {
-            readCommit(session, file, new CommitWriter(out, range, file)::write);
+            readCommit(session, file, CHANGE_SCHEMA, new CommitWriter(out, range, file)::write);
           }
         }
       } catch (IOException e) {
@@ -350,18 +377,46 @@ public class DeltaTableQueryReader {
   }
 
   /**
+   * Checks the reader features and, for a Change Data Feed, the change data recording of each
+   * protocol and metaData in the commits of {@code range}.
+   */
+  private static void checkCommits(
+      DeltaKernel.Session session, ResponseWriter out, ChangeRange range, List<FileStatus> files)
+      throws IOException {
+    for (FileStatus file : files) {
+      long version = FileNames.deltaVersion(file.getPath());
+      readCommit(
+          session,
+          file,
+          PROTOCOL_AND_METADATA_SCHEMA,
+          (row, columns) -> {
+            if (!row.isNullAt(columns.protocol())) {
+              out.requireReaderFeatures(Protocol.fromRow(row.getStruct(columns.protocol())));
+            } else if (!row.isNullAt(columns.metadata())
+                && range.changeDataFeed()
+                && !changeDataFeedEnabled(Metadata.fromRow(row.getStruct(columns.metadata())))) {
+              throw SourceTableException.changeDataNotRecorded(version);
+            }
+          });
+    }
+  }
+
+  /**
    * Reads one commit file, which holds every action of its version, in log order. Kernel can split
    * a large file across several batches, each with its own schema ordinals.
    */
   private static void readCommit(
-      DeltaKernel.Session session, FileStatus file, BiConsumer<Row, ChangeColumns> action)
+      DeltaKernel.Session session,
+      FileStatus file,
+      StructType schema,
+      BiConsumer<Row, ChangeColumns> action)
       throws IOException {
     try (CloseableIterator<ColumnarBatch> batches =
         session
             .engine()
             .getJsonHandler()
             .readJsonFiles(
-                Utils.singletonCloseableIterator(file), CHANGE_SCHEMA, Optional.empty())) {
+                Utils.singletonCloseableIterator(file), schema, Optional.empty())) {
       while (batches.hasNext()) {
         ColumnarBatch batch = batches.next();
         ChangeColumns columns = ChangeColumns.of(batch.getSchema());
@@ -378,19 +433,14 @@ public class DeltaTableQueryReader {
   private static void write(ResponseWriter out, ChangeRange range, Commit commit) {
     long version = commit.version;
     boolean later = range.later(version);
-    if (commit.protocol != null) {
-      out.requireReaderFeatures(commit.protocol);
-      if (range.includeHistoricalProtocol() && out.format() == ResponseFormat.DELTA && later) {
-        out.protocol(commit.protocol, version);
-      }
+    if (commit.protocol != null
+        && range.includeHistoricalProtocol()
+        && out.format() == ResponseFormat.DELTA
+        && later) {
+      out.protocol(commit.protocol, version);
     }
-    if (commit.metadata != null) {
-      if (!changeDataFeedEnabled(commit.metadata)) {
-        throw changeDataNotRecorded(version, range.start(), range.end());
-      }
-      if (range.includeHistoricalMetadata() && later) {
-        out.metadata(commit.metadata, version, null);
-      }
+    if (commit.metadata != null && range.includeHistoricalMetadata() && later) {
+      out.metadata(commit.metadata, version, null);
     }
     List<ChangeFile> files = commit.files;
     if (!commit.cdcFiles.isEmpty()) {
@@ -405,17 +455,6 @@ public class DeltaTableQueryReader {
 
   private static boolean changeDataFeedEnabled(Metadata metadata) {
     return TableConfig.CHANGE_DATA_FEED_ENABLED.fromMetadata(metadata);
-  }
-
-  private static ApiException changeDataNotRecorded(long version, long start, long end) {
-    return ApiException.invalidParameter(
-        "Error getting change data for range ["
-            + start
-            + ", "
-            + end
-            + "] as change data was not recorded for version ["
-            + version
-            + "]");
   }
 
   // MERGE can rewrite files with dataChange but change no rows; its metrics say so, and no cdc
@@ -435,13 +474,6 @@ public class DeltaTableQueryReader {
     Map<String, String> values = VectorUtils.toJavaMap(commitInfo.getMap(metrics));
     return Stream.of("numTargetRowsInserted", "numTargetRowsUpdated", "numTargetRowsDeleted")
         .allMatch(metric -> "0".equals(values.get(metric)));
-  }
-
-  private static void requireAtMostLatest(String name, long version, long latest) {
-    if (version > latest) {
-      throw ApiException.invalidParameter(
-          name + " " + version + " is after the latest table version " + latest);
-    }
   }
 
   // Files without stats count as zero records, so limitHint never stops early on them.
@@ -776,7 +808,6 @@ public class DeltaTableQueryReader {
     void write(Row row, ChangeColumns columns) {
       if (!row.isNullAt(columns.protocol())) {
         Protocol protocol = Protocol.fromRow(row.getStruct(columns.protocol()));
-        out.requireReaderFeatures(protocol);
         if (range.includeHistoricalProtocol() && out.format() == ResponseFormat.DELTA && later) {
           out.protocol(protocol, version);
         }

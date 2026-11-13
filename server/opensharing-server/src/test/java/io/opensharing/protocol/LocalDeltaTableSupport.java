@@ -27,7 +27,9 @@ import org.junit.jupiter.api.io.TempDir;
  * commit is missing, {@code main.lake.noncontiguous} has commits 0 and 2, so version 1 is
  * missing, {@code main.lake.invalidlog}, in a directory with a space in its name, enables in-commit
  * timestamps but its first commit has no CommitInfo, and {@code main.lake.futuresince} needs a
- * reader feature Kernel does not know at version 0 but not at its latest.
+ * reader feature Kernel does not know at version 0 but not at its latest. {@code
+ * main.lake.cdfmid} records change data at version 0, commits no change at version 1, and stops
+ * recording at version 2.
  */
 abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
 
@@ -71,6 +73,21 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
     write(
         "future/_delta_log/%020d.json".formatted(0),
         FUTURE_PROTOCOL_ACTION + METADATA_ACTION.formatted("future"));
+    // Change data recorded at version 0, a commit that changes nothing at version 1, and a
+    // metaData at version 2 that stops recording it.
+    write(
+        "cdfmid/_delta_log/%020d.json".formatted(0),
+        PROTOCOL_ACTION
+            + METADATA_ACTION
+                .formatted("cdfmid")
+                .replace(
+                    "\"configuration\":{}",
+                    "\"configuration\":{\"delta.enableChangeDataFeed\":\"true\"}")
+            + COMMIT_INFO_ACTION);
+    write("cdfmid/_delta_log/%020d.json".formatted(1), COMMIT_INFO_ACTION);
+    write(
+        "cdfmid/_delta_log/%020d.json".formatted(2),
+        METADATA_ACTION.formatted("cdfmid") + COMMIT_INFO_ACTION);
     appendCommit("gapped", 1);
     // Commits 0 and 2 with version 1 missing, a gap Kernel rejects as non-contiguous.
     write(
@@ -159,6 +176,11 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
               subtype: MANAGED
             storageLocation: %s
             format: delta
+          - identifier: main.lake.cdfmid
+            attributes:
+              subtype: MANAGED
+            storageLocation: %s
+            format: delta
         """
             .formatted(
                 orders,
@@ -171,7 +193,8 @@ abstract class LocalDeltaTableSupport extends ProtocolApiSupport {
                 location("gapped"),
                 location("noncontiguous"),
                 unescapedLocation(INVALID_LOG_DIRECTORY),
-                location("futuresince"));
+                location("futuresince"),
+                location("cdfmid"));
     Properties properties = new Properties();
     properties.setProperty("catalog.local.file", write("local-catalog.yml", catalog).toString());
     restartServer(properties);

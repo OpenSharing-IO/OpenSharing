@@ -216,8 +216,14 @@ class DeltaTableQueryReaderTest {
   @Test
   void rejectsVersionsAfterTheLatestVersion() throws IOException {
     writeChanges();
-    assertThrows(ApiException.class, () -> changes(5L, null, null, false));
-    assertThrows(ApiException.class, () -> changes(1L, 5L, null, false));
+    assertEquals(
+        "Provided Start version(5) for reading change data is invalid. Start version cannot be"
+            + " greater than the latest version of the table(4).",
+        assertThrows(ApiException.class, () -> changes(5L, null, null, false)).getMessage());
+    assertEquals(
+        "Provided End version(5) for reading change data is invalid. End version cannot be"
+            + " greater than the latest version of the table(4).",
+        assertThrows(ApiException.class, () -> changes(1L, 5L, null, false)).getMessage());
   }
 
   @Test
@@ -248,18 +254,39 @@ class DeltaTableQueryReaderTest {
             true);
     assertTrue(lines.get(1).contains("\"version\":1"), lines.get(1));
     assertEquals(List.of("cdf c 1", "remove b 2"), describe(lines.subList(2, lines.size())));
-    // An end after the latest version is capped; the range then reaches CDF being disabled.
-    assertThrows(ApiException.class, () -> changeDataFeed(0L, null, 9L, null, null, false));
+    // An end after the latest version is rejected rather than capped.
+    ApiException afterLatest =
+        assertThrows(ApiException.class, () -> changeDataFeed(0L, null, 9L, null, null, false));
+    assertEquals(
+        "Provided End version(9) for reading change data is invalid. End version cannot be"
+            + " greater than the latest version of the table(4).",
+        afterLatest.getMessage());
   }
 
   @Test
   void changeDataFeedRejectsInvalidRanges() throws IOException {
     // The table written in setup never enabled the Change Data Feed.
-    assertThrows(ApiException.class, () -> changeDataFeed(0L, null, null, null, null, false));
+    SourceTableException unrecorded =
+        assertThrows(
+            SourceTableException.class,
+            () -> changeDataFeed(0L, null, null, null, null, false));
+    assertEquals(
+        "Unable to access change data feed for share.schema.table. CDF is not enabled on the"
+            + " original delta table for version 0. Please contact your data provider.",
+        unrecorded.forRecipient("share.schema.table").getMessage());
     writeChangeDataFeed();
-    assertThrows(ApiException.class, () -> changeDataFeed(null, null, null, null, null, false));
-    assertThrows(ApiException.class, () -> changeDataFeed(2L, null, 1L, null, null, false));
-    assertThrows(ApiException.class, () -> changeDataFeed(5L, null, null, null, null, false));
+    assertEquals(
+        "CDF range from startingVersion 2 to endingVersion 1 was invalid. End cannot be before"
+            + " start.",
+        assertThrows(
+                ApiException.class, () -> changeDataFeed(2L, null, 1L, null, null, false))
+            .getMessage());
+    assertEquals(
+        "Provided Start version(5) for reading change data is invalid. Start version cannot be"
+            + " greater than the latest version of the table(4).",
+        assertThrows(
+                ApiException.class, () -> changeDataFeed(5L, null, null, null, null, false))
+            .getMessage());
   }
 
   @Test

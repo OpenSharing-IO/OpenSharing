@@ -148,6 +148,8 @@ public class ProtocolTables {
       String timestamp,
       String capabilities) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    TableRequestChecks.requireAtMostOne("version,timestamp", version, timestamp);
+    TableRequestChecks.requireNotNegative("version", version);
     Instant asOf = parseTimestamp("timestamp", timestamp);
     ResolvedAsset table = findTable(share, schemaAlias, tableAlias).catalogTable();
     return readingTable(
@@ -212,10 +214,11 @@ public class ProtocolTables {
       DeltaTableQueryReader.ResponseOptions options,
       DeltaTableQueryReader.ResponseSink sink) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
+    requireValid(body);
     ResolvedAsset catalogTable =
         requireUrlAccess(
             findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
-    QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
     if (body.startingVersion() != null || body.endingVersion() != null) {
       readingTable(
           share,
@@ -271,6 +274,7 @@ public class ProtocolTables {
       DeltaTableQueryReader.ResponseOptions options,
       DeltaTableQueryReader.ResponseSink sink) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    requireValid(request);
     ResolvedAsset catalogTable =
         requireUrlAccess(
             findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
@@ -292,6 +296,33 @@ public class ProtocolTables {
                 endingTimestamp,
                 Boolean.TRUE.equals(request.includeHistoricalMetadata()),
                 Boolean.TRUE.equals(request.includeHistoricalProtocol())));
+  }
+
+  /** The version parameters of a snapshot or data change query, in the order they are checked.*/
+  private static void requireValid(QueryTableRequest body) {
+    TableRequestChecks.requireNotNegative("table version", body.version());
+    TableRequestChecks.requireNotNegative("startingVersion", body.startingVersion());
+    TableRequestChecks.requireNotNegative("endingVersion", body.endingVersion());
+    TableRequestChecks.requireAtMostOne(
+        "version,timestamp,startingVersion",
+        body.version(),
+        body.timestamp(),
+        body.startingVersion());
+    TableRequestChecks.requireOrderedVersions(body.startingVersion(), body.endingVersion());
+  }
+
+  /** The range parameters of a Change Data Feed query, in the order they are checked. */
+  private static void requireValid(TableChangesRequest request) {
+    TableRequestChecks.requireOneBoundary(
+        "starting", request.startingVersion(), request.startingTimestamp());
+    TableRequestChecks.requireOneBoundary(
+        "ending", request.endingVersion(), request.endingTimestamp());
+    TableRequestChecks.requireStart(request.startingVersion(), request.startingTimestamp());
+    TableRequestChecks.requireNotNegative("startingVersion", request.startingVersion());
+    TableRequestChecks.requireNotNegative("endingVersion", request.endingVersion());
+    if (request.startingVersion() != null && request.endingVersion() != null) {
+      TableRequestChecks.requireOrderedRange(request.startingVersion(), request.endingVersion());
+    }
   }
 
   /**
@@ -345,20 +376,9 @@ public class ProtocolTables {
     if (startingVersion == null) {
       throw ApiException.invalidParameter("endingVersion requires startingVersion");
     }
-    if (body.version() != null || body.timestamp() != null) {
-      throw ApiException.invalidParameter(
-          "Only one of version, timestamp, and startingVersion can be set");
-    }
     if (Boolean.TRUE.equals(body.includeRefreshToken()) || body.refreshToken() != null) {
       throw ApiException.invalidParameter(
           "includeRefreshToken and refreshToken cannot be used with startingVersion");
-    }
-    if (startingVersion < 0) {
-      throw ApiException.invalidParameter("startingVersion must be non-negative");
-    }
-    if (endingVersion != null && endingVersion < startingVersion) {
-      throw ApiException.invalidParameter(
-          "endingVersion must be greater than or equal to startingVersion");
     }
     queryReader.readChanges(
         table,

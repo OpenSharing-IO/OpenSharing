@@ -32,6 +32,7 @@ class ProtocolUnreadableTableTest extends LocalDeltaTableSupport {
 
     for (Response answer :
         List.of(
+            server.get(lake + "unwritten/version?startingTimestamp=2024-01-01T00:00:00Z", bearer),
             server.get(lake + "unwritten/metadata", bearer),
             server.post(lake + "unwritten/query", bearer, "{}"),
             server.post(lake + "unwritten/query", bearer, "{\"startingVersion\":0}"),
@@ -77,6 +78,39 @@ class ProtocolUnreadableTableTest extends LocalDeltaTableSupport {
   }
 
   @Test
+  void rejectsAChangeRangeThatStopsRecordingBeforeAnyLineIsWritten() {
+    String lake = shareWith("cdfmid");
+    String bearer = recipient("cdfmid");
+    String changes = lake + "cdfmid/changes";
+    String version2 =
+        "Unable to access change data feed for unreadable-cdfmid.lake.cdfmid. CDF is not enabled"
+            + " on the original delta table for version 2. Please contact your data provider.";
+
+    // A commit that changes nothing is part of a range, and gives no file.
+    Response quiet = server.get(changes + "?startingVersion=0&endingVersion=1", bearer);
+    assertEquals(200, quiet.status(), quiet.text());
+    assertEquals(2, quiet.text().strip().split("\n").length, quiet.text());
+    // The range is read whole before the response begins, so a version that stops recording
+    // answers 403 however the range is bounded, and not a reset stream.
+    for (String bounds :
+        List.of(
+            "startingVersion=0",
+            "startingVersion=0&endingVersion=2",
+            "startingTimestamp=2000-01-01T00:00:00Z")) {
+      assertError(
+          403,
+          ErrorCodes.PERMISSION_DENIED,
+          version2,
+          server.get(changes + "?" + bounds, bearer));
+    }
+    // A timestamp after the latest commit is rejected too.
+    Response late =
+        server.get(changes + "?startingVersion=0&endingTimestamp=2100-01-01T00:00:00Z", bearer);
+    assertEquals(400, late.status(), late.text());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, late.errorCode(), late.text());
+  }
+
+  @Test
   void reportsAnInvalidLogInKernelsWordsWithoutThePathInEitherSpelling() {
     String lake = shareWith("invalidlog");
     String bearer = recipient("invalidlog");
@@ -87,8 +121,12 @@ class ProtocolUnreadableTableTest extends LocalDeltaTableSupport {
             server.post(
                 lake + "invalidlog/query", bearer, "{\"timestamp\":\"2024-06-01T00:00:00Z\"}"),
             server.post(lake + "invalidlog/query", bearer, "{\"version\":0}"),
+            server.get(lake + "invalidlog/metadata?timestamp=2024-06-01T00:00:00Z", bearer),
+            server.get(lake + "invalidlog/version?startingTimestamp=2024-06-01T00:00:00Z", bearer),
+            server.get(lake + "invalidlog/changes?startingTimestamp=2024-06-01T00:00:00Z", bearer),
             server.get(
-                lake + "invalidlog/metadata?timestamp=2024-06-01T00:00:00Z", bearer))) {
+                lake + "invalidlog/changes?startingVersion=0&endingTimestamp=2024-06-01T00:00:00Z",
+                bearer))) {
       assertError(400, ErrorCodes.BAD_REQUEST, INVALID_LOG, answer);
       assertNoStoragePath(answer);
     }

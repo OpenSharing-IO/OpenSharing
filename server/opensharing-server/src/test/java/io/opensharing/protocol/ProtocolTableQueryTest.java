@@ -82,8 +82,6 @@ class ProtocolTableQueryTest extends LocalDeltaTableSupport {
         ErrorCodes.BAD_REQUEST,
         "Cannot load table version 9 as it does not exist. The latest available version is 1.",
         query(events, bearer, "{\"version\":9}", null, null));
-    String both = "{\"version\":1,\"timestamp\":\"2024-01-01T00:30:00Z\"}";
-    assertInvalid(query(events, bearer, both, null, null));
     assertInvalid(query(events, bearer, "{\"timestamp\":\"not-a-timestamp\"}", null, null));
 
     // A table in an ungranted share is 404, not 403.
@@ -96,6 +94,69 @@ class ProtocolTableQueryTest extends LocalDeltaTableSupport {
             null);
     assertEquals(404, hidden.status());
     assertEquals(ErrorCodes.RESOURCE_DOES_NOT_EXIST, hidden.errorCode());
+  }
+
+  @Test
+  void answersQueryMistakes() {
+    createShare("query-mistakes");
+    addObject("query-mistakes", "TABLE", "main.ops.events", "ops.events");
+    String bearer = createAndActivateRecipient("query-mistakes-partner");
+    grant("query-mistakes", "query-mistakes-partner");
+    String events = PROTOCOL + "/shares/query-mistakes/schemas/ops/tables/events/query";
+    String oneOf = "Please only provide one of: version,timestamp,startingVersion";
+
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        oneOf,
+        query(
+            events,
+            bearer,
+            "{\"version\":1,\"timestamp\":\"2024-01-01T00:30:00Z\"}",
+            null,
+            null));
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        oneOf,
+        query(events, bearer, "{\"version\":1,\"startingVersion\":0}", null, null));
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "table version cannot be negative.",
+        query(events, bearer, "{\"version\":-1}", null, null));
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "startingVersion cannot be negative.",
+        query(events, bearer, "{\"startingVersion\":-1}", null, null));
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "endingVersion cannot be negative.",
+        query(events, bearer, "{\"startingVersion\":0,\"endingVersion\":-1}", null, null));
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "startingVersion(1) must be smaller than or equal to endingVersion(0).",
+        query(events, bearer, "{\"startingVersion\":1,\"endingVersion\":0}", null, null));
+    assertError(
+        400,
+        ErrorCodes.INVALID_PARAMETER_VALUE,
+        "Provided Start version(9) for reading change data is invalid. Start version cannot be"
+            + " greater than the latest version of the table(1).",
+        query(events, bearer, "{\"startingVersion\":9}", null, null));
+    // A timestamp before the first commit is Kernel's report, without the storage path.
+    Response early =
+        query(events, bearer, "{\"timestamp\":\"2000-01-01T00:00:00Z\"}", null, null);
+    assertError(
+        400,
+        ErrorCodes.BAD_REQUEST,
+        "The provided timestamp 946684800000 ms (2000-01-01T00:00:00Z) is before the earliest"
+            + " available version 0. Please use a timestamp greater than or equal to"
+            + " 1704067200000 ms (2024-01-01T00:00:00Z).",
+        early);
+    assertNoStoragePath(early);
   }
 
   private static Response query(

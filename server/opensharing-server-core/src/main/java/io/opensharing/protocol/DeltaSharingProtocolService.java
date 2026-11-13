@@ -23,6 +23,7 @@ import io.opensharing.asset.table.FileIdHash;
 import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.asset.table.QueryTableRequest;
 import io.opensharing.asset.table.TableChangesRequest;
+import io.opensharing.asset.table.TableRequestChecks;
 import io.opensharing.asset.table.TemporaryTableCredentialsRequest;
 import io.opensharing.asset.table.TemporaryTableCredentialsResponse;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
@@ -82,7 +83,7 @@ public final class DeltaSharingProtocolService {
       @Param String share,
       @Param String schema,
       @Param String table,
-      @Param @Nullable Long version,
+      @Param @Nullable String version,
       @Param @Nullable String timestamp,
       @Header(DeltaSharingCapabilities.HEADER) @Nullable String capabilities) {
     DeltaTableMetadataReader.Result result =
@@ -91,7 +92,7 @@ public final class DeltaSharingProtocolService {
             ObjectNames.normalize(share),
             ObjectNames.normalize(schema),
             ObjectNames.normalize(table),
-            version,
+            TableRequestChecks.parseVersion("version", version),
             timestamp,
             capabilities);
     ResponseHeaders headers =
@@ -178,9 +179,9 @@ public final class DeltaSharingProtocolService {
       @Param String share,
       @Param String schema,
       @Param String table,
-      @Param @Nullable Long startingVersion,
+      @Param @Nullable String startingVersion,
       @Param @Nullable String startingTimestamp,
-      @Param @Nullable Long endingVersion,
+      @Param @Nullable String endingVersion,
       @Param @Nullable String endingTimestamp,
       @Param @Nullable Boolean includeHistoricalMetadata,
       @Param @Nullable Boolean includeHistoricalProtocol,
@@ -188,9 +189,9 @@ public final class DeltaSharingProtocolService {
       @Header(FileIdHash.HEADER) @Nullable String fileIdHash) {
     TableChangesRequest request =
         new TableChangesRequest(
-            startingVersion,
+            TableRequestChecks.parseVersion("startingVersion", startingVersion),
             startingTimestamp,
-            endingVersion,
+            TableRequestChecks.parseVersion("endingVersion", endingVersion),
             endingTimestamp,
             includeHistoricalMetadata,
             includeHistoricalProtocol);

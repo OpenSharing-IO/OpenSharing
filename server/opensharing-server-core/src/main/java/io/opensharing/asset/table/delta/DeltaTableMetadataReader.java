@@ -10,7 +10,6 @@ import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.asset.table.TableActions;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.ResolvedAsset;
-import io.opensharing.http.ApiException;
 import java.time.Instant;
 
 /**
@@ -31,9 +30,6 @@ public class DeltaTableMetadataReader {
       Instant timestamp,
       AuthContext auth,
       String capabilities) {
-    if (version != null && timestamp != null) {
-      throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
-    }
     try (DeltaKernel.Session session = kernel.open(table, auth)) {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
