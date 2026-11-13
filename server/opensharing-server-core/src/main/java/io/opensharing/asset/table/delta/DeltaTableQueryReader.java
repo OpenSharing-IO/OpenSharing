@@ -136,7 +136,7 @@ public class DeltaTableQueryReader {
     if (version != null && timestamp != null) {
       throw ApiException.invalidParameter("version and timestamp are mutually exclusive");
     }
-    // A time-travel query reports the snapshot version in metaData and on every file.
+    // A time-travel query reports the snapshot version on every file, but not in metaData.
     boolean historical = version != null || timestamp != null;
     // A refresh token pins the version it was issued for without making the query historical.
     if (refreshToken != null) {
@@ -152,7 +152,7 @@ public class DeltaTableQueryReader {
       Long fileTimestamp = historical ? snapshot.getTimestamp(session.engine()) : null;
       out.begin(snapshot.getVersion());
       out.protocol(impl.getProtocol(), null);
-      out.metadata(impl.getMetadata(), fileVersion, DeltaSnapshots.crcFor(impl));
+      out.metadata(impl.getMetadata(), null, DeltaSnapshots.crcFor(impl));
 
       long numRecords = 0;
       ScanBuilder builder = snapshot.getScanBuilder();
@@ -332,7 +332,13 @@ public class DeltaTableQueryReader {
                   && header.getVersion() == range.start()
               ? header.getVersion()
               : null);
-      out.metadata(header.getMetadata(), header.getVersion(), DeltaSnapshots.crcFor(header));
+      // A Change Data Feed's metaData has a version only for includeHistoricalMetadata, no size.
+      out.metadata(
+          header.getMetadata(),
+          range.changeDataFeed() && !range.includeHistoricalMetadata()
+              ? null
+              : header.getVersion(),
+          range.changeDataFeed() ? null : DeltaSnapshots.crcFor(header));
       try {
         for (FileStatus file : commitFiles) {
           if (range.changeDataFeed()) {

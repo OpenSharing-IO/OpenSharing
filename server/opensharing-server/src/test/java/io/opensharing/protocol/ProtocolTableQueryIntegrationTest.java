@@ -122,11 +122,11 @@ class ProtocolTableQueryIntegrationTest extends ProtocolApiSupport {
     assertVersion("0", delta);
     assertDeltaQuery(delta.text());
 
-    // A historical query reports the version on metaData and on every file.
+    // A historical query reports the version on every file; metaData carries none.
     Response historical = query(endpoint, bearer, "{\"version\":0}", null);
     assertVersion("0", historical);
     assertEquals(
-        2, historical.text().split("\"version\":0", -1).length - 1);
+        1, historical.text().split("\"version\":0", -1).length - 1);
     // A version after the latest is INVALID_PARAMETER_VALUE.
     assertInvalid(query(endpoint, bearer, "{\"version\":1}", null));
   }

@@ -35,7 +35,6 @@ public class DeltaTableMetadataReader {
     try (DeltaKernel.Session session = kernel.open(table, auth)) {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
-      boolean historical = version != null || timestamp != null;
       ResponseFormat format =
           DeltaSharingCapabilities.choose(capabilities, impl.getProtocol().getMinReaderVersion());
       CRCInfo crc = DeltaSnapshots.crcFor(impl);
@@ -46,7 +45,7 @@ public class DeltaTableMetadataReader {
               + TableActions.metadata(
                   impl.getMetadata(),
                   table,
-                  historical ? snapshot.getVersion() : null,
+                  null,
                   crc == null ? null : crc.getTableSizeBytes(),
                   crc == null ? null : crc.getNumFiles(),
                   format));
