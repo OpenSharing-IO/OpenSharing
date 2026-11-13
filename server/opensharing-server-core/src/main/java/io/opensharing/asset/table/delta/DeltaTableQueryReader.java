@@ -26,6 +26,7 @@ import io.delta.kernel.internal.fs.Path;
 import io.delta.kernel.internal.util.FileNames;
 import io.delta.kernel.internal.util.Utils;
 import io.delta.kernel.internal.util.VectorUtils;
+import io.delta.kernel.types.BooleanType;
 import io.delta.kernel.types.LongType;
 import io.delta.kernel.types.MapType;
 import io.delta.kernel.types.StringType;
@@ -79,6 +80,11 @@ public class DeltaTableQueryReader {
   private static final Duration URL_TTL = Duration.ofHours(1);
   private static final ObjectMapper JSON = new ObjectMapper();
 
+  // Kernel's cdc schema omits dataChange; the slot exists only so TableActions can override it
+  // to false, which Delta readers require on a cdc action.
+  private static final StructType CDC_SCHEMA =
+      DeltaAction.CDC.schema.add("dataChange", BooleanType.BOOLEAN);
+
   // Commit files are read directly because Kernel 4.0's getChanges requires commitInfo fields that
   // older Delta writers omit; only the commitInfo fields used here are read.
   private static final StructType CHANGE_SCHEMA =
@@ -87,7 +93,7 @@ public class DeltaTableQueryReader {
           .add(DeltaAction.METADATA.colName, DeltaAction.METADATA.schema)
           .add(DeltaAction.ADD.colName, DeltaAction.ADD.schema)
           .add(DeltaAction.REMOVE.colName, DeltaAction.REMOVE.schema)
-          .add(DeltaAction.CDC.colName, DeltaAction.CDC.schema)
+          .add(DeltaAction.CDC.colName, CDC_SCHEMA)
           .add(
               DeltaAction.COMMITINFO.colName,
               new StructType()
