@@ -148,6 +148,8 @@ public class DeltaTableQueryReader {
         ResponseWriter out = new ResponseWriter(session, table, options, sink)) {
       Snapshot snapshot = DeltaSnapshots.open(session, version, timestamp);
       SnapshotImpl impl = (SnapshotImpl) snapshot;
+      DeltaSharingCapabilities.requireColumnMappingSupport(
+          options.capabilities(), impl.getMetadata().getConfiguration(), snapshot.getVersion());
       out.requireReaderFeatures(impl.getProtocol());
       Long fileVersion = historical ? snapshot.getVersion() : null;
       Long fileTimestamp = historical ? snapshot.getTimestamp(session.engine()) : null;
