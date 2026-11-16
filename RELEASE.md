@@ -53,7 +53,7 @@ startup (see `JpaTransactions`), from the migrations in `opensharing-server`'s
 `db/migration`. A schema change is a new migration for every supported
 database. A host that supplies its own `Transactions` creates OpenSharing's
 tables in its own migrations, exactly as those migrations define them, and adds
-each new one when it upgrades. It must not change the tables in any other way.
+each new one when it upgrades.
 
 ## Release process
 
