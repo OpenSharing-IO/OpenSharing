@@ -25,12 +25,13 @@ import org.slf4j.LoggerFactory;
  * table version and format, and each line as soon as it is read, without waiting for the client to
  * take the earlier ones, so lines a slow client has not received yet queue in memory. A response
  * that fails before then is an ordinary error response. One that fails later has already sent its
- * status, so it ends with an endStreamAction carrying the error when the client asked for one, and
- * is cut short otherwise.
+ * status, so it ends with an endStreamAction carrying the error and its status when the client
+ * asked for one, and with a line that is not JSON otherwise.
  */
 final class NdjsonResponse implements ResponseSink {
 
   private static final Logger log = LoggerFactory.getLogger(NdjsonResponse.class);
+  private static final int MAX_ERROR_CHARS = 500;
 
   private final ResponseOptions options;
   private final CompletableFuture<HttpResponse> response = new CompletableFuture<>();
@@ -89,17 +90,29 @@ final class NdjsonResponse implements ResponseSink {
       response.completeExceptionally(failure);
     } else if (!writer.isOpen()) {
       return;
-    } else if (options.includeEndStreamAction()) {
-      // ApiFailure logs catalog and unhandled failures, as it does for an error response.
-      String message =
-          ApiFailure.ofRecipientRequest(
-                  failure instanceof Exception e ? e : new RuntimeException(failure))
-              .message();
-      writer.tryWrite(HttpData.ofUtf8(TableActions.failedEndStreamAction(message)));
-      writer.close();
     } else {
-      log.error("Query response failed after it began streaming", failure);
-      writer.abort(failure);
+      // ApiFailure logs catalog and unhandled failures, as it does for an error response.
+      ApiFailure failed =
+          ApiFailure.ofRecipientRequest(
+              failure instanceof Exception e ? e : new RuntimeException(failure));
+      String described = failed.errorCode() + ": " + failed.message();
+      if (options.includeEndStreamAction()) {
+        writer.tryWrite(
+            HttpData.ofUtf8(TableActions.failedEndStreamAction(described, failed.status())));
+      } else {
+        // The status is sent, so the client is made to fail on a line that is not JSON.
+        log.error("Query response failed after it began streaming", failure);
+        writer.tryWrite(HttpData.ofUtf8(invalidJson(described) + "\n"));
+      }
+      writer.close();
     }
+  }
+
+  /** A token that is not JSON and carries the error, which a client's parser reports. */
+  private static String invalidJson(String error) {
+    String described =
+        "Forcing invalid json to fail streaming rpc due to error "
+            + error.substring(0, Math.min(error.length(), MAX_ERROR_CHARS));
+    return described.replaceAll("[^A-Za-z0-9_]", "_") + "{";
   }
 }

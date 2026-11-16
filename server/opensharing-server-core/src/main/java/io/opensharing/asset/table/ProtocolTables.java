@@ -20,6 +20,7 @@ import io.opensharing.catalog.StorageOperation;
 import io.opensharing.catalog.TableProperties;
 import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.exception.CatalogException;
+import io.opensharing.exception.ChangeDataNotRecordedException;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
@@ -123,7 +124,7 @@ public class ProtocolTables {
       String tableAlias,
       String startingTimestamp) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    Instant timestamp = parseTimestamp("startingTimestamp", startingTimestamp);
+    Instant timestamp = parseTimestamp(startingTimestamp);
     return kernel.getVersion(
         findTable(share, schemaAlias, tableAlias).catalogTable(), timestamp, owner(share));
   }
@@ -142,7 +143,7 @@ public class ProtocolTables {
       String timestamp,
       String capabilities) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    Instant asOf = parseTimestamp("timestamp", timestamp);
+    Instant asOf = parseTimestamp(timestamp);
     ResolvedAsset table = findTable(share, schemaAlias, tableAlias).catalogTable();
     return metadataReader.read(table, version, asOf, owner(share), capabilities);
   }
@@ -206,6 +207,14 @@ public class ProtocolTables {
         requireUrlAccess(
             findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
     QueryTableRequest body = request == null ? QueryTableRequest.EMPTY : request;
+    int selectors =
+        (body.version() != null ? 1 : 0)
+            + (body.timestamp() != null ? 1 : 0)
+            + (body.startingVersion() != null ? 1 : 0);
+    if (selectors > 1) {
+      throw ApiException.invalidParameter(
+          "Please only provide one of: version,timestamp,startingVersion.");
+    }
     if (body.startingVersion() != null || body.endingVersion() != null) {
       queryChanges(body, catalogTable, share, options, sink);
       return;
@@ -229,7 +238,7 @@ public class ProtocolTables {
         options,
         sink,
         body.version(),
-        parseTimestamp("timestamp", body.timestamp()),
+        parseTimestamp(body.timestamp()),
         body.refreshToken(),
         includeRefreshToken,
         body.jsonPredicateHints(),
@@ -251,20 +260,50 @@ public class ProtocolTables {
       DeltaTableQueryReader.ResponseOptions options,
       DeltaTableQueryReader.ResponseSink sink) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    requireOneBoundary("starting", request.startingVersion(), request.startingTimestamp());
+    requireOneBoundary("ending", request.endingVersion(), request.endingTimestamp());
     ResolvedAsset catalogTable =
         requireUrlAccess(
             findTable(share, schemaAlias, tableAlias).catalogTable(), schemaAlias, tableAlias);
-    queryReader.readChangeDataFeed(
-        catalogTable,
-        owner(share),
-        options,
-        sink,
-        request.startingVersion(),
-        parseTimestamp("startingTimestamp", request.startingTimestamp()),
-        request.endingVersion(),
-        parseTimestamp("endingTimestamp", request.endingTimestamp()),
-        Boolean.TRUE.equals(request.includeHistoricalMetadata()),
-        Boolean.TRUE.equals(request.includeHistoricalProtocol()));
+    try {
+      queryReader.readChangeDataFeed(
+          catalogTable,
+          owner(share),
+          options,
+          sink,
+          request.startingVersion(),
+          parseTimestamp(request.startingTimestamp()),
+          request.endingVersion(),
+          parseTimestamp(request.endingTimestamp()),
+          Boolean.TRUE.equals(request.includeHistoricalMetadata()),
+          Boolean.TRUE.equals(request.includeHistoricalProtocol()));
+    } catch (ChangeDataNotRecordedException unrecorded) {
+      // The recipient knows the table only by the name the share gives it.
+      throw ApiException.permissionDenied(
+          "Unable to access change data feed for "
+              + share.getName()
+              + "."
+              + schemaAlias
+              + "."
+              + tableAlias
+              + ". CDF is not enabled on the original delta table for version "
+              + unrecorded.version()
+              + ". Please contact your data provider.");
+    }
+  }
+
+  /** A change range boundary is a version or a timestamp, not both. */
+  private static void requireOneBoundary(String position, Long version, String timestamp) {
+    if (version != null && timestamp != null) {
+      throw ApiException.invalidParameter(
+          "Multiple "
+              + position
+              + " arguments provided for CDF read. Please provide one of either "
+              + position
+              + "Timestamp or "
+              + position
+              + "Version.");
+    }
   }
 
   /** Returns {@code catalogTable} once it is known to support the {@code url} access mode. */
@@ -293,20 +332,20 @@ public class ProtocolTables {
     if (startingVersion == null) {
       throw ApiException.invalidParameter("endingVersion requires startingVersion");
     }
-    if (body.version() != null || body.timestamp() != null) {
-      throw ApiException.invalidParameter(
-          "Only one of version, timestamp, and startingVersion can be set");
-    }
     if (Boolean.TRUE.equals(body.includeRefreshToken()) || body.refreshToken() != null) {
       throw ApiException.invalidParameter(
           "includeRefreshToken and refreshToken cannot be used with startingVersion");
     }
     if (startingVersion < 0) {
-      throw ApiException.invalidParameter("startingVersion must be non-negative");
+      throw ApiException.invalidParameter("startingVersion cannot be negative");
     }
     if (endingVersion != null && endingVersion < startingVersion) {
       throw ApiException.invalidParameter(
-          "endingVersion must be greater than or equal to startingVersion");
+          "startingVersion("
+              + startingVersion
+              + ") must be smaller than or equal to endingVersion("
+              + endingVersion
+              + ").");
     }
     queryReader.readChanges(
         table,
@@ -379,14 +418,14 @@ public class ProtocolTables {
   }
 
   /** The ISO-8601 UTC timestamp in the parameter {@code name}, or null when absent. */
-  private static Instant parseTimestamp(String name, String value) {
+  private static Instant parseTimestamp(String value) {
     if (value == null || value.isBlank()) {
       return null;
     }
     try {
       return Instant.parse(value);
     } catch (DateTimeParseException invalid) {
-      throw ApiException.invalidParameter(name + " must be an ISO-8601 UTC timestamp");
+      throw ApiException.invalidParameter("Invalid timestamp: " + invalid.getMessage() + ".");
     }
   }
 
