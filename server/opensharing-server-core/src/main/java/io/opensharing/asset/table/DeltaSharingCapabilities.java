@@ -19,6 +19,8 @@ public final class DeltaSharingCapabilities {
 
   public static final String HEADER = "delta-sharing-capabilities";
 
+  private static final String COLUMN_MAPPING_MODE = "delta.columnMapping.mode";
+
   private static final Set<String> KEYS =
       Set.of("responseformat", "readerfeatures", "includeendstreamaction");
 
@@ -81,6 +83,22 @@ public final class DeltaSharingCapabilities {
                 + feature
                 + "' which was not specified in delta-sharing-capabilities");
       }
+    }
+  }
+
+  /**
+   * A table with column mapping on cannot be served to a client that did not advertise the {@code
+   * columnmapping} reader feature, whatever its protocol lists: the property decides. {@code
+   * version} is the table version {@code configuration} is of.
+   */
+  public static void requireColumnMappingSupport(
+      String header, Map<String, String> configuration, long version) {
+    String mode = configuration == null ? null : configuration.get(COLUMN_MAPPING_MODE);
+    if (mode != null
+        && !mode.equals("none")
+        && !advertisedReaderFeatures(header).contains("columnmapping")) {
+      throw ApiException.invalidParameter(
+          "Table features " + COLUMN_MAPPING_MODE + " are found in table version: " + version + ".");
     }
   }
 

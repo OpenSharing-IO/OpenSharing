@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.delta.kernel.internal.actions.Protocol;
 import io.opensharing.asset.table.DeltaSharingCapabilities.ResponseFormat;
 import io.opensharing.http.ApiException;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
@@ -122,5 +123,34 @@ class DeltaSharingCapabilitiesTest {
                 "responseformat=delta;readerfeatures=notAFeature",
                 ResponseFormat.DELTA,
                 advanced));
+  }
+
+  @Test
+  void refusesColumnMappingToClientsThatDidNotAdvertiseIt() {
+    Map<String, String> mapped = Map.of("delta.columnMapping.mode", "name");
+    ApiException refused =
+        assertThrows(
+            ApiException.class,
+            () ->
+                DeltaSharingCapabilities.requireColumnMappingSupport(
+                    "responseformat=parquet", mapped, 3));
+    assertEquals(
+        "Table features delta.columnMapping.mode are found in table version: 3.",
+        refused.getMessage());
+    assertThrows(
+        ApiException.class,
+        () ->
+            DeltaSharingCapabilities.requireColumnMappingSupport(
+                "responseformat=delta;readerfeatures=deletionVectors", mapped, 3));
+    assertDoesNotThrow(
+        () ->
+            DeltaSharingCapabilities.requireColumnMappingSupport(
+                "responseformat=delta;readerfeatures=columnMapping", mapped, 3));
+    assertDoesNotThrow(
+        () ->
+            DeltaSharingCapabilities.requireColumnMappingSupport(
+                "responseformat=parquet", Map.of("delta.columnMapping.mode", "none"), 3));
+    assertDoesNotThrow(
+        () -> DeltaSharingCapabilities.requireColumnMappingSupport(null, Map.of(), 3));
   }
 }
