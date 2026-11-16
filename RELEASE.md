@@ -48,9 +48,12 @@ From 1.0.0, the server artifacts follow semantic versioning:
 - **MINOR** — additive and compatible with earlier 1.y.z releases.
 - **PATCH** — compatible fixes only.
 
-The database schema is created and migrated by Flyway on startup (see
-`JpaTransactions`), and a schema change is a new migration for every supported
-database. A host must not create or alter OpenSharing's tables itself.
+The standalone server creates and migrates the database schema with Flyway on
+startup (see `JpaTransactions`), from the migrations in `opensharing-server`'s
+`db/migration`. A schema change is a new migration for every supported
+database. A host that supplies its own `Transactions` creates OpenSharing's
+tables in its own migrations, exactly as those migrations define them, and adds
+each new one when it upgrades. It must not change the tables in any other way.
 
 ## Release process
 
