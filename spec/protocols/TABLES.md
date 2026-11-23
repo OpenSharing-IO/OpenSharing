@@ -750,23 +750,5 @@ Example:
 
 `loadCredentials` returns only the `storage-credentials` of `loadTable`, without reading the table's metadata. A client that already has the table's metadata, or keeps its own copy of it, calls this to read the table's files, and again to refresh credentials before they expire.
 
-`GET {icebergEndpoint}/v1/shares/<share>/namespaces/<schema>/tables/<table>/credentials`
-
-```json
-{
-  "storage-credentials": [
-    {
-      "prefix": "s3://bucket/path/to/table/",
-      "config": {
-        "s3.access-key-id": "<access key id>",
-        "s3.secret-access-key": "<secret access key>",
-        "s3.session-token": "<session token>",
-        "s3.session-token-expires-at-ms": "1700000000000"
-      }
-    }
-  ]
-}
-```
-
 ## Access Delta Tables
 Refer to the [Delta Sharing Protocol](https://github.com/delta-io/delta-sharing/blob/main/PROTOCOL.md) for details on accessing the shared delta tables in different ways.
