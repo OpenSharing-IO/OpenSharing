@@ -83,6 +83,8 @@
          changes with spark.version. -->
     <spark.version>4.0.1</spark.version>
     <delta-sharing-spark.version>4.1.0</delta-sharing-spark.version>
+    <!-- The Iceberg release whose Spark runtime matches spark.version's minor version. -->
+    <iceberg.version>1.10.1</iceberg.version>
     <aws-sdk.version>2.54.18</aws-sdk.version>
     <azure-storage-file-datalake.version>12.20.0</azure-storage-file-datalake.version>
     <google-auth.version>1.20.0</google-auth.version>

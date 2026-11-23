@@ -15,7 +15,8 @@
 
   <name>OpenSharing Spark connector e2e</name>
   <description>
-    Reads a shared table through OSS Spark and delta-sharing-spark in parquet and delta formats.
+    Reads a shared table through OSS Spark and delta-sharing-spark in parquet and delta formats,
+    and a shared Iceberg table through Spark's Iceberg REST catalog.
     Built only with -Pspark-e2e, and never installed or published.
   </description>
 
@@ -69,6 +70,13 @@
       <groupId>io.delta</groupId>
       <artifactId>delta-sharing-spark_4.0_2.13</artifactId>
       <version>${delta-sharing-spark.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Spark's Iceberg REST catalog client, to read shared Iceberg tables as a recipient. -->
+    <dependency>
+      <groupId>org.apache.iceberg</groupId>
+      <artifactId>iceberg-spark-runtime-4.0_2.13</artifactId>
+      <version>${iceberg.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
