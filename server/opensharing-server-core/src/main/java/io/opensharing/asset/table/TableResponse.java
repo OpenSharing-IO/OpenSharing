@@ -9,7 +9,7 @@ import java.util.List;
  * {"name": "<table name>", "schema": "<schema name>", "share": "<share name>",
  *  "shareId": "<share id>", "id": "<catalog table id>", "location": "<storage location>",
  *  "auxiliaryLocations": ["<storage location>", ...], "accessModes": ["url", "dir"],
- *  "format": "<table format>"}
+ *  "format": ["<table format>", ...]}
  * }</pre>
  */
 public record TableResponse(
@@ -21,4 +21,4 @@ public record TableResponse(
     String location,
     List<String> auxiliaryLocations,
     List<String> accessModes,
-    String format) {}
+    List<String> format) {}

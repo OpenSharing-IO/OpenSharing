@@ -37,7 +37,8 @@ class ProtocolTablesTest extends ProtocolApiSupport {
     assertEquals("s3://test/main.sales.customers/", customers.path("location").asText());
     assertEquals("url", customers.path("accessModes").path(0).asText());
     assertEquals("dir", customers.path("accessModes").path(1).asText());
-    assertEquals("delta", customers.path("format").asText());
+    assertEquals(1, customers.path("format").size());
+    assertEquals("delta", customers.path("format").path(0).asText());
     assertEquals("orders", items.path(1).path("name").asText());
     assertTrue(list.body().path("nextPageToken").isMissingNode());
 
@@ -86,10 +87,12 @@ class ProtocolTablesTest extends ProtocolApiSupport {
       assertEquals(2, items.size());
       JsonNode orders = items.path(0);
       assertEquals("orders", orders.path("name").asText());
-      assertEquals("delta", orders.path("format").asText());
+      assertEquals(1, orders.path("format").size());
+      assertEquals("delta", orders.path("format").path(0).asText());
       JsonNode trips = items.path(1);
       assertEquals("trips", trips.path("name").asText());
-      assertEquals("iceberg", trips.path("format").asText());
+      assertEquals(1, trips.path("format").size());
+      assertEquals("iceberg", trips.path("format").path(0).asText());
       assertEquals("s3://test/main.lake.trips/", trips.path("location").asText());
       assertEquals(1, trips.path("accessModes").size());
       assertEquals("dir", trips.path("accessModes").path(0).asText());
