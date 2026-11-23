@@ -451,7 +451,10 @@ public class ProtocolTables {
               sharedObject.getAuxiliaryLocations().isEmpty()
                   ? null
                   : sharedObject.getAuxiliaryLocations(),
-              TableAccessModes.forFormat(sharedObject.getSourceFormat())));
+              TableAccessModes.forFormat(sharedObject.getSourceFormat()),
+              sharedObject.getSourceFormat() == null
+                  ? null
+                  : sharedObject.getSourceFormat().wireName()));
     }
     tables.sort(Comparator.comparing(TableResponse::schema).thenComparing(TableResponse::name));
     return tables;

@@ -8,7 +8,8 @@ import java.util.List;
  * <pre>{@code
  * {"name": "<table name>", "schema": "<schema name>", "share": "<share name>",
  *  "shareId": "<share id>", "id": "<catalog table id>", "location": "<storage location>",
- *  "auxiliaryLocations": ["<storage location>", ...], "accessModes": ["url", "dir"]}
+ *  "auxiliaryLocations": ["<storage location>", ...], "accessModes": ["url", "dir"],
+ *  "format": "<table format>"}
  * }</pre>
  */
 public record TableResponse(
@@ -19,4 +20,5 @@ public record TableResponse(
     String id,
     String location,
     List<String> auxiliaryLocations,
-    List<String> accessModes) {}
+    List<String> accessModes,
+    String format) {}
