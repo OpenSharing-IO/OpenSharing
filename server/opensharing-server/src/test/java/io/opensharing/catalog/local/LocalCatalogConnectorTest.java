@@ -70,6 +70,32 @@ class LocalCatalogConnectorTest {
   }
 
   @Test
+  void resolvesIcebergTableWithItsMetadataLocation() {
+    ResolvedAsset asset = resolve("main.lake.trips", ALICE);
+
+    assertEquals("s3://test/main.lake.trips/", asset.location().storageLocation());
+    assertEquals(
+        new TableProperties(
+            DataSourceFormat.ICEBERG,
+            "s3://test/main.lake.trips/metadata/00001-trips.metadata.json",
+            Map.of("subtype", "EXTERNAL")),
+        asset.additionalProperties());
+  }
+
+  @Test
+  void rejectsUnknownTableFormat() {
+    String yaml =
+        """
+        assets:
+          - identifier: main.sales.orders
+            storageLocation: s3://test/orders/
+            format: hudi
+        """;
+
+    assertThrows(RuntimeException.class, () -> connector(yaml));
+  }
+
+  @Test
   void treatsAssetsWithoutAnExplicitTypeAsTables() {
     ResolvedAsset asset = resolve("main.finance.ledger", ALICE);
 

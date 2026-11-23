@@ -54,11 +54,16 @@ public record LocalCatalogFile(
     }
   }
 
+  /**
+   * @param metadataLocation the current metadata file of a table whose format is read from one,
+   *     such as an Iceberg table's metadata JSON
+   */
   public record Asset(
       String identifier,
       AssetType type,
       String storageLocation,
       String format,
+      String metadataLocation,
       String catalogAssetId,
       List<String> auxiliaryLocations,
       List<String> shareableBy,

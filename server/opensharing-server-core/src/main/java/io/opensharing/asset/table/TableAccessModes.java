@@ -10,9 +10,18 @@ final class TableAccessModes {
 
   private TableAccessModes() {}
 
-  /** Delta tables support QueryTable and temporary credentials. */
+  /**
+   * Delta tables support QueryTable and temporary credentials. Iceberg tables have no Delta log to
+   * serve files from, so recipients read their files directly, with temporary credentials.
+   */
   static List<String> forFormat(DataSourceFormat format) {
-    return format == DataSourceFormat.DELTA ? List.of("url", "dir") : null;
+    if (format == null) {
+      return null;
+    }
+    return switch (format) {
+      case DELTA -> List.of("url", "dir");
+      case ICEBERG -> List.of("dir");
+    };
   }
 
   /** The access modes of {@code table} by the format the catalog reports for it. */
