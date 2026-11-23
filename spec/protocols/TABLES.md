@@ -58,7 +58,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
       ],
       "accessModes": ["url","dir"],
       "id": "string",
-      "format": "string"
+      "format": ["delta","iceberg"]
     }
   ],
   "nextPageToken": "string"
@@ -77,7 +77,7 @@ Note: `location` if present must point to the root directory of the table: where
 
 Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `location` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request.
 
-Note: `format` is optional and has the same values as in [Get Table](#get-table): `delta`, `iceberg`, or both separated by a comma. It tells the client which set of APIs to read each table with, without calling Get Table for every table.
+Note: `format` is optional and lists the formats the table can be read in: `delta`, `iceberg`, or both, the same values as the comma-separated `format` of [Get Table](#get-table). It tells the client which set of APIs to read each table with, without calling Get Table for every table.
 
 Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access. A table whose only format is `iceberg` has no delta log to serve files from, so its `accessModes` must be `["dir"]` and its `location` must be present; clients read its metadata through the [Iceberg REST catalog](#access-iceberg-tables).
 
@@ -313,7 +313,7 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
         "string"
       ],
       "accessModes": ["url","dir"],
-      "format": "string"
+      "format": ["delta","iceberg"]
     }
   ],
   "nextPageToken": "string"
@@ -332,7 +332,7 @@ Note: `location` if present must point to the root directory of the table: where
 
 Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `location` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request. 
 
-Note: `format` is optional and has the same values as in [Get Table](#get-table): `delta`, `iceberg`, or both separated by a comma. It tells the client which set of APIs to read each table with, without calling Get Table for every table.
+Note: `format` is optional and lists the formats the table can be read in: `delta`, `iceberg`, or both, the same values as the comma-separated `format` of [Get Table](#get-table). It tells the client which set of APIs to read each table with, without calling Get Table for every table.
 
 Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access. A table whose only format is `iceberg` has no delta log to serve files from, so its `accessModes` must be `["dir"]` and its `location` must be present; clients read its metadata through the [Iceberg REST catalog](#access-iceberg-tables).
 
@@ -511,7 +511,7 @@ Example:
       "id": "2f9729e9-6fcf-4d34-96df-bf72b26dfbe9",
       "location": "s3://deltasharing/vaccine_share/acme_vaccine_ingredient_data/vaccine_ingredients",
       "accessModes": ["url","dir"],
-      "format": "delta"
+      "format": ["delta"]
     },
     {
       "share": "vaccine_share",
@@ -521,7 +521,7 @@ Example:
       "id": "74be6365-0fc8-4a2f-8720-0de125bb5832",
       "location": "s3://deltasharing/vaccine_share/acme_vaccine_patient_data/vaccine_patients",
       "accessModes": ["dir"],
-      "format": "iceberg"
+      "format": ["iceberg"]
     }
   ],
   "nextPageToken": "..."
