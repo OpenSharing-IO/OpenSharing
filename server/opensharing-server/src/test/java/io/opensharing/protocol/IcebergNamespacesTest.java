@@ -70,15 +70,30 @@ class IcebergNamespacesTest extends LocalIcebergTableSupport {
     assertTrue(response.body().path("next-page-token").isNull());
   }
 
-  /** A share the recipient holds no SELECT on has no namespaces it can see. */
   @Test
-  void reportsAnUngrantedShareAsNoSuchNamespace() {
-    // A share the recipient is not granted.
+  void loadsANamespaceAndReportsMissingOnesAsNoSuchNamespace() {
+    createShare("iceberg-ns-load");
+    addObject("iceberg-ns-load", "TABLE", "main.sales.orders", "sales.orders");
     createShare("iceberg-ns-hidden");
     addObject("iceberg-ns-hidden", "TABLE", "main.sales.orders", "sales.orders");
-    String bearer = createAndActivateRecipient("iceberg-ns-stranger");
+    String bearer = createAndActivateRecipient("iceberg-ns-load-partner");
+    grant("iceberg-ns-load", "iceberg-ns-load-partner");
+    String namespaces = ICEBERG + "/v1/shares/iceberg-ns-load/namespaces/";
 
-    // Listing its namespaces finds none.
+    Response loaded = server.get(namespaces + "SALES", bearer);
+    assertEquals(200, loaded.status());
+    assertEquals("sales", loaded.body().path("namespace").path(0).asText());
+    assertTrue(loaded.body().path("properties").isObject());
+
+    assertIcebergError(server.get(namespaces + "missing", bearer), 404, "NoSuchNamespaceException");
+    // Iceberg joins a nested namespace's levels with the unit separator.
+    assertIcebergError(
+        server.get(namespaces + "sales%1Forders", bearer), 404, "NoSuchNamespaceException");
+    // A share the recipient holds no SELECT on has no namespaces it can see.
+    assertIcebergError(
+        server.get(ICEBERG + "/v1/shares/iceberg-ns-hidden/namespaces/sales", bearer),
+        404,
+        "NoSuchNamespaceException");
     assertIcebergError(
         server.get(ICEBERG + "/v1/shares/iceberg-ns-hidden/namespaces", bearer),
         404,
@@ -86,8 +101,7 @@ class IcebergNamespacesTest extends LocalIcebergTableSupport {
   }
 
   @Test
-  void configListsListNamespaces() {
-    // Grant a recipient SELECT on a share.
+  void configListsTheNamespaceEndpoints() {
     createShare("iceberg-ns-config");
     String bearer = createAndActivateRecipient("iceberg-ns-config-partner");
     grant("iceberg-ns-config", "iceberg-ns-config-partner");
@@ -98,6 +112,7 @@ class IcebergNamespacesTest extends LocalIcebergTableSupport {
             .body()
             .path("endpoints");
     assertAdvertised(endpoints, "GET /v1/{prefix}/namespaces");
+    assertAdvertised(endpoints, "GET /v1/{prefix}/namespaces/{namespace}");
   }
 
   @Test

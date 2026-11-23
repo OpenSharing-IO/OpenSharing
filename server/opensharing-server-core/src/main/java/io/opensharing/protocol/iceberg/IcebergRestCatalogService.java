@@ -31,7 +31,12 @@ public final class IcebergRestCatalogService {
 
   /** The operations this catalog serves, which {@code getConfig} lists for clients. */
   static final List<String> ENDPOINTS =
-      List.of("GET /v1/{prefix}/namespaces");
+      List.of(
+          "GET /v1/{prefix}/namespaces",
+          "GET /v1/{prefix}/namespaces/{namespace}");
+
+  /** How Iceberg joins the levels of a namespace in one path segment. */
+  private static final char NAMESPACE_SEPARATOR = '\u001f';
 
   private final ProtocolShares shares;
   private final ProtocolSchemas schemas;
@@ -100,6 +105,38 @@ public final class IcebergRestCatalogService {
     return new NamespacesResponse(
         page.items().stream().map(schema -> List.of(schema.name())).toList(),
         page.nextPageToken());
+  }
+
+  /** {@code GET /v1/shares/{share}/namespaces/{namespace}}: a schema of the share. */
+  @Get("/v1/shares/{share}/namespaces/{namespace}")
+  public NamespaceResponse loadNamespaceMetadata(
+      ServiceRequestContext ctx, @Param String share, @Param String namespace) {
+    return new NamespaceResponse(List.of(namespace(share(ctx, share), namespace)), Map.of());
+  }
+
+  /** The share in the path prefix. A share the recipient can't read has no namespaces. */
+  private ShareEntity share(ServiceRequestContext ctx, String share) {
+    return asNoSuchNamespace(
+        () ->
+            shares.requireGranted(
+                RecipientTokenDecorator.recipient(ctx), ObjectNames.normalize(share)));
+  }
+
+  /**
+   * The schema alias {@code namespace} names in {@code share}. A share's schemas are one level
+   * deep, so a namespace of more levels is never one of them.
+   */
+  private String namespace(ShareEntity share, String namespace) {
+    if (namespace.indexOf(NAMESPACE_SEPARATOR) >= 0) {
+      throw IcebergException.noSuchNamespace(
+          "namespace '"
+              + namespace.replace(NAMESPACE_SEPARATOR, '.')
+              + "' does not exist in share '"
+              + share.getName()
+              + "'");
+    }
+    return asNoSuchNamespace(
+        () -> schemas.getSchema(share, ObjectNames.normalize(namespace)));
   }
 
   /**
