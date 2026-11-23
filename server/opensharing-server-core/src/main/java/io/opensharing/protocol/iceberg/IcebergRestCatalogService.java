@@ -1,11 +1,14 @@
 package io.opensharing.protocol.iceberg;
 
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.annotation.Nullable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Header;
 import com.linecorp.armeria.server.annotation.Param;
+import com.linecorp.armeria.server.annotation.Post;
 import com.linecorp.armeria.server.annotation.ProducesJson;
 import io.opensharing.ObjectNames;
 import io.opensharing.asset.schema.ProtocolSchemas;
@@ -41,7 +44,8 @@ public final class IcebergRestCatalogService {
           "GET /v1/{prefix}/namespaces/{namespace}",
           "GET /v1/{prefix}/namespaces/{namespace}/tables",
           "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-          "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials");
+          "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials",
+          "POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics");
 
   /** The header an Iceberg client names the ways it accepts access to a table's files in. */
   private static final String ACCESS_DELEGATION = "X-Iceberg-Access-Delegation";
@@ -241,6 +245,36 @@ public final class IcebergRestCatalogService {
                     ObjectNames.normalize(share),
                     ObjectNames.normalize(namespace),
                     ObjectNames.normalize(table))));
+  }
+
+  /**
+   * {@code POST /v1/shares/{share}/namespaces/{namespace}/tables/{table}/metrics}: accepts a scan
+   * report and drops it. Iceberg clients send one after reading a table, and the scan ran on the
+   * recipient's engine, so there is nothing for the provider to act on, but refusing it would make
+   * every read look like it failed.
+   */
+  @Post("/v1/shares/{share}/namespaces/{namespace}/tables/{table}/metrics")
+  public HttpResponse reportMetrics(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String namespace,
+      @Param String table) {
+    asNoSuchTable(
+        () ->
+            catalog.requireTable(
+                RecipientTokenDecorator.recipient(ctx),
+                ObjectNames.normalize(share),
+                ObjectNames.normalize(namespace),
+                ObjectNames.normalize(table)));
+    return HttpResponse.of(HttpStatus.NO_CONTENT);
+  }
+
+  private static void asNoSuchTable(Runnable lookup) {
+    asNoSuchTable(
+        () -> {
+          lookup.run();
+          return null;
+        });
   }
 
   /** Runs {@code lookup}, reporting what it can't find as a missing table. */

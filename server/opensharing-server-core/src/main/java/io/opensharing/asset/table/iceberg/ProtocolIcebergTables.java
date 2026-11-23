@@ -154,6 +154,13 @@ public class ProtocolIcebergTables {
         false);
   }
 
+  /** Fails with not-found unless the share has an Iceberg table under the aliases. */
+  public void requireTable(
+      RecipientPrincipal recipient, String shareName, String schemaAlias, String tableAlias) {
+    ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    requireSharedIcebergTable(share, schemaAlias, tableAlias);
+  }
+
   /** The table of the share under the aliases, which the share recorded as an Iceberg table. */
   private SharedDataObjectEntity requireSharedIcebergTable(
       ShareEntity share, String schemaAlias, String tableAlias) {
@@ -178,7 +185,7 @@ public class ProtocolIcebergTables {
     return sharedTable;
   }
 
-  /** Whether the share recorded {@code sharedObject} as an Iceberg table. */
+  /** /** Whether the share recorded {@code sharedObject} as an Iceberg table. */
   private static boolean isIcebergTable(SharedDataObjectEntity sharedObject) {
     return sharedObject.getType() == AssetType.TABLE
         && sharedObject.getSourceFormat() == DataSourceFormat.ICEBERG;
