@@ -744,7 +744,7 @@ Example:
 
 ### Load Table
 
-`loadTable` returns the table's current `metadata-location` and the `metadata` it points to. As in the Iceberg REST spec, when the request's `X-Iceberg-Access-Delegation` header includes `vended-credentials`, the response also carries `storage-credentials`: read-only credentials covering the table's `location`, in the property names of the Iceberg REST spec, such as `s3.access-key-id`, `adls.sas-token.<account>` or `gcs.oauth2.token`, with their expiration time. A recipient has no access of its own to the provider's storage, so it must send `X-Iceberg-Access-Delegation: vended-credentials`, or call `loadCredentials`, to read the table's files. `remote-signing` is not supported.
+`loadTable` returns the table's current `metadata-location` and the `metadata` it points to. As in the Iceberg REST spec, when the request's `X-Iceberg-Access-Delegation` header includes `vended-credentials`, the response also carries `storage-credentials`: read-only credentials covering the table's `location`, in the property names of the Iceberg REST spec, such as `s3.access-key-id`, `adls.sas-token.<account>` or `gcs.oauth2.token`, with their expiration time. A recipient has no access of its own to the provider's storage, so it must send `X-Iceberg-Access-Delegation: vended-credentials`, or call `loadCredentials`, to read the table's files.
 
 ### Load Credentials
 
