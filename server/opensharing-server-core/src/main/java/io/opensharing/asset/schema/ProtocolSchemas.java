@@ -2,6 +2,7 @@ package io.opensharing.asset.schema;
 
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientPrincipal;
@@ -26,11 +27,28 @@ public class ProtocolSchemas {
   /** Lists one page of the share's schemas by schema alias. */
   public ListResponse<SchemaResponse> list(
       RecipientPrincipal recipient, String shareName, Integer maxResults, String pageToken) {
-    ShareEntity share = protocolShares.requireGranted(recipient, shareName);
+    return list(protocolShares.requireGranted(recipient, shareName), maxResults, pageToken);
+  }
+
+  /** Lists one page of the schemas of a share the recipient holds SELECT on, by schema alias. */
+  public ListResponse<SchemaResponse> list(
+      ShareEntity share, Integer maxResults, String pageToken) {
     return Pagination.protocolPage(
         maxResults,
         pageToken,
         (offset, limit) -> sharedObjects.listSchemas(share, offset, limit),
         schemaAlias -> new SchemaResponse(schemaAlias, share.getName()));
+  }
+
+  /**
+   * The schema alias {@code schemaAlias}, when the share has an object under it; otherwise fails
+   * with not-found.
+   */
+  public String getSchema(ShareEntity share, String schemaAlias) {
+    if (sharedObjects.listInSchema(share, schemaAlias).isEmpty()) {
+      throw ApiException.notFound(
+          "schema '" + schemaAlias + "' does not exist in share '" + share.getName() + "'");
+    }
+    return schemaAlias;
   }
 }

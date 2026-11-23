@@ -7,7 +7,9 @@ import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Param;
 import com.linecorp.armeria.server.annotation.ProducesJson;
 import io.opensharing.ObjectNames;
-import io.opensharing.asset.table.ProtocolIcebergCatalog;
+import io.opensharing.asset.schema.ProtocolSchemas;
+import io.opensharing.asset.schema.SchemaResponse;
+import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.protocol.RecipientTokenDecorator;
@@ -34,10 +36,12 @@ public final class IcebergRestCatalogService {
   /** How Iceberg joins the levels of a namespace in one path segment. */
   private static final char NAMESPACE_SEPARATOR = '\u001f';
 
-  private final ProtocolIcebergCatalog catalog;
+  private final ProtocolShares shares;
+  private final ProtocolSchemas schemas;
 
-  public IcebergRestCatalogService(ProtocolIcebergCatalog catalog) {
-    this.catalog = catalog;
+  public IcebergRestCatalogService(ProtocolShares shares, ProtocolSchemas schemas) {
+    this.shares = shares;
+    this.schemas = schemas;
   }
 
   /**
@@ -55,7 +59,7 @@ public final class IcebergRestCatalogService {
     ShareEntity share;
     try {
       share =
-          catalog.getShare(
+          shares.requireGranted(
               RecipientTokenDecorator.recipient(ctx), ObjectNames.normalize(warehouse));
     } catch (ApiException missing) {
       if (missing.getStatus() != 404) {
@@ -84,18 +88,18 @@ public final class IcebergRestCatalogService {
       namespace(granted, parent);
       return new NamespacesResponse(List.of(), null);
     }
-    ListResponse<String> page =
-        listPage(
-            pageSize, pageToken, (size, token) -> catalog.listNamespaces(granted, size, token));
+    ListResponse<SchemaResponse> page =
+        listPage(pageSize, pageToken, (size, token) -> schemas.list(granted, size, token));
     return new NamespacesResponse(
-        page.items().stream().map(List::of).toList(), page.nextPageToken());
+        page.items().stream().map(schema -> List.of(schema.name())).toList(),
+        page.nextPageToken());
   }
 
   /** The share in the path prefix. A share the recipient can't read has no namespaces. */
   private ShareEntity share(ServiceRequestContext ctx, String share) {
     return asNoSuchNamespace(
         () ->
-            catalog.getShare(
+            shares.requireGranted(
                 RecipientTokenDecorator.recipient(ctx), ObjectNames.normalize(share)));
   }
 
@@ -113,7 +117,7 @@ public final class IcebergRestCatalogService {
               + "'");
     }
     return asNoSuchNamespace(
-        () -> catalog.getNamespace(share, ObjectNames.normalize(namespace)));
+        () -> schemas.getSchema(share, ObjectNames.normalize(namespace)));
   }
 
   /**
