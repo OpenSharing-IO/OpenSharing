@@ -59,7 +59,7 @@ public final class ApiExceptionHandler
   }
 
   /** Maps Armeria's own failures; everything else is mapped by {@link ApiFailure}. */
-  ApiFailure failureOf(Throwable cause) {
+  public ApiFailure failureOf(Throwable cause) {
     Throwable failure = cause instanceof CompletionException ? cause.getCause() : cause;
     if (failure instanceof HttpStatusException status) {
       return status.httpStatus() == HttpStatus.NOT_FOUND
