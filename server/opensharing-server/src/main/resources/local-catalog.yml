@@ -96,11 +96,10 @@ assets:
   - identifier: main.lake
     type: SCHEMA
 
-  # An Iceberg table: the catalog says where its current metadata JSON is.
+  # An Iceberg table. Set metadataLocation to its current metadata JSON for loadTable to serve it.
   - identifier: main.lake.trips
     type: TABLE
     attributes:
       subtype: EXTERNAL
     storageLocation: s3://test/main.lake.trips/
     format: iceberg
-    metadataLocation: s3://test/main.lake.trips/metadata/00001-trips.metadata.json

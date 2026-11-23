@@ -71,13 +71,26 @@ class LocalCatalogConnectorTest {
 
   @Test
   void resolvesIcebergTableWithItsMetadataLocation() {
-    ResolvedAsset asset = resolve("main.lake.trips", ALICE);
+    String yaml =
+        """
+        assets:
+          - identifier: main.lake.trips
+            attributes:
+              subtype: EXTERNAL
+            storageLocation: s3://test/trips/
+            format: iceberg
+            metadataLocation: s3://test/trips/metadata/00001.metadata.json
+        """;
 
-    assertEquals("s3://test/main.lake.trips/", asset.location().storageLocation());
+    ResolvedAsset asset =
+        connector(yaml)
+            .resolveAsset(new Asset(AssetType.TABLE, "main.lake.trips"), AuthContext.of(ALICE));
+
+    assertEquals("s3://test/trips/", asset.location().storageLocation());
     assertEquals(
         new TableProperties(
             DataSourceFormat.ICEBERG,
-            "s3://test/main.lake.trips/metadata/00001-trips.metadata.json",
+            "s3://test/trips/metadata/00001.metadata.json",
             Map.of("subtype", "EXTERNAL")),
         asset.additionalProperties());
   }
