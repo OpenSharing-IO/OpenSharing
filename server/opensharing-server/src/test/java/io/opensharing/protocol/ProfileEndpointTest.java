@@ -46,6 +46,9 @@ class ProfileEndpointTest {
       JsonNode body = JSON.readTree(profile.contentUtf8());
       assertEquals(
           "https://sharing.example.com/api/1.0/opensharing", body.path("endpoint").asText());
+      assertEquals(
+          "https://sharing.example.com/api/1.0/opensharing/iceberg",
+          body.path("icebergEndpoint").asText());
     }
   }
 }

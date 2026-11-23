@@ -177,6 +177,7 @@ public class RecipientService {
         SHARE_CREDENTIALS_VERSION,
         bearer,
         profileEndpoint,
+        icebergEndpoint(profileEndpoint),
         EXPIRATION_TIME.format(token.getExpiresAt()));
   }
 
@@ -239,5 +240,10 @@ public class RecipientService {
     byte[] bytes = new byte[BEARER_BYTES];
     random.nextBytes(bytes);
     return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+  }
+
+  /** Where the Iceberg REST catalog is served: {@code {endpoint}/iceberg}, as the spec requires. */
+  static String icebergEndpoint(String endpoint) {
+    return (endpoint.endsWith("/") ? endpoint : endpoint + "/") + "iceberg";
   }
 }
