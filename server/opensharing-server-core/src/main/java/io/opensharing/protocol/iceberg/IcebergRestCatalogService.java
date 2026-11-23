@@ -55,7 +55,7 @@ public final class IcebergRestCatalogService {
     ShareEntity share;
     try {
       share =
-          catalog.requireShare(
+          catalog.getShare(
               RecipientTokenDecorator.recipient(ctx), ObjectNames.normalize(warehouse));
     } catch (ApiException missing) {
       if (missing.getStatus() != 404) {
@@ -95,7 +95,7 @@ public final class IcebergRestCatalogService {
   private ShareEntity share(ServiceRequestContext ctx, String share) {
     return asNoSuchNamespace(
         () ->
-            catalog.requireShare(
+            catalog.getShare(
                 RecipientTokenDecorator.recipient(ctx), ObjectNames.normalize(share)));
   }
 
@@ -112,13 +112,8 @@ public final class IcebergRestCatalogService {
               + share.getName()
               + "'");
     }
-    String schemaAlias = ObjectNames.normalize(namespace);
-    asNoSuchNamespace(
-        () -> {
-          catalog.requireNamespace(share, schemaAlias);
-          return null;
-        });
-    return schemaAlias;
+    return asNoSuchNamespace(
+        () -> catalog.getNamespace(share, ObjectNames.normalize(namespace)));
   }
 
   /**

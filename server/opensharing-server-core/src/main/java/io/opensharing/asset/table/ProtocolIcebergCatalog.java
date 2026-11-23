@@ -27,8 +27,8 @@ public class ProtocolIcebergCatalog {
     this.sharedObjects = sharedObjects;
   }
 
-  /** The share, when the recipient holds SELECT on it. */
-  public ShareEntity requireShare(RecipientPrincipal recipient, String shareName) {
+  /** The share, when the recipient holds SELECT on it; otherwise fails with not-found. */
+  public ShareEntity getShare(RecipientPrincipal recipient, String shareName) {
     return protocolShares.requireGranted(recipient, shareName);
   }
 
@@ -42,11 +42,15 @@ public class ProtocolIcebergCatalog {
         Function.identity());
   }
 
-  /** Fails with not-found unless the share has an object under {@code schemaAlias}. */
-  public void requireNamespace(ShareEntity share, String schemaAlias) {
+  /**
+   * The namespace {@code schemaAlias} names, when the share has an object under it; otherwise fails
+   * with not-found.
+   */
+  public String getNamespace(ShareEntity share, String schemaAlias) {
     if (sharedObjects.listInSchema(share, schemaAlias).isEmpty()) {
       throw ApiException.notFound(
           "namespace '" + schemaAlias + "' does not exist in share '" + share.getName() + "'");
     }
+    return schemaAlias;
   }
 }
