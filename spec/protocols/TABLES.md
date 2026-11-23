@@ -57,7 +57,8 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
         "string"
       ],
       "accessModes": ["url","dir"],
-      "id": "string"
+      "id": "string",
+      "format": "string"
     }
   ],
   "nextPageToken": "string"
@@ -72,11 +73,13 @@ Note: check the format of the `name`, `schema`, and `share` fields in the sharin
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
-Note: `location` if present must point to the root directory of the table where the delta log exists. If the server supports `dir` based access for the table, this field must be present (see `accessModes`).
+Note: `location` if present must point to the root directory of the table: where the delta log exists for a Delta table, or the Iceberg table location (the `location` in its metadata JSON) for an Iceberg table. If the server supports `dir` based access for the table, this field must be present (see `accessModes`).
 
 Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `location` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request.
 
-Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access.
+Note: `format` is optional and has the same values as in [Get Table](#get-table): `delta`, `iceberg`, or both separated by a comma. It tells the client which set of APIs to read each table with, without calling Get Table for every table.
+
+Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access. A table whose only format is `iceberg` has no delta log to serve files from, so its `accessModes` must be `["dir"]` and its `location` must be present; clients read its metadata through the [Iceberg REST catalog](#access-iceberg-tables).
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -309,7 +312,8 @@ Query Parameters | **maxResults** (type: Int32, optional): The maximum number of
       "auxiliaryLocations": [
         "string"
       ],
-      "accessModes": ["url","dir"]
+      "accessModes": ["url","dir"],
+      "format": "string"
     }
   ],
   "nextPageToken": "string"
@@ -324,11 +328,13 @@ Note: check the format of the `name`, `schema`, and `share` fields in the sharin
 
 Note: the `shareId` field is optional. If `shareId` is populated for a table, its value should be unique across the sharing server and immutable through the table's lifecycle.
 
-Note: `location` if present must point to the root directory of the table where the delta log exists. If the server supports `dir` based access for the table, this field must be present (see `accessModes`).
+Note: `location` if present must point to the root directory of the table: where the delta log exists for a Delta table, or the Iceberg table location (the `location` in its metadata JSON) for an Iceberg table. If the server supports `dir` based access for the table, this field must be present (see `accessModes`).
 
 Note: `auxiliaryLocations` is optional and lists extra storage locations for table files (usually no more than one). These should be supported in the `location` field of the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) request body. Most tables use only the root directory, but if some files are stored elsewhere, the delta log in the root will include absolute paths to them. If a client can't read from an auxiliary location, it should fall back to URL access (if available) or fail the request. 
 
-Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access.
+Note: `format` is optional and has the same values as in [Get Table](#get-table): `delta`, `iceberg`, or both separated by a comma. It tells the client which set of APIs to read each table with, without calling Get Table for every table.
+
+Note: `accessModes` represents the supported access modes for the table. This can be `url`, `dir`, or both. If `url` is present, the [QueryTable](#read-data-from-a-table) API should be implemented for the table. If `dir` is present, the [GenerateTemporaryTableCredential](#generate-temporary-table-credential) API should be implemented for the table. If this field is not present, the client will assume that the server only supports url based access. A table whose only format is `iceberg` has no delta log to serve files from, so its `accessModes` must be `["dir"]` and its `location` must be present; clients read its metadata through the [Iceberg REST catalog](#access-iceberg-tables).
 
 Note: the `nextPageToken` field may be an empty string or missing when there are no additional results. The client must handle both cases.
 </td>
@@ -504,7 +510,8 @@ Example:
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
       "id": "2f9729e9-6fcf-4d34-96df-bf72b26dfbe9",
       "location": "s3://deltasharing/vaccine_share/acme_vaccine_ingredient_data/vaccine_ingredients",
-      "accessModes": ["url","dir"]
+      "accessModes": ["url","dir"],
+      "format": "delta"
     },
     {
       "share": "vaccine_share",
@@ -513,7 +520,8 @@ Example:
       "shareId": "edacc4a7-6600-4fbb-85f3-a62a5ce6761f",
       "id": "74be6365-0fc8-4a2f-8720-0de125bb5832",
       "location": "s3://deltasharing/vaccine_share/acme_vaccine_patient_data/vaccine_patients",
-      "accessModes": ["dir"]
+      "accessModes": ["dir"],
+      "format": "iceberg"
     }
   ],
   "nextPageToken": "..."
@@ -700,13 +708,18 @@ Note: Supported values for `format` are `delta` and `iceberg` for now, which ind
 ## Access Iceberg Tables
 OpenSharing provides an implementation of the Iceberg REST catalog API specification. Refer to the [Iceberg REST API spec](https://github.com/apache/iceberg/blob/main/open-api/rest-catalog-open-api.yaml) for details on using this REST API.
 
+The catalog is served at the profile file's `icebergEndpoint`, and the client authenticates with the profile's `bearerToken` as on every other endpoint. A share is a warehouse: `getConfig` takes the share name as `warehouse` and returns the `prefix` under which the client addresses it, and the share's schemas are its namespaces. Failures are returned in the Iceberg REST catalog's error model, `{"error": {"message", "type", "code"}}`.
+
 Here is a list of REST APIs supported:
 - <b>getConfig</b>, GET /v1/config
 - <b>listNamespaces</b>, GET /v1/{prefix}/namespaces
 - <b>loadNamespaceMetadata</b>, GET /v1/{prefix}/namespaces/{namespace}
 - <b>listTables</b>, GET /v1/{prefix}/namespaces/{namespace}/tables
 - <b>loadTable</b>, GET /v1/{prefix}/namespaces/{namespace}/tables/{table}
+- <b>loadCredentials</b>, GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials
 - <b>reportMetrics</b>, POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics
+
+`listTables` lists only the namespace's tables whose `format` includes `iceberg`, the ones `loadTable` can load. `reportMetrics` accepts scan reports and may discard them.
 
 Example:
 
@@ -723,7 +736,34 @@ Example:
     "GET /v1/{prefix}/namespaces/{namespace}",
     "GET /v1/{prefix}/namespaces/{namespace}/tables",
     "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+    "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials",
     "POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics"
+  ]
+}
+```
+
+### Load Table
+
+`loadTable` returns the table's current `metadata-location` and the `metadata` it points to. A recipient has no access of its own to the provider's storage, so the response also carries `storage-credentials`: read-only credentials covering the table's `location`, in the property names of the Iceberg REST spec, such as `s3.access-key-id`, `adls.sas-token.<account>` or `gcs.oauth2.token`, with their expiration time.
+
+### Load Credentials
+
+`loadCredentials` returns only the `storage-credentials` of `loadTable`, without reading the table's metadata. A client that already has the table's metadata, or keeps its own copy of it, calls this to read the table's files, and again to refresh credentials before they expire.
+
+`GET {icebergEndpoint}/v1/shares/<share>/namespaces/<schema>/tables/<table>/credentials`
+
+```json
+{
+  "storage-credentials": [
+    {
+      "prefix": "s3://bucket/path/to/table/",
+      "config": {
+        "s3.access-key-id": "<access key id>",
+        "s3.secret-access-key": "<secret access key>",
+        "s3.session-token": "<session token>",
+        "s3.session-token-expires-at-ms": "1700000000000"
+      }
+    }
   ]
 }
 ```
