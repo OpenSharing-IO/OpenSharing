@@ -3,6 +3,8 @@ package io.opensharing.asset.table.iceberg;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import io.opensharing.asset.SharedDataObjectEntity;
+import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.share.ProtocolShares;
 import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.catalog.AssetLocation;
@@ -19,12 +21,133 @@ import io.opensharing.share.ShareEntity;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class ProtocolIcebergTablesTest {
 
   private static final ResolvedAsset TABLE =
       ResolvedAsset.builder(AssetType.TABLE, "main.lake.trips").build();
+
+  @Test
+  void loadCredentialsKeepsAllCredentialsInCoverageOrder() {
+    // The share records the table location used to choose among overlapping credentials.
+    SharedDataObjectEntity shared = new SharedDataObjectEntity();
+    shared.setType(AssetType.TABLE);
+    shared.setSourceFormat(DataSourceFormat.ICEBERG);
+    shared.setStorageLocation("s3://bucket/t/");
+    // Substitute only the authorization and storage dependencies, not the selection under test.
+    ProtocolShares shares =
+        new ProtocolShares(null, null) {
+          @Override
+          public ShareEntity requireGranted(RecipientPrincipal recipient, String shareName) {
+            return new ShareEntity();
+          }
+        };
+    SharedDataObjectStore objects =
+        new SharedDataObjectStore(null) {
+          @Override
+          public Optional<SharedDataObjectEntity> findByAlias(
+              ShareEntity share, String schema, String table) {
+            return Optional.of(shared);
+          }
+        };
+    ProtocolTables tables =
+        new ProtocolTables(null, null, null, null, null, null, null) {
+          @Override
+          public List<StorageCredentials> readCredentialsForSharedTable(
+              ShareEntity share, SharedDataObjectEntity table) {
+            return List.of(
+                credential("s3://bucket/", CloudProvider.AWS),
+                credential("s3://bucket/t/", CloudProvider.AWS),
+                new StorageCredentials(
+                    "gs://other/", CloudProvider.GCP,
+                    Map.of(StorageCredentials.OAUTH_TOKEN, "token"),
+                    Instant.parse("2026-01-01T00:00:00Z")),
+                new StorageCredentials(
+                    "gs://another/", CloudProvider.GCP,
+                    Map.of(StorageCredentials.OAUTH_TOKEN, "token"),
+                    Instant.parse("2026-01-01T00:00:00Z")));
+          }
+        };
+    // Exercise the public credentials lookup with multiple catalog results.
+    List<IcebergStorageCredential> result =
+        new ProtocolIcebergTables(shares, objects, tables)
+            .loadCredentials(null, "share", "lake", "trips");
+    // The most specific credential comes first; all others keep catalog order.
+    assertEquals(
+        List.of("s3://bucket/t/", "s3://bucket/", "gs://other/", "gs://another/"),
+        result.stream().map(IcebergStorageCredential::prefix).toList());
+  }
+
+  @Test
+  void refreshKeepsCatalogOrderWhenRecordedLocationIsStaleOrBlank() {
+    // The catalog can have moved a table since it was shared.
+    List<StorageCredentials> credentials =
+        List.of(
+            credential("s3://bucket/", CloudProvider.AWS),
+            credential("s3://bucket/t/", CloudProvider.AWS));
+    // A stale or absent location leaves catalog order unchanged.
+    for (String root : new String[] {"s3://moved/", null, " "}) {
+      // All returned entries retain their original order.
+      assertEquals(
+          List.of("s3://bucket/", "s3://bucket/t/"),
+          refreshCredentials(credentials, root).stream()
+              .map(IcebergStorageCredential::prefix)
+              .toList());
+    }
+    // An empty catalog result is not a successful refresh.
+    assertThrows(CatalogException.class, () -> refreshCredentials(List.of(), null));
+  }
+
+  @Test
+  void refreshComparesNormalizedR2Locations() {
+    // The catalog may vend credentials in either R2 or Iceberg S3 path form.
+    List<StorageCredentials> credentials =
+        List.of(
+            credential("r2://bucket@acct.r2.cloudflarestorage.com/", CloudProvider.R2),
+            credential("s3://bucket/t/", CloudProvider.AWS));
+    // The normalized table-specific prefix wins without discarding the broader credential.
+    assertEquals(
+        List.of("s3://bucket/t/", "s3://bucket/"),
+        refreshCredentials(credentials, "r2://bucket@acct.r2.cloudflarestorage.com/t/").stream()
+            .map(IcebergStorageCredential::prefix)
+            .toList());
+  }
+
+  private static List<IcebergStorageCredential> refreshCredentials(
+      List<StorageCredentials> credentials, String root) {
+    SharedDataObjectEntity shared = new SharedDataObjectEntity();
+    shared.setType(AssetType.TABLE);
+    shared.setSourceFormat(DataSourceFormat.ICEBERG);
+    shared.setStorageLocation(root);
+    // Isolate credential ordering from authorization, persistence, and catalog I/O.
+    ProtocolShares shares =
+        new ProtocolShares(null, null) {
+          @Override
+          public ShareEntity requireGranted(RecipientPrincipal recipient, String shareName) {
+            return new ShareEntity();
+          }
+        };
+    SharedDataObjectStore objects =
+        new SharedDataObjectStore(null) {
+          @Override
+          public Optional<SharedDataObjectEntity> findByAlias(
+              ShareEntity share, String schema, String table) {
+            return Optional.of(shared);
+          }
+        };
+    ProtocolTables tables =
+        new ProtocolTables(null, null, null, null, null, null, null) {
+          @Override
+          public List<StorageCredentials> readCredentialsForSharedTable(
+              ShareEntity share, SharedDataObjectEntity table) {
+            return credentials;
+          }
+        };
+    return new ProtocolIcebergTables(shares, objects, tables)
+        .loadCredentials(null, "share", "lake", "trips");
+  }
 
   @Test
   void rejectsInvalidCredentialPrefixesBeforeComparingCoverage() {

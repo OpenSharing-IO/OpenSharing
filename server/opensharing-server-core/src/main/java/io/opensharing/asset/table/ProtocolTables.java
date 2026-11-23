@@ -20,6 +20,7 @@ import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
 import io.opensharing.catalog.TableProperties;
 import io.opensharing.exception.AssetAccessDeniedException;
+import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.exception.ChangeDataNotRecordedException;
 import io.opensharing.http.ApiException;
@@ -166,25 +167,9 @@ public class ProtocolTables {
       throw ApiException.invalidParameter(
           "table '" + schemaAlias + "." + tableAlias + "' does not support directory access");
     }
-    String location =
-        credentialLocation(catalogTable, request == null ? null : request.location());
-    CredentialRequest credentials =
-        new CredentialRequest(
-            AssetType.TABLE,
-            catalogTable.fullName(),
-            catalogTable.catalogAssetId(),
-            location,
-            StorageOperation.READ,
-            null);
-    StorageCredentials minted =
-        catalog.getStorageCredentials(credentials, owner(share)).stream()
-            .filter(candidate -> StorageLocations.covers(candidate.prefix(), location))
-            .findFirst()
-            .orElseThrow(
-                () ->
-                    new CatalogException(
-                        "catalog returned no credentials for location '" + location + "'"));
-    return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(minted));
+    String location = credentialLocation(catalogTable, request == null ? null : request.location());
+    return new TemporaryTableCredentialsResponse(
+        TemporaryCredentials.from(readCredentialCovering(share, catalogTable, location)));
   }
 
   /**
@@ -194,6 +179,82 @@ public class ProtocolTables {
   public ResolvedAsset resolveTable(
       ShareEntity share, String schemaAlias, String tableAlias, ResolveOptions options) {
     return findTable(share, schemaAlias, tableAlias, options).catalogTable();
+  }
+
+  /** Read credentials covering the requested location of the catalog table. */
+  private StorageCredentials readCredentialCovering(
+      ShareEntity share, ResolvedAsset catalogTable, String location) {
+    return requestReadCredentials(
+            share, catalogTable.fullName(), catalogTable.catalogAssetId(), location)
+        .stream()
+        .filter(candidate -> StorageLocations.covers(candidate.prefix(), location))
+        .findFirst()
+        .orElseThrow(
+            () ->
+                new CatalogException(
+                    "catalog returned no read credentials covering '"
+                        + location
+                        + "' for table '"
+                        + catalogTable.fullName()
+                        + "'"));
+  }
+
+  /**
+   * All read credentials the catalog vends for the table's current location, identified by the
+   * share's recorded name and catalog asset id, without resolving it. If the recorded location is
+   * no longer covered, warn about a possible move. Dropped, replaced, and inaccessible tables are
+   * reported as missing by alias. An empty catalog response is a catalog error.
+   */
+  public List<StorageCredentials> readCredentialsForSharedTable(
+      ShareEntity share, SharedDataObjectEntity sharedTable) {
+    try {
+      List<StorageCredentials> credentials =
+          requestReadCredentials(
+              share, sharedTable.getFullName(), sharedTable.getSourceAssetId(), null);
+      if (credentials.isEmpty()) {
+        throw new CatalogException(
+            "catalog returned no read credentials for table '" + sharedTable.getFullName() + "'");
+      }
+      String recordedLocation = sharedTable.getStorageLocation();
+      if (recordedLocation != null
+          && !recordedLocation.isBlank()
+          && credentials.stream()
+              .noneMatch(
+                  candidate ->
+                      StorageLocations.covers(
+                          StorageLocations.icebergCredentialPath(candidate.prefix()),
+                          StorageLocations.icebergPath(recordedLocation)))) {
+        log.warn(
+            "Table '{}' in share '{}' seems to have moved: recorded location '{}', credential"
+                + " prefixes {}",
+            sharedTable.getFullName(),
+            share.getName(),
+            recordedLocation,
+            credentials.stream().map(StorageCredentials::prefix).toList());
+      }
+      return credentials;
+    } catch (AssetNotFoundException | AssetAccessDeniedException refused) {
+      log.warn(
+          "Hiding table '{}' in share '{}': the catalog refused credentials for table '{}'",
+          sharedTable.getSharedAs(),
+          share.getName(),
+          sharedTable.getFullName());
+      throw ApiException.notFound(
+          "table '"
+              + sharedTable.getSharedAs()
+              + "' does not exist in share '"
+              + share.getName()
+              + "'");
+    }
+  }
+
+  /** Requests all catalog read credentials for the requested location, or the asset's if null. */
+  private List<StorageCredentials> requestReadCredentials(
+      ShareEntity share, String fullName, String catalogAssetId, String location) {
+    CredentialRequest request =
+        new CredentialRequest(
+            AssetType.TABLE, fullName, catalogAssetId, location, StorageOperation.READ, null);
+    return catalog.getStorageCredentials(request, owner(share));
   }
 
   /**

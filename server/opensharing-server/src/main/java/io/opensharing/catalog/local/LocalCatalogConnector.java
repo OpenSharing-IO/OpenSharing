@@ -199,8 +199,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
   private static ResolvedAsset resolved(
       LocalCatalogFile.Asset asset, String metadata, List<StorageCredentials> readCredentials) {
     return ResolvedAsset.builder(asset.type(), asset.identifier())
-        .catalogAssetId(
-            asset.catalogAssetId() != null ? asset.catalogAssetId() : asset.identifier())
+        .catalogAssetId(catalogAssetId(asset))
         .location(new AssetLocation(asset.storageLocation(), asset.auxiliaryLocations()))
         .additionalProperties(
             asset.type() == AssetType.TABLE
@@ -212,6 +211,10 @@ public final class LocalCatalogConnector implements CatalogConnector {
                     asset.attributes())
                 : null)
         .build();
+  }
+
+  private static String catalogAssetId(LocalCatalogFile.Asset asset) {
+    return asset.catalogAssetId() != null ? asset.catalogAssetId() : asset.identifier();
   }
 
   /**
@@ -240,8 +243,13 @@ public final class LocalCatalogConnector implements CatalogConnector {
   @Override
   public List<StorageCredentials> getStorageCredentials(
       CredentialRequest request, AuthContext auth) {
-    LocalCatalogFile.Asset asset =
-        requireAsset(new Asset(request.assetType(), request.assetFullName()), auth);
+    Asset lookup = new Asset(request.assetType(), request.assetFullName());
+    LocalCatalogFile.Asset asset = requireAsset(lookup, auth);
+    if (request.catalogAssetId() != null
+        && !request.catalogAssetId().equals(catalogAssetId(asset))) {
+      // The name now belongs to another asset than the one the caller resolved.
+      throw new AssetNotFoundException(lookup);
+    }
     String location = request.storageLocation();
     if (location == null || location.isBlank()) {
       location = asset.storageLocation();

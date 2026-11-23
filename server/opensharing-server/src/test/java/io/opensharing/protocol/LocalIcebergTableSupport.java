@@ -12,14 +12,15 @@ import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Iceberg endpoint tests with temporary catalog tables. The catalog contains Delta tables in {@code
- * main.sales} and {@code main.hr}, and Iceberg tables in {@code main.lake}: {@code trips} has a
- * metadata file, {@code stations} and {@code unpointed} have no metadata location, and {@code
- * astray} points outside its location.
+ * main.sales} and {@code main.hr}, and Iceberg tables in {@code main.lake}: {@code trips} and
+ * {@code vanishing} have metadata files, {@code stations} and {@code unpointed} have no metadata
+ * location, and {@code astray} points outside its location.
  */
 abstract class LocalIcebergTableSupport extends ProtocolApiSupport {
 
   static final String TABLE_UUID = "9c12d441-03fe-4693-9a96-a0705ddf69c1";
   static final String TRIPS_METADATA = "trips/metadata/00001-" + TABLE_UUID + ".metadata.json";
+  static final String VANISHING_METADATA = "vanishing/metadata/00001.metadata.json";
 
   @TempDir static Path tables;
 
@@ -27,6 +28,7 @@ abstract class LocalIcebergTableSupport extends ProtocolApiSupport {
   static void startLocalIcebergServer() {
     write(TRIPS_METADATA, metadata(location("trips")));
     write("elsewhere/metadata/00001.metadata.json", metadata(location("elsewhere")));
+    write(VANISHING_METADATA, metadata(location("vanishing")));
     Properties properties = new Properties();
     properties.setProperty("catalog.local.file", write("local-catalog.yml", catalog()).toString());
     restartServer(properties);
