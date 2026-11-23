@@ -4,3 +4,17 @@ principals:
     userId: catalog-alice-id
     userName: alice
     privileges: [CREATE_SHARE, CREATE_RECIPIENT, USE_SHARE, USE_RECIPIENT]
+assets:
+  - identifier: main.sales
+    type: SCHEMA
+  - identifier: main.sales.orders
+    storageLocation: ${tables}orders/
+    format: delta
+  - identifier: main.sales.customers
+    storageLocation: ${tables}customers/
+    format: delta
+  - identifier: main.hr
+    type: SCHEMA
+  - identifier: main.hr.employees
+    storageLocation: ${tables}employees/
+    format: delta

@@ -5,6 +5,7 @@ import io.opensharing.asset.SharedDataObjectEntity;
 import io.opensharing.asset.SharedDataObjectStore;
 import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.ProtocolIcebergCatalog;
 import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.asset.table.delta.DeltaKernel;
 import io.opensharing.asset.table.delta.DeltaTableMetadataReader;
@@ -40,6 +41,7 @@ public final class OpenSharing {
   private final ProtocolShares protocolShares;
   private final ProtocolSchemas protocolSchemas;
   private final ProtocolTables protocolTables;
+  private final ProtocolIcebergCatalog protocolIcebergCatalog;
 
   private OpenSharing(
       CatalogConnector catalog,
@@ -75,6 +77,7 @@ public final class OpenSharing {
             new DeltaTableQueryReader(kernel, new UrlSigners()),
             protocolShares,
             objectStore);
+    this.protocolIcebergCatalog = new ProtocolIcebergCatalog(protocolShares, objectStore);
   }
 
   public static Builder builder() {
@@ -131,6 +134,11 @@ public final class OpenSharing {
   /** The tables recipients see in their shares through the sharing protocol. */
   public ProtocolTables protocolTables() {
     return protocolTables;
+  }
+
+  /** What recipients read in their shares through the Iceberg REST catalog. */
+  public ProtocolIcebergCatalog protocolIcebergCatalog() {
+    return protocolIcebergCatalog;
   }
 
   public static final class Builder {

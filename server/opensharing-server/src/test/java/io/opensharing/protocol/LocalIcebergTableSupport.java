@@ -10,7 +10,7 @@ import java.util.Properties;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Iceberg endpoint tests with an Alice-only local catalog in a temporary directory. */
+/** Iceberg endpoint tests with temporary Delta tables in {@code main.sales} and {@code main.hr}. */
 abstract class LocalIcebergTableSupport extends ProtocolApiSupport {
 
   @TempDir static Path tables;
