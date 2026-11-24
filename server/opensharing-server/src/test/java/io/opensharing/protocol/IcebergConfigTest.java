@@ -15,6 +15,7 @@ class IcebergConfigTest extends LocalIcebergTableSupport {
 
   @Test
   void configuresAGrantedShareAsTheCatalogPrefix() {
+    // Grant a recipient SELECT on a share.
     createShare("iceberg-config");
     String bearer = createAndActivateRecipient("iceberg-config-partner");
     grant("iceberg-config", "iceberg-config-partner");
@@ -32,9 +33,11 @@ class IcebergConfigTest extends LocalIcebergTableSupport {
 
   @Test
   void reportsFailuresInIcebergsErrorBody() {
+    // A share the recipient is not granted.
     createShare("iceberg-config-hidden");
     String bearer = createAndActivateRecipient("iceberg-config-stranger");
 
+    // getConfig without a warehouse is a bad request.
     Response missing = server.get(ICEBERG + "/v1/config", bearer);
     assertIcebergError(missing, 400, "BadRequestException");
 
