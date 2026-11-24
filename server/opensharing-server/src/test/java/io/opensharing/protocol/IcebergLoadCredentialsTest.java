@@ -29,9 +29,11 @@ class IcebergLoadCredentialsTest extends LocalIcebergTableSupport {
 
   @Test
   void vendsCredentialsForTheTablesLocation() {
+    // Load credentials for the shared Iceberg table.
     Response vended = server.get(credentials("iceberg-creds", "LAKE", "TRIPS"), bearer);
     assertEquals(200, vended.status());
     JsonNode credentials = vended.body().path("storage-credentials");
+    // One set covers the table's location, with Iceberg's keys and expiry, and no metadata.
     assertEquals(1, credentials.size());
     assertEquals(location("trips"), credentials.path(0).path("prefix").asText());
     JsonNode config = credentials.path(0).path("config");
@@ -79,8 +81,10 @@ class IcebergLoadCredentialsTest extends LocalIcebergTableSupport {
   /** The table is not resolved again, so credentials don't depend on reading its metadata. */
   @Test
   void vendsCredentialsWithoutResolvingTheTable() throws IOException {
+    // Delete the shared table's metadata file.
     Files.delete(tables.resolve(VANISHING_METADATA));
 
+    // Credentials still come back for its location.
     Response vended = server.get(credentials("iceberg-creds", "lake", "vanishing"), bearer);
     assertEquals(200, vended.status());
     assertEquals(
@@ -94,6 +98,7 @@ class IcebergLoadCredentialsTest extends LocalIcebergTableSupport {
   /** The catalog refuses credentials for a table that is gone, or that another took over. */
   @Test
   void reportsTablesTheCatalogNoLongerHasAsNoSuchTable() {
+    // Share two tables, then have the catalog replace one and drop the other.
     createShare("iceberg-creds-gone");
     addObject("iceberg-creds-gone", "TABLE", "main.lake.trips", "lake.replaced");
     addObject("iceberg-creds-gone", "TABLE", "main.lake.astray", "lake.dropped");
@@ -102,11 +107,13 @@ class IcebergLoadCredentialsTest extends LocalIcebergTableSupport {
     replaceInCatalog("iceberg-creds-gone", "main.lake.trips");
     dropFromCatalog("iceberg-creds-gone", "main.lake.astray");
 
+    // Credentials for the replaced table are refused, reported by its alias only.
     Response replaced = server.get(credentials("iceberg-creds-gone", "lake", "replaced"), partner);
     assertIcebergError(replaced, 404, "NoSuchTableException");
     assertEquals(
         "table 'lake.replaced' does not exist in share 'iceberg-creds-gone'",
         replaced.body().path("error").path("message").asText());
+    // Credentials for the dropped table are refused too.
     assertIcebergError(
         server.get(credentials("iceberg-creds-gone", "lake", "dropped"), partner),
         404,
@@ -115,14 +122,17 @@ class IcebergLoadCredentialsTest extends LocalIcebergTableSupport {
 
   @Test
   void reportsTablesItCannotLoadAsNoSuchTable() {
+    // A table the share doesn't have is a missing table.
     assertIcebergError(
         server.get(credentials("iceberg-creds", "lake", "missing"), bearer),
         404,
         "NoSuchTableException");
+    // So is a Delta table.
     assertIcebergError(
         server.get(credentials("iceberg-creds", "lake", "orders"), bearer),
         404,
         "NoSuchTableException");
+    // A schema the share doesn't have is a missing table too, as the Iceberg spec has it.
     assertIcebergError(
         server.get(credentials("iceberg-creds", "missing", "trips"), bearer),
         404,
@@ -131,6 +141,7 @@ class IcebergLoadCredentialsTest extends LocalIcebergTableSupport {
 
   @Test
   void configListsLoadCredentials() {
+    // getConfig lists loadCredentials.
     JsonNode endpoints =
         server.get(ICEBERG + "/v1/config?warehouse=iceberg-creds", bearer).body().path("endpoints");
     assertAdvertised(
