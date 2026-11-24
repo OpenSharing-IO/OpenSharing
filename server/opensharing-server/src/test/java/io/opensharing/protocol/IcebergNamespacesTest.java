@@ -38,12 +38,9 @@ class IcebergNamespacesTest extends LocalIcebergTableSupport {
     assertEquals("sales", second.body().path("namespaces").path(0).path(0).asText());
     assertTrue(second.body().path("next-page-token").isNull());
 
-    // A schema holds tables, not namespaces.
-    Response children = server.get(namespaces + "?parent=sales", bearer);
-    assertEquals(200, children.status());
-    assertEquals(0, children.body().path("namespaces").size());
+    // A share's namespaces are one level deep, so listing under a parent is rejected.
     assertIcebergError(
-        server.get(namespaces + "?parent=missing", bearer), 404, "NoSuchNamespaceException");
+        server.get(namespaces + "?parent=sales", bearer), 400, "BadRequestException");
   }
 
   /** Without a pageToken a request gets every namespace, whatever its pageSize. */

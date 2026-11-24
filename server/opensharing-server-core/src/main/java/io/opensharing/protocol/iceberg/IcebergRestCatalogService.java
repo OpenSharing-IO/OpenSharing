@@ -33,9 +33,6 @@ public final class IcebergRestCatalogService {
   static final List<String> ENDPOINTS =
       List.of("GET /v1/{prefix}/namespaces");
 
-  /** How Iceberg joins the levels of a namespace in one path segment. */
-  private static final char NAMESPACE_SEPARATOR = '\u001f';
-
   private final ProtocolShares shares;
   private final ProtocolSchemas schemas;
 
@@ -72,8 +69,9 @@ public final class IcebergRestCatalogService {
   }
 
   /**
-   * {@code GET /v1/shares/{share}/namespaces}: one page of the share's schemas. A schema holds no
-   * namespaces, so listing under a {@code parent} schema returns none.
+   * {@code GET /v1/shares/{share}/namespaces}: the share's schemas, all of them without a pageToken
+   * and else one page. A share's namespaces are one level deep, so listing under a {@code parent}
+   * is rejected.
    */
   @Get("/v1/shares/{share}/namespaces")
   public NamespacesResponse listNamespaces(
@@ -84,8 +82,8 @@ public final class IcebergRestCatalogService {
       @Param @Nullable String pageToken) {
     requirePageSize(pageSize);
     if (parent != null && !parent.isEmpty()) {
-      namespace(share(ctx, share), parent);
-      return new NamespacesResponse(List.of(), null);
+      throw IcebergException.badRequest(
+          "a share's namespaces are its schemas, which are one level deep, so none has a parent");
     }
     ListResponse<SchemaResponse> page =
         listPage(
@@ -102,31 +100,6 @@ public final class IcebergRestCatalogService {
     return new NamespacesResponse(
         page.items().stream().map(schema -> List.of(schema.name())).toList(),
         page.nextPageToken());
-  }
-
-  /** The share in the path prefix. A share the recipient can't read has no namespaces. */
-  private ShareEntity share(ServiceRequestContext ctx, String share) {
-    return asNoSuchNamespace(
-        () ->
-            shares.requireGranted(
-                RecipientTokenDecorator.recipient(ctx), ObjectNames.normalize(share)));
-  }
-
-  /**
-   * The schema alias {@code namespace} names in {@code share}. A share's schemas are one level
-   * deep, so a namespace of more levels is never one of them.
-   */
-  private String namespace(ShareEntity share, String namespace) {
-    if (namespace.indexOf(NAMESPACE_SEPARATOR) >= 0) {
-      throw IcebergException.noSuchNamespace(
-          "namespace '"
-              + namespace.replace(NAMESPACE_SEPARATOR, '.')
-              + "' does not exist in share '"
-              + share.getName()
-              + "'");
-    }
-    return asNoSuchNamespace(
-        () -> schemas.getSchema(share, ObjectNames.normalize(namespace)));
   }
 
   /**
