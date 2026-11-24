@@ -37,6 +37,7 @@ class ProtocolTablesTest extends ProtocolApiSupport {
     assertEquals("s3://test/main.sales.customers/", customers.path("location").asText());
     assertEquals("url", customers.path("accessModes").path(0).asText());
     assertEquals("dir", customers.path("accessModes").path(1).asText());
+    // Each listed table says its format.
     assertEquals(1, customers.path("format").size());
     assertEquals("delta", customers.path("format").path(0).asText());
     assertEquals("orders", items.path(1).path("name").asText());
@@ -73,22 +74,26 @@ class ProtocolTablesTest extends ProtocolApiSupport {
   /** Listing says which tables are Iceberg, so a client needs no Get Table call to tell. */
   @Test
   void listsEachTablesFormatAndIcebergTablesAsDirOnly() {
+    // Share a Delta table and an Iceberg table under one schema.
     createShare("format-tables");
     addObject("format-tables", "TABLE", "main.sales.orders", "mixed.orders");
     addObject("format-tables", "TABLE", "main.lake.trips", "mixed.trips");
     String bearer = createAndActivateRecipient("format-tables-partner");
     grant("format-tables", "format-tables-partner");
 
+    // List Tables and List All Tables give the same answer.
     String share = "/shares/format-tables";
     for (String listing : new String[] {share + "/schemas/mixed/tables", share + "/all-tables"}) {
       Response list = server.get(PROTOCOL + listing, bearer);
       assertEquals(200, list.status());
       JsonNode items = list.body().path("items");
       assertEquals(2, items.size());
+      // The Delta table's format is delta.
       JsonNode orders = items.path(0);
       assertEquals("orders", orders.path("name").asText());
       assertEquals(1, orders.path("format").size());
       assertEquals("delta", orders.path("format").path(0).asText());
+      // The Iceberg table's format is iceberg, with its location and dir access only.
       JsonNode trips = items.path(1);
       assertEquals("trips", trips.path("name").asText());
       assertEquals(1, trips.path("format").size());
