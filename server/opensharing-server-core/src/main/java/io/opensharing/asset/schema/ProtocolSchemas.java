@@ -12,7 +12,7 @@ import io.opensharing.share.ShareEntity;
  * The schemas a recipient sees through the sharing protocol: the distinct schema aliases of the
  * objects in a share it holds SELECT on.
  *
- * <p>Callers pass the share name normalized.
+ * <p>Callers pass the share name and schema alias normalized.
  */
 public class ProtocolSchemas {
 
@@ -35,15 +35,13 @@ public class ProtocolSchemas {
         schemaAlias -> new SchemaResponse(schemaAlias, share.getName()));
   }
 
-  /**
-   * The schema alias {@code schemaAlias}, when the share has an object under it; otherwise fails
-   * with not-found.
-   */
-  public String getSchema(ShareEntity share, String schemaAlias) {
+  /** Gets one schema of the share by its alias. */
+  public SchemaResponse get(RecipientPrincipal recipient, String shareName, String schemaAlias) {
+    ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     if (sharedObjects.listInSchema(share, schemaAlias).isEmpty()) {
       throw ApiException.notFound(
           "schema '" + schemaAlias + "' does not exist in share '" + share.getName() + "'");
     }
-    return schemaAlias;
+    return new SchemaResponse(schemaAlias, share.getName());
   }
 }
