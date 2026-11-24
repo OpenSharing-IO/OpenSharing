@@ -20,6 +20,7 @@ import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.TableProperties;
@@ -31,6 +32,8 @@ import io.opensharing.exception.CatalogException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -94,9 +97,49 @@ public final class LocalCatalogConnector implements CatalogConnector {
     return NAME;
   }
 
+  /**
+   * An Iceberg table with a {@code metadataLocation} also gets the metadata JSON in that local
+   * file, and read credentials for its location when {@code options} asks for them.
+   */
   @Override
-  public ResolvedAsset resolveAsset(Asset lookup, AuthContext auth) {
-    return resolved(requireAsset(lookup, auth));
+  public ResolvedAsset resolveAsset(Asset lookup, ResolveOptions options, AuthContext auth) {
+    LocalCatalogFile.Asset asset = requireAsset(lookup, auth);
+    if (asset.type() != AssetType.TABLE
+        || DataSourceFormat.fromWireName(asset.format()) != DataSourceFormat.ICEBERG
+        || asset.metadataLocation() == null
+        || asset.metadataLocation().isBlank()) {
+      return resolved(asset);
+    }
+    String metadata = readMetadata(asset);
+    List<StorageCredentials> readCredentials =
+        options.readCredentials()
+            ? List.of(
+                mintReadCredentials(
+                    requireStorageLocation(asset.storageLocation(), asset.identifier()),
+                    configuredTtl()))
+            : List.of();
+    return resolved(asset, metadata, readCredentials);
+  }
+
+  /**
+   * The metadata JSON in the local file at an Iceberg table's {@code metadataLocation}: a {@code
+   * file:} URI or a bare path.
+   */
+  private static String readMetadata(LocalCatalogFile.Asset asset) {
+    String location = asset.metadataLocation();
+    try {
+      URI uri = URI.create(location);
+      return Files.readString(uri.getScheme() == null ? Path.of(location) : Path.of(uri));
+    } catch (IOException | RuntimeException failed) {
+      throw new CatalogException(
+          "failed to read the Iceberg metadata of '"
+              + asset.identifier()
+              + "' at '"
+              + asset.metadataLocation()
+              + "': "
+              + failed.getMessage(),
+          failed);
+    }
   }
 
   /**
@@ -150,6 +193,11 @@ public final class LocalCatalogConnector implements CatalogConnector {
   }
 
   private static ResolvedAsset resolved(LocalCatalogFile.Asset asset) {
+    return resolved(asset, null, List.of());
+  }
+
+  private static ResolvedAsset resolved(
+      LocalCatalogFile.Asset asset, String metadata, List<StorageCredentials> readCredentials) {
     return ResolvedAsset.builder(asset.type(), asset.identifier())
         .catalogAssetId(
             asset.catalogAssetId() != null ? asset.catalogAssetId() : asset.identifier())
@@ -159,6 +207,8 @@ public final class LocalCatalogConnector implements CatalogConnector {
                 ? new TableProperties(
                     DataSourceFormat.fromWireName(asset.format()),
                     asset.metadataLocation(),
+                    metadata,
+                    readCredentials,
                     asset.attributes())
                 : null)
         .build();
@@ -196,12 +246,7 @@ public final class LocalCatalogConnector implements CatalogConnector {
     if (location == null || location.isBlank()) {
       location = asset.storageLocation();
     }
-    if (location == null || location.isBlank()) {
-      throw new CatalogException(
-          "asset '"
-              + request.assetFullName()
-              + "' has no storage location to scope credentials to");
-    }
+    location = requireStorageLocation(location, request.assetFullName());
     if (!covers(asset, location)) {
       throw new CatalogException(
           "storage location '"
@@ -210,14 +255,26 @@ public final class LocalCatalogConnector implements CatalogConnector {
               + request.assetFullName()
               + "'");
     }
-    Duration ttl = request.ttl() != null ? request.ttl() : configuredTtl();
+    return List.of(
+        mintReadCredentials(location, request.ttl() != null ? request.ttl() : configuredTtl()));
+  }
+
+  private static String requireStorageLocation(String location, String fullName) {
+    if (location == null || location.isBlank()) {
+      throw new CatalogException(
+          "asset '" + fullName + "' has no storage location to scope credentials to");
+    }
+    return location;
+  }
+
+  /** Credentials for {@code location} that last {@code ttl}, as the catalog file configures. */
+  private StorageCredentials mintReadCredentials(String location, Duration ttl) {
     Instant expiration = Instant.now().plus(ttl);
     if (credentials.mode() == LocalCatalogFile.CredentialMode.ENV) {
-      return List.of(envCredentials(location, expiration));
+      return envCredentials(location, expiration);
     }
     CloudProvider provider = credentials.provider();
-    return List.of(
-        new StorageCredentials(location, provider, fakeValues(provider, expiration), expiration));
+    return new StorageCredentials(location, provider, fakeValues(provider, expiration), expiration);
   }
 
   /** Principals listed in {@code adminUserIds} come back marked as admins. */

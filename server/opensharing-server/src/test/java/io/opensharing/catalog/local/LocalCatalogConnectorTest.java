@@ -9,30 +9,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.auth.Privilege;
 import io.opensharing.auth.UserContext;
-import io.opensharing.exception.AssetAccessDeniedException;
 import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetPage;
-import io.opensharing.exception.AssetNotFoundException;
 import io.opensharing.catalog.AssetType;
-import io.opensharing.exception.CatalogAuthenticationException;
-import io.opensharing.exception.CatalogException;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.CredentialRequest;
+import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
 import io.opensharing.catalog.TableProperties;
-import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.exception.AssetAccessDeniedException;
+import io.opensharing.exception.AssetNotFoundException;
+import io.opensharing.exception.CatalogAuthenticationException;
+import io.opensharing.exception.CatalogException;
 import io.opensharing.exception.UnsupportedAssetTypeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class LocalCatalogConnectorTest {
 
@@ -70,32 +74,75 @@ class LocalCatalogConnectorTest {
   }
 
   @Test
-  void resolvesIcebergTableWithItsMetadataLocation() {
-    // A catalog with one Iceberg table that names its metadata file.
-    String yaml =
-        """
-        assets:
-          - identifier: main.lake.trips
-            attributes:
-              subtype: EXTERNAL
-            storageLocation: s3://test/trips/
-            format: iceberg
-            metadataLocation: s3://test/trips/metadata/00001.metadata.json
-        """;
+  void resolvesIcebergTableWithItsMetadata(@TempDir Path tables) throws IOException {
+    // Write an Iceberg table's metadata file, and a catalog that points at it.
+    Path metadataFile = tables.resolve("trips/metadata/00001.metadata.json");
+    Files.createDirectories(metadataFile.getParent());
+    Files.writeString(metadataFile, "{\"format-version\": 2}");
+    String root = tables.resolve("trips").toUri().toString();
+    String metadataLocation = metadataFile.toUri().toString();
+    LocalCatalogConnector connector =
+        connector(
+            """
+            assets:
+              - identifier: main.lake.trips
+                attributes:
+                  subtype: EXTERNAL
+                storageLocation: %s
+                format: iceberg
+                metadataLocation: %s
+            """
+                .formatted(root, metadataLocation));
+    Asset trips = new Asset(AssetType.TABLE, "main.lake.trips");
 
-    // Resolve the table.
-    ResolvedAsset asset =
-        connector(yaml)
-            .resolveAsset(new Asset(AssetType.TABLE, "main.lake.trips"), AuthContext.of(ALICE));
+    // Resolve the table with the default options.
+    ResolvedAsset resolved =
+        connector.resolveAsset(trips, ResolveOptions.DEFAULT, AuthContext.of(ALICE));
+    // The resolved location is the catalog location.
+    assertEquals(root, resolved.location().storageLocation());
+    // It reports the Iceberg format, the metadata location and the file's contents.
+    TableProperties table = (TableProperties) resolved.additionalProperties();
+    assertEquals(DataSourceFormat.ICEBERG, table.dataSourceFormat());
+    assertEquals(metadataLocation, table.metadataLocation());
+    assertEquals("{\"format-version\": 2}", table.metadata());
+    assertEquals(Map.of("subtype", "EXTERNAL"), table.attributes());
+    // Credentials come only when asked for.
+    assertTrue(table.readCredentials().isEmpty());
 
-    // It keeps its location, and reports the Iceberg format and metadata location.
-    assertEquals("s3://test/trips/", asset.location().storageLocation());
-    assertEquals(
-        new TableProperties(
-            DataSourceFormat.ICEBERG,
-            "s3://test/trips/metadata/00001.metadata.json",
-            Map.of("subtype", "EXTERNAL")),
-        asset.additionalProperties());
+    // Resolve it again, asking for read credentials.
+    TableProperties withCredentials =
+        (TableProperties)
+            connector
+                .resolveAsset(trips, ResolveOptions.WITH_READ_CREDENTIALS, AuthContext.of(ALICE))
+                .additionalProperties();
+    // They cover the table's location, alongside the same metadata.
+    assertEquals(1, withCredentials.readCredentials().size());
+    assertEquals(root, withCredentials.readCredentials().get(0).prefix());
+    assertEquals(table.metadata(), withCredentials.metadata());
+  }
+
+  @Test
+  void failsToResolveAnIcebergTableWhoseMetadataIsMissing(@TempDir Path tables) {
+    // A catalog that points an Iceberg table at a metadata file that doesn't exist.
+    LocalCatalogConnector connector =
+        connector(
+            """
+            assets:
+              - identifier: main.lake.trips
+                storageLocation: %s
+                format: iceberg
+                metadataLocation: %s
+            """
+                .formatted(tables.toUri(), tables.resolve("metadata/00001.metadata.json").toUri()));
+
+    // Resolving the table fails as a catalog error.
+    assertThrows(
+        CatalogException.class,
+        () ->
+            connector.resolveAsset(
+                new Asset(AssetType.TABLE, "main.lake.trips"),
+                ResolveOptions.DEFAULT,
+                AuthContext.of(ALICE)));
   }
 
   @Test
@@ -134,7 +181,7 @@ class LocalCatalogConnectorTest {
 
     assertThrows(
         AssetNotFoundException.class,
-        () -> connector.resolveAsset(lookup, AuthContext.of(ALICE)));
+        () -> connector.resolveAsset(lookup, ResolveOptions.DEFAULT, AuthContext.of(ALICE)));
   }
 
   /**
@@ -151,7 +198,7 @@ class LocalCatalogConnectorTest {
     Asset lookup = new Asset(AssetType.TABLE, "main.finance.ledger");
     assertThrows(
         AssetAccessDeniedException.class,
-        () -> connector.resolveAsset(lookup, AuthContext.of(BOB)));
+        () -> connector.resolveAsset(lookup, ResolveOptions.DEFAULT, AuthContext.of(BOB)));
   }
 
   @Test
@@ -161,7 +208,7 @@ class LocalCatalogConnectorTest {
     UserContext impostor = UserContext.fromUserIdAndName("catalog-mallory-id", "alice");
     assertThrows(
         AssetAccessDeniedException.class,
-        () -> connector.resolveAsset(lookup, AuthContext.of(impostor)));
+        () -> connector.resolveAsset(lookup, ResolveOptions.DEFAULT, AuthContext.of(impostor)));
   }
 
   @Test
@@ -216,7 +263,9 @@ class LocalCatalogConnectorTest {
   }
 
   private static ResolvedAsset resolve(String identifier, UserContext user) {
-    return sample().resolveAsset(new Asset(AssetType.TABLE, identifier), AuthContext.of(user));
+    return sample()
+        .resolveAsset(
+            new Asset(AssetType.TABLE, identifier), ResolveOptions.DEFAULT, AuthContext.of(user));
   }
 
   @Test
@@ -285,7 +334,6 @@ class LocalCatalogConnectorTest {
     assertEquals(
         List.of(), sample().listChildren(finance, 100, null, AuthContext.of(BOB)).assets());
   }
-
 
   @Test
   void refusesToListWhatIsNotAContainer() {

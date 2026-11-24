@@ -25,9 +25,10 @@ public interface CatalogConnector {
 
   /**
    * Resolves an asset as {@code auth}. Also the existence check: missing assets throw {@link
-   * AssetNotFoundException}.
+   * AssetNotFoundException}. {@code options} says whether to include read credentials for an
+   * Iceberg table's storage location.
    */
-  ResolvedAsset resolveAsset(Asset asset, AuthContext auth);
+  ResolvedAsset resolveAsset(Asset asset, ResolveOptions options, AuthContext auth);
 
   /**
    * Lists one page of the assets under a container such as a schema, as {@code auth}. The listing

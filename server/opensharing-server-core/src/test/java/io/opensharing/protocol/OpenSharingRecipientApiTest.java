@@ -13,6 +13,7 @@ import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.CredentialRequest;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.http.ApiJson;
@@ -92,7 +93,7 @@ class OpenSharingRecipientApiTest {
     }
 
     @Override
-    public ResolvedAsset resolveAsset(Asset asset, AuthContext auth) {
+    public ResolvedAsset resolveAsset(Asset asset, ResolveOptions options, AuthContext auth) {
       throw new UnsupportedOperationException();
     }
 

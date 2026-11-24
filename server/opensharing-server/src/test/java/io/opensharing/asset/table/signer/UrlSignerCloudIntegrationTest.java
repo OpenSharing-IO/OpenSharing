@@ -15,6 +15,7 @@ import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.CredentialRequest;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
@@ -66,7 +67,8 @@ class UrlSignerCloudIntegrationTest {
   }
 
   private void signAndRead(String fullName, String signatureMarker) throws Exception {
-    ResolvedAsset table = catalog.resolveAsset(new Asset(AssetType.TABLE, fullName), AUTH);
+    ResolvedAsset table =
+        catalog.resolveAsset(new Asset(AssetType.TABLE, fullName), ResolveOptions.DEFAULT, AUTH);
     String path;
     try (DeltaKernel.Session session = kernel.open(table, AUTH)) {
       path = firstDataFile(session);
