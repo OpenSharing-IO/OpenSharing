@@ -105,6 +105,18 @@ public final class StorageLocations {
     return location;
   }
 
+  /** Normalizes a catalog credential prefix for Iceberg path comparisons. */
+  public static String icebergCredentialPath(String prefix) {
+    if (prefix == null || prefix.isBlank()) {
+      throw new CatalogException("the catalog returned credentials without a storage prefix");
+    }
+    try {
+      return icebergPath(prefix);
+    } catch (IllegalStateException invalid) {
+      throw new CatalogException("the catalog returned credentials for an invalid prefix", invalid);
+    }
+  }
+
   public static String encodePath(String key) {
     StringBuilder path = new StringBuilder();
     for (String segment : key.split("/", -1)) {
