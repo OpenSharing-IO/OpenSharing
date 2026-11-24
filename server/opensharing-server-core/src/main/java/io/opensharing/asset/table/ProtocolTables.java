@@ -186,6 +186,11 @@ public class ProtocolTables {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(minted));
   }
 
+  /** The catalog table one table of the share resolves to, by its schema and table aliases. */
+  public ResolvedAsset resolveTable(ShareEntity share, String schemaAlias, String tableAlias) {
+    return findTable(share, schemaAlias, tableAlias).catalogTable();
+  }
+
   /**
    * One snapshot of a table in the share that supports url access, as of the latest version,
    * {@code version}, or an ISO-8601 {@code timestamp} in {@code request}, with presigned file

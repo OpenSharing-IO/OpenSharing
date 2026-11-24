@@ -68,7 +68,7 @@ class IcebergListTablesReadTest {
           }
         };
     // Exercise the real protocol and service over those dependencies.
-    ProtocolIcebergTables catalog = new ProtocolIcebergTables(shares, objects);
+    ProtocolIcebergTables catalog = new ProtocolIcebergTables(shares, objects, null);
     // Namespace listing is not used by this test.
     IcebergRestCatalogService service = new IcebergRestCatalogService(shares, null, catalog);
     // Construct a context for the request.

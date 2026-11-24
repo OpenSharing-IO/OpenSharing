@@ -1,5 +1,6 @@
 package io.opensharing.asset.table;
 
+import io.opensharing.exception.CatalogException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Set;
@@ -80,6 +81,28 @@ public final class StorageLocations {
         authority.substring(0, at),
         authority.substring(at + 1),
         slash < 0 ? "" : rest.substring(slash + 1));
+  }
+
+  /**
+   * {@code location} as Iceberg locations are compared: the S3 aliases (s3a, s3n) as s3, and R2
+   * objects, which Iceberg reads through S3FileIO, as s3 paths. A malformed R2 location comes from
+   * the catalog, so it is a catalog failure.
+   */
+  public static String icebergPath(String location) {
+    String scheme = scheme(location);
+    if (S3_SCHEMES.contains(scheme)) {
+      return "s3" + location.substring(scheme.length());
+    }
+    if ("r2".equals(scheme)) {
+      R2Object object;
+      try {
+        object = r2Object(location);
+      } catch (IllegalStateException malformed) {
+        throw new CatalogException("malformed R2 location '" + location + "'", malformed);
+      }
+      return "s3://" + object.bucket() + "/" + object.key();
+    }
+    return location;
   }
 
   public static String encodePath(String key) {
