@@ -49,6 +49,7 @@ class IcebergStorageCredentialTest {
 
   @Test
   void mapsAwsSessionCredentialsAndRegion() {
+    // Map AWS session credentials with a region.
     IcebergStorageCredential credential =
         IcebergStorageCredential.from(
             new StorageCredentials(
@@ -61,6 +62,7 @@ class IcebergStorageCredentialTest {
                     StorageCredentials.REGION, "us-west-2"),
                 EXPIRATION));
 
+    // They keep their prefix, under Iceberg's s3.* and client.region keys, with the expiry.
     assertEquals("s3://bucket/table/", credential.prefix());
     assertEquals(
         Map.of(
@@ -74,6 +76,7 @@ class IcebergStorageCredentialTest {
 
   @Test
   void mapsR2CredentialsWithTheAccountsEndpoint() {
+    // Map R2 credentials for an r2:// prefix.
     IcebergStorageCredential credential =
         IcebergStorageCredential.from(
             new StorageCredentials(
@@ -85,6 +88,7 @@ class IcebergStorageCredentialTest {
                     StorageCredentials.SESSION_TOKEN, "session"),
                 EXPIRATION));
 
+    // They are S3 credentials at the account's endpoint, with path-style access and region auto.
     // Iceberg's S3FileIO opens R2 objects through s3:// paths.
     assertEquals("s3://bucket/table/", credential.prefix());
     // The endpoint still identifies the R2 account.
@@ -97,6 +101,7 @@ class IcebergStorageCredentialTest {
 
   @Test
   void keysAnAzureSasTokenByTheAccountsHostAndName() {
+    // Map an Azure SAS token for an abfss:// prefix.
     IcebergStorageCredential credential =
         IcebergStorageCredential.from(
             new StorageCredentials(
@@ -105,6 +110,7 @@ class IcebergStorageCredentialTest {
                 Map.of(StorageCredentials.SAS_TOKEN, "sv=sig"),
                 EXPIRATION));
 
+    // The token and its expiry are keyed by the account's host and by its name.
     assertEquals(
         Map.of(
             "adls.sas-token.account.dfs.core.windows.net", "sv=sig",
@@ -116,6 +122,7 @@ class IcebergStorageCredentialTest {
 
   @Test
   void mapsAGcsOauthToken() {
+    // Map a GCS OAuth token.
     IcebergStorageCredential credential =
         IcebergStorageCredential.from(
             new StorageCredentials(
@@ -124,6 +131,7 @@ class IcebergStorageCredentialTest {
                 Map.of(StorageCredentials.OAUTH_TOKEN, "ya29.token"),
                 EXPIRATION));
 
+    // It is gcs.oauth2.token, with its expiry.
     assertEquals(
         Map.of("gcs.oauth2.token", "ya29.token", "gcs.oauth2.token-expires-at", EXPIRES_AT),
         credential.config());
@@ -131,6 +139,7 @@ class IcebergStorageCredentialTest {
 
   @Test
   void requiresAnExpirationAndTheProvidersFields() {
+    // Credentials without an expiration are rejected.
     assertThrows(
         CatalogException.class,
         () ->
@@ -140,6 +149,7 @@ class IcebergStorageCredentialTest {
                     CloudProvider.GCP,
                     Map.of(StorageCredentials.OAUTH_TOKEN, "ya29.token"),
                     null)));
+    // AWS credentials missing their secret are rejected.
     assertThrows(
         CatalogException.class,
         () ->
@@ -153,6 +163,7 @@ class IcebergStorageCredentialTest {
 
   @Test
   void neverPrintsTheSecrets() {
+    // Print mapped GCS credentials.
     String printed =
         IcebergStorageCredential.from(
                 new StorageCredentials(
@@ -162,6 +173,7 @@ class IcebergStorageCredentialTest {
                     EXPIRATION))
             .toString();
 
+    // The token is left out; its key name is kept.
     assertFalse(printed.contains("ya29.token"));
     assertTrue(printed.contains("gcs.oauth2.token"));
   }
