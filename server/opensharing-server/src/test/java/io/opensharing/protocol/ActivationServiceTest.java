@@ -72,6 +72,7 @@ class ActivationServiceTest {
     // The Iceberg REST catalog is served under the endpoint, with the same bearer token.
     String icebergEndpoint = profile.body().path("icebergEndpoint").asText();
     assertEquals(profile.body().path("endpoint").asText() + "/iceberg", icebergEndpoint);
+    // Calling it with the profile's token reaches the catalog, which forbids the unknown share.
     Response config =
         server.get(URI.create(icebergEndpoint).getPath() + "/v1/config?warehouse=none", bearer);
     assertEquals(403, config.status());
