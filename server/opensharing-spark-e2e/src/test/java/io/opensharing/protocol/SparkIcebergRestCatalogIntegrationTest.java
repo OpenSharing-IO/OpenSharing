@@ -32,6 +32,7 @@ class SparkIcebergRestCatalogIntegrationTest extends ProtocolApiSupport {
 
   @BeforeAll
   static void writeTheTableAndStartTheServer() {
+    // Start Spark with a local Hadoop Iceberg catalog for the provider.
     spark =
         SparkSession.builder()
             .master("local[2]")
@@ -43,9 +44,11 @@ class SparkIcebergRestCatalogIntegrationTest extends ProtocolApiSupport {
             .config("spark.sql.catalog.provider.type", "hadoop")
             .config("spark.sql.catalog.provider.warehouse", tmp.resolve("warehouse").toString())
             .getOrCreate();
+    // Write an Iceberg table with two commits.
     spark.sql("CREATE TABLE provider.lake.trips (id BIGINT, city STRING) USING iceberg");
     spark.sql("INSERT INTO provider.lake.trips VALUES (1, 'Lisbon'), (2, 'Oslo')");
     spark.sql("INSERT INTO provider.lake.trips VALUES (3, 'Quito')");
+    // Read where the table and its current metadata are.
     String location = tableLocation();
     String metadataLocation =
         spark
@@ -55,6 +58,7 @@ class SparkIcebergRestCatalogIntegrationTest extends ProtocolApiSupport {
             .first()
             .getString(0);
 
+    // Point the server's local catalog at the table, and restart the server with it.
     String catalog =
         """
         principals:
@@ -85,11 +89,13 @@ class SparkIcebergRestCatalogIntegrationTest extends ProtocolApiSupport {
 
   @Test
   void readsASharedIcebergTableThroughTheRestCatalog() {
+    // Share the table as rides.trips with a recipient.
     createShare("iceberg-spark");
     addObject("iceberg-spark", "TABLE", "main.lake.trips", "rides.trips");
     String bearer = createAndActivateRecipient("iceberg-spark-partner");
     grant("iceberg-spark", "iceberg-spark-partner");
 
+    // Configure Spark's Iceberg REST catalog the way the profile file says.
     String icebergEndpoint = "http://127.0.0.1:" + server.server().port() + PROTOCOL + "/iceberg";
     String shared = "spark.sql.catalog.shared";
     spark.conf().set(shared, "org.apache.iceberg.spark.SparkCatalog");
@@ -99,8 +105,10 @@ class SparkIcebergRestCatalogIntegrationTest extends ProtocolApiSupport {
     spark.conf().set(shared + ".token", bearer);
     spark.conf().set(shared + ".header.X-Iceberg-Access-Delegation", "vended-credentials");
 
+    // Spark lists the share's namespace and its table.
     assertEquals(List.of("rides"), strings("SHOW NAMESPACES IN shared", 0));
     assertEquals(List.of("trips"), strings("SHOW TABLES IN shared.rides", 1));
+    // Spark reads all three rows through the catalog.
     List<Row> rows =
         spark.sql("SELECT id, city FROM shared.rides.trips ORDER BY id").collectAsList();
     assertEquals(3, rows.size());
