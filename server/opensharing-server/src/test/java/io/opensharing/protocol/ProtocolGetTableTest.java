@@ -33,11 +33,13 @@ class ProtocolGetTableTest extends ProtocolApiSupport {
 
   @Test
   void reportsAnIcebergTablesFormat() {
+    // Share the sample Iceberg table with a recipient.
     createShare("get-iceberg");
     addObject("get-iceberg", "TABLE", "main.lake.trips", "lake.trips");
     String bearer = createAndActivateRecipient("get-iceberg-partner");
     grant("get-iceberg", "get-iceberg-partner");
 
+    // Get Table reports its format as iceberg.
     Response got = server.get(PROTOCOL + "/shares/get-iceberg/schemas/lake/tables/trips", bearer);
     assertEquals(200, got.status());
     assertEquals("iceberg", got.body().path("format").asText());

@@ -71,6 +71,7 @@ class LocalCatalogConnectorTest {
 
   @Test
   void resolvesIcebergTableWithItsMetadataLocation() {
+    // A catalog with one Iceberg table that names its metadata file.
     String yaml =
         """
         assets:
@@ -82,10 +83,12 @@ class LocalCatalogConnectorTest {
             metadataLocation: s3://test/trips/metadata/00001.metadata.json
         """;
 
+    // Resolve the table.
     ResolvedAsset asset =
         connector(yaml)
             .resolveAsset(new Asset(AssetType.TABLE, "main.lake.trips"), AuthContext.of(ALICE));
 
+    // It keeps its location, and reports the Iceberg format and metadata location.
     assertEquals("s3://test/trips/", asset.location().storageLocation());
     assertEquals(
         new TableProperties(
@@ -97,6 +100,7 @@ class LocalCatalogConnectorTest {
 
   @Test
   void rejectsUnknownTableFormat() {
+    // A catalog with a table in a format OpenSharing doesn't know.
     String yaml =
         """
         assets:
@@ -105,6 +109,7 @@ class LocalCatalogConnectorTest {
             format: hudi
         """;
 
+    // Loading the catalog fails.
     assertThrows(RuntimeException.class, () -> connector(yaml));
   }
 

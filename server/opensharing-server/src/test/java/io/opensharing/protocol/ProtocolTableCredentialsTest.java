@@ -13,11 +13,13 @@ class ProtocolTableCredentialsTest extends ProtocolApiSupport {
   /** An Iceberg table has no Delta log to serve files from, so its files are read directly. */
   @Test
   void vendsTemporaryCredentialsForAnIcebergTable() {
+    // Share the sample Iceberg table with a recipient.
     createShare("iceberg-creds");
     addObject("iceberg-creds", "TABLE", "main.lake.trips", "lake.trips");
     String bearer = createAndActivateRecipient("iceberg-creds-partner");
     grant("iceberg-creds", "iceberg-creds-partner");
 
+    // Temporary credentials cover the table's location.
     Response vended = server.post(credentials("iceberg-creds", "lake", "trips"), bearer, null);
     assertEquals(200, vended.status());
     assertEquals(
