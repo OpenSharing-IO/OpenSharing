@@ -21,6 +21,7 @@ class IcebergReportMetricsTest extends LocalIcebergTableSupport {
 
   @Test
   void acceptsAScanReportForAnIcebergTable() {
+    // Share an Iceberg table and a Delta table under lake.
     createShare("iceberg-metrics");
     addObject("iceberg-metrics", "TABLE", "main.lake.trips", "lake.trips");
     addObject("iceberg-metrics", "TABLE", "main.sales.orders", "lake.orders");
@@ -28,18 +29,22 @@ class IcebergReportMetricsTest extends LocalIcebergTableSupport {
     grant("iceberg-metrics", "iceberg-metrics-partner");
     String tablesPath = ICEBERG + "/v1/shares/iceberg-metrics/namespaces/lake/tables/";
 
+    // A scan report for the Iceberg table is accepted with no content.
     Response reported = server.post(tablesPath + "TRIPS/metrics", bearer, SCAN_REPORT);
     assertEquals(204, reported.status());
 
+    // One for the Delta table is a missing table.
     assertIcebergError(
         server.post(tablesPath + "orders/metrics", bearer, SCAN_REPORT),
         404,
         "NoSuchTableException");
+    // So is one for a table the share doesn't have.
     assertIcebergError(
         server.post(tablesPath + "missing/metrics", bearer, SCAN_REPORT),
         404,
         "NoSuchTableException");
 
+    // getConfig lists reportMetrics.
     JsonNode endpoints =
         server
             .get(ICEBERG + "/v1/config?warehouse=iceberg-metrics", bearer)
