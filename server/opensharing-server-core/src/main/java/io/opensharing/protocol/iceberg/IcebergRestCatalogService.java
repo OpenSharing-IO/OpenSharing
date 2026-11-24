@@ -83,13 +83,22 @@ public final class IcebergRestCatalogService {
       @Param @Nullable Integer pageSize,
       @Param @Nullable String pageToken) {
     requirePageSize(pageSize);
-    ShareEntity granted = share(ctx, share);
     if (parent != null && !parent.isEmpty()) {
-      namespace(granted, parent);
+      namespace(share(ctx, share), parent);
       return new NamespacesResponse(List.of(), null);
     }
     ListResponse<SchemaResponse> page =
-        listPage(pageSize, pageToken, (size, token) -> schemas.list(granted, size, token));
+        listPage(
+            pageSize,
+            pageToken,
+            (size, token) ->
+                asNoSuchNamespace(
+                    () ->
+                        schemas.list(
+                            RecipientTokenDecorator.recipient(ctx),
+                            ObjectNames.normalize(share),
+                            size,
+                            token)));
     return new NamespacesResponse(
         page.items().stream().map(schema -> List.of(schema.name())).toList(),
         page.nextPageToken());

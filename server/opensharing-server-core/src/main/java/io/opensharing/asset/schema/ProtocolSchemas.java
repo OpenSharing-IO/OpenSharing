@@ -27,12 +27,7 @@ public class ProtocolSchemas {
   /** Lists one page of the share's schemas by schema alias. */
   public ListResponse<SchemaResponse> list(
       RecipientPrincipal recipient, String shareName, Integer maxResults, String pageToken) {
-    return list(protocolShares.requireGranted(recipient, shareName), maxResults, pageToken);
-  }
-
-  /** Lists one page of the schemas of a share the recipient holds SELECT on, by schema alias. */
-  public ListResponse<SchemaResponse> list(
-      ShareEntity share, Integer maxResults, String pageToken) {
+    ShareEntity share = protocolShares.requireGranted(recipient, shareName);
     return Pagination.protocolPage(
         maxResults,
         pageToken,
