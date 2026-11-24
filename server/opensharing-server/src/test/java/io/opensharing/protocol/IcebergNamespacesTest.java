@@ -70,30 +70,15 @@ class IcebergNamespacesTest extends LocalIcebergTableSupport {
     assertTrue(response.body().path("next-page-token").isNull());
   }
 
+  /** A share the recipient holds no SELECT on has no namespaces it can see. */
   @Test
-  void loadsANamespaceAndReportsMissingOnesAsNoSuchNamespace() {
-    createShare("iceberg-ns-load");
-    addObject("iceberg-ns-load", "TABLE", "main.sales.orders", "sales.orders");
+  void reportsAnUngrantedShareAsNoSuchNamespace() {
+    // A share the recipient is not granted.
     createShare("iceberg-ns-hidden");
     addObject("iceberg-ns-hidden", "TABLE", "main.sales.orders", "sales.orders");
-    String bearer = createAndActivateRecipient("iceberg-ns-load-partner");
-    grant("iceberg-ns-load", "iceberg-ns-load-partner");
-    String namespaces = ICEBERG + "/v1/shares/iceberg-ns-load/namespaces/";
+    String bearer = createAndActivateRecipient("iceberg-ns-stranger");
 
-    Response loaded = server.get(namespaces + "SALES", bearer);
-    assertEquals(200, loaded.status());
-    assertEquals("sales", loaded.body().path("namespace").path(0).asText());
-    assertTrue(loaded.body().path("properties").isObject());
-
-    assertIcebergError(server.get(namespaces + "missing", bearer), 404, "NoSuchNamespaceException");
-    // Iceberg joins a nested namespace's levels with the unit separator.
-    assertIcebergError(
-        server.get(namespaces + "sales%1Forders", bearer), 404, "NoSuchNamespaceException");
-    // A share the recipient holds no SELECT on has no namespaces it can see.
-    assertIcebergError(
-        server.get(ICEBERG + "/v1/shares/iceberg-ns-hidden/namespaces/sales", bearer),
-        404,
-        "NoSuchNamespaceException");
+    // Listing its namespaces finds none.
     assertIcebergError(
         server.get(ICEBERG + "/v1/shares/iceberg-ns-hidden/namespaces", bearer),
         404,
@@ -101,12 +86,42 @@ class IcebergNamespacesTest extends LocalIcebergTableSupport {
   }
 
   @Test
+  void loadsANamespaceAndReportsMissingOnesAsNoSuchNamespace() {
+    // Share one schema, sales, with a recipient, and another share it is not granted.
+    createShare("iceberg-ns-load");
+    addObject("iceberg-ns-load", "TABLE", "main.sales.orders", "sales.orders");
+    createShare("iceberg-ns-load-hidden");
+    addObject("iceberg-ns-load-hidden", "TABLE", "main.sales.orders", "sales.orders");
+    String bearer = createAndActivateRecipient("iceberg-ns-load-partner");
+    grant("iceberg-ns-load", "iceberg-ns-load-partner");
+    String namespaces = ICEBERG + "/v1/shares/iceberg-ns-load/namespaces/";
+
+    // The schema loads, looked up case-insensitively, as a one-level namespace.
+    Response loaded = server.get(namespaces + "SALES", bearer);
+    assertEquals(200, loaded.status());
+    assertEquals("sales", loaded.body().path("namespace").path(0).asText());
+    assertTrue(loaded.body().path("properties").isObject());
+
+    // A schema the share doesn't have is a missing namespace.
+    assertIcebergError(server.get(namespaces + "missing", bearer), 404, "NoSuchNamespaceException");
+    // Iceberg joins a nested namespace's levels with the unit separator; none exists.
+    assertIcebergError(
+        server.get(namespaces + "sales%1Forders", bearer), 404, "NoSuchNamespaceException");
+    // A share the recipient holds no SELECT on has no namespaces it can see.
+    assertIcebergError(
+        server.get(ICEBERG + "/v1/shares/iceberg-ns-load-hidden/namespaces/sales", bearer),
+        404,
+        "NoSuchNamespaceException");
+  }
+
+  @Test
   void configListsTheNamespaceEndpoints() {
+    // Grant a recipient SELECT on a share.
     createShare("iceberg-ns-config");
     String bearer = createAndActivateRecipient("iceberg-ns-config-partner");
     grant("iceberg-ns-config", "iceberg-ns-config-partner");
 
-    // getConfig lists listNamespaces.
+    // getConfig lists listNamespaces and loadNamespaceMetadata.
     JsonNode endpoints =
         server.get(ICEBERG + "/v1/config?warehouse=iceberg-ns-config", bearer)
             .body()
