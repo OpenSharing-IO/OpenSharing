@@ -29,7 +29,7 @@ class IcebergReportMetricsTest extends LocalIcebergTableSupport {
     grant("iceberg-metrics", "iceberg-metrics-partner");
     String tablesPath = ICEBERG + "/v1/shares/iceberg-metrics/namespaces/lake/tables/";
 
-    // A scan report for the Iceberg table is accepted with no content.
+    // A scan report for the Iceberg table is logged and accepted with no content.
     Response reported = server.post(tablesPath + "TRIPS/metrics", bearer, SCAN_REPORT);
     assertEquals(204, reported.status());
 

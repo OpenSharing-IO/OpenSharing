@@ -21,12 +21,15 @@ import io.opensharing.asset.table.iceberg.ProtocolIcebergTables;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.protocol.RecipientTokenDecorator;
+import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.share.ShareEntity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The read-only Iceberg REST catalog of {@code spec/protocols/TABLES.md}, where a profile file's
@@ -36,6 +39,8 @@ import java.util.function.Supplier;
 @Blocking
 @ProducesJson
 public final class IcebergRestCatalogService {
+
+  private static final Logger log = LoggerFactory.getLogger(IcebergRestCatalogService.class);
 
   /** The operations this catalog serves, which {@code getConfig} lists for clients. */
   static final List<String> ENDPOINTS =
@@ -248,24 +253,29 @@ public final class IcebergRestCatalogService {
   }
 
   /**
-   * {@code POST /v1/shares/{share}/namespaces/{namespace}/tables/{table}/metrics}: accepts a scan
-   * report and drops it. Iceberg clients send one after reading a table, and the scan ran on the
-   * recipient's engine, so there is nothing for the provider to act on, but refusing it would make
-   * every read look like it failed.
+   * {@code POST /v1/shares/{share}/namespaces/{namespace}/tables/{table}/metrics}: logs the report
+   * an Iceberg client sends after reading a table, as received, and does nothing else with it. The
+   * scan ran on the recipient's engine, so there is nothing for the provider to act on.
    */
   @Post("/v1/shares/{share}/namespaces/{namespace}/tables/{table}/metrics")
   public HttpResponse reportMetrics(
       ServiceRequestContext ctx,
       @Param String share,
       @Param String namespace,
-      @Param String table) {
-    asNoSuchTable(
-        () ->
-            catalog.requireTable(
-                RecipientTokenDecorator.recipient(ctx),
-                ObjectNames.normalize(share),
-                ObjectNames.normalize(namespace),
-                ObjectNames.normalize(table)));
+      @Param String table,
+      String report) {
+    RecipientPrincipal recipient = RecipientTokenDecorator.recipient(ctx);
+    String shareName = ObjectNames.normalize(share);
+    String schemaAlias = ObjectNames.normalize(namespace);
+    String tableAlias = ObjectNames.normalize(table);
+    asNoSuchTable(() -> catalog.requireTable(recipient, shareName, schemaAlias, tableAlias));
+    log.info(
+        "Recipient {} reported metrics for '{}.{}' in share '{}': {}",
+        recipient.recipientId(),
+        schemaAlias,
+        tableAlias,
+        shareName,
+        report);
     return HttpResponse.of(HttpStatus.NO_CONTENT);
   }
 

@@ -188,7 +188,7 @@ public class ProtocolIcebergTables {
     return sharedTable;
   }
 
-  /** /** Whether the share recorded {@code sharedObject} as an Iceberg table. */
+  /** Whether the share recorded {@code sharedObject} as an Iceberg table. */
   private static boolean isIcebergTable(SharedDataObjectEntity sharedObject) {
     return sharedObject.getType() == AssetType.TABLE
         && sharedObject.getSourceFormat() == DataSourceFormat.ICEBERG;
