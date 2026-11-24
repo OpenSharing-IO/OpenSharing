@@ -16,6 +16,7 @@ class IcebergListTablesTest extends LocalIcebergTableSupport {
   /** The Iceberg catalog can only load Iceberg tables, so it lists no others. */
   @Test
   void listsOnlyTheNamespacesIcebergTables() {
+    // Share a Delta and an Iceberg table under mixed, and a Delta table under delta.
     createShare("iceberg-tables");
     addObject("iceberg-tables", "TABLE", "main.sales.orders", "mixed.orders");
     addObject("iceberg-tables", "TABLE", "main.lake.trips", "mixed.trips");
@@ -24,6 +25,7 @@ class IcebergListTablesTest extends LocalIcebergTableSupport {
     grant("iceberg-tables", "iceberg-tables-partner");
     String namespaces = ICEBERG + "/v1/shares/iceberg-tables/namespaces/";
 
+    // Under mixed, only the Iceberg table is listed.
     Response mixed = server.get(namespaces + "MIXED/tables", bearer);
     assertEquals(200, mixed.status());
     JsonNode identifiers = mixed.body().path("identifiers");
@@ -37,12 +39,14 @@ class IcebergListTablesTest extends LocalIcebergTableSupport {
     assertEquals(200, delta.status());
     assertEquals(0, delta.body().path("identifiers").size());
 
+    // A schema the share doesn't have is a missing namespace.
     assertIcebergError(
         server.get(namespaces + "missing/tables", bearer), 404, "NoSuchNamespaceException");
   }
 
   @Test
   void pagesThroughIcebergTables() {
+    // Share two Iceberg tables under lake.
     createShare("iceberg-tables-paged");
     addObject("iceberg-tables-paged", "TABLE", "main.lake.trips", "lake.a");
     addObject("iceberg-tables-paged", "TABLE", "main.lake.stations", "lake.b");
@@ -50,9 +54,11 @@ class IcebergListTablesTest extends LocalIcebergTableSupport {
     grant("iceberg-tables-paged", "iceberg-tables-paged-partner");
     String tables = ICEBERG + "/v1/shares/iceberg-tables-paged/namespaces/lake/tables";
 
+    // With pageSize=1 and an empty pageToken, the first page has a and a token for the next.
     Response first = server.get(tables + "?pageSize=1&pageToken=", bearer);
     assertEquals("a", first.body().path("identifiers").path(0).path("name").asText());
     String token = first.body().path("next-page-token").asText();
+    // The token's page has b, and no further token.
     Response second = server.get(tables + "?pageSize=1&pageToken=" + token, bearer);
     assertEquals(1, second.body().path("identifiers").size());
     assertEquals("b", second.body().path("identifiers").path(0).path("name").asText());
