@@ -46,6 +46,10 @@ class ProfileEndpointTest {
       JsonNode body = JSON.readTree(profile.contentUtf8());
       assertEquals(
           "https://sharing.example.com/api/1.0/opensharing", body.path("endpoint").asText());
+      // The Iceberg REST catalog's endpoint is under the profile's endpoint.
+      assertEquals(
+          "https://sharing.example.com/api/1.0/opensharing/iceberg",
+          body.path("icebergEndpoint").asText());
     }
   }
 }

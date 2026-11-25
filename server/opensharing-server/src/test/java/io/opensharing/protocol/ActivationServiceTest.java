@@ -69,7 +69,14 @@ class ActivationServiceTest {
             .path("expirationTime")
             .asText()
             .matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z"));
-    assertTrue(profile.body().path("icebergEndpoint").isMissingNode());
+    // The Iceberg REST catalog is served under the endpoint, with the same bearer token.
+    String icebergEndpoint = profile.body().path("icebergEndpoint").asText();
+    assertEquals(profile.body().path("endpoint").asText() + "/iceberg", icebergEndpoint);
+    // Calling it with the profile's token reaches the catalog, which forbids the unknown share.
+    Response config =
+        server.get(URI.create(icebergEndpoint).getPath() + "/v1/config?warehouse=none", bearer);
+    assertEquals(403, config.status());
+    assertEquals("ForbiddenException", config.body().path("error").path("type").asText());
 
     // Only a hash of the bearer token is stored, and the code is used up.
     RecipientTokenEntity stored = newestToken("acme");
