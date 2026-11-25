@@ -34,3 +34,7 @@ assets:
   - identifier: main.lake.unpointed
     storageLocation: ${tables}unpointed/
     format: iceberg
+  - identifier: main.lake.vanishing
+    storageLocation: ${tables}vanishing/
+    format: iceberg
+    metadataLocation: ${tables}vanishing/metadata/00001.metadata.json

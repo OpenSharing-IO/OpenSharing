@@ -106,6 +106,12 @@ public abstract class ProtocolApiSupport {
         shareName, fullName, sharedObject -> sharedObject.setSourceAssetId("replaced-id"));
   }
 
+  /** Simulates a table moving after it was shared by changing its recorded location. */
+  protected static void moveInCatalog(String shareName, String fullName, String oldLocation) {
+    editSharedObject(
+        shareName, fullName, sharedObject -> sharedObject.setStorageLocation(oldLocation));
+  }
+
   /**
    * Stands in for the catalog dropping the shared object {@code fullName}, by pointing the share at
    * a name the catalog doesn't have.

@@ -38,7 +38,8 @@ public final class IcebergRestCatalogService {
           "GET /v1/{prefix}/namespaces",
           "GET /v1/{prefix}/namespaces/{namespace}",
           "GET /v1/{prefix}/namespaces/{namespace}/tables",
-          "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}");
+          "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
+          "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials");
 
   /** The header an Iceberg client names the ways it accepts access to a table's files in. */
   private static final String ACCESS_DELEGATION = "X-Iceberg-Access-Delegation";
@@ -210,6 +211,26 @@ public final class IcebergRestCatalogService {
       }
     }
     return false;
+  }
+
+  /**
+   * {@code GET /v1/shares/{share}/namespaces/{namespace}/tables/{table}/credentials}: read
+   * credentials for an Iceberg table's location, without its metadata.
+   */
+  @Get("/v1/shares/{share}/namespaces/{namespace}/tables/{table}/credentials")
+  public LoadCredentialsResponse loadCredentials(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String namespace,
+      @Param String table) {
+    return new LoadCredentialsResponse(
+        asNoSuchTable(
+            () ->
+                catalog.loadCredentials(
+                    RecipientTokenDecorator.recipient(ctx),
+                    ObjectNames.normalize(share),
+                    ObjectNames.normalize(namespace),
+                    ObjectNames.normalize(table))));
   }
 
   /** Runs {@code lookup}, reporting what it can't find as a missing table. */
