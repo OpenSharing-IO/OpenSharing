@@ -10,7 +10,10 @@ import java.util.Properties;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Iceberg endpoint tests with temporary Delta tables in {@code main.sales} and {@code main.hr}. */
+/**
+ * Iceberg endpoint tests with temporary catalog tables: Delta tables in {@code main.sales} and
+ * {@code main.hr}, and Iceberg tables in {@code main.lake}.
+ */
 abstract class LocalIcebergTableSupport extends ProtocolApiSupport {
 
   @TempDir static Path tables;

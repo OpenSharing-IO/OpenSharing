@@ -18,3 +18,11 @@ assets:
   - identifier: main.hr.employees
     storageLocation: ${tables}employees/
     format: delta
+  - identifier: main.lake
+    type: SCHEMA
+  - identifier: main.lake.trips
+    storageLocation: ${tables}trips/
+    format: iceberg
+  - identifier: main.lake.stations
+    storageLocation: ${tables}stations/
+    format: iceberg

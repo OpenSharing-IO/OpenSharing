@@ -10,6 +10,7 @@ import io.opensharing.ObjectNames;
 import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.schema.SchemaResponse;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.iceberg.ProtocolIcebergTables;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.protocol.RecipientTokenDecorator;
@@ -33,14 +34,18 @@ public final class IcebergRestCatalogService {
   static final List<String> ENDPOINTS =
       List.of(
           "GET /v1/{prefix}/namespaces",
-          "GET /v1/{prefix}/namespaces/{namespace}");
+          "GET /v1/{prefix}/namespaces/{namespace}",
+          "GET /v1/{prefix}/namespaces/{namespace}/tables");
 
   private final ProtocolShares shares;
   private final ProtocolSchemas schemas;
+  private final ProtocolIcebergTables catalog;
 
-  public IcebergRestCatalogService(ProtocolShares shares, ProtocolSchemas schemas) {
+  public IcebergRestCatalogService(
+      ProtocolShares shares, ProtocolSchemas schemas, ProtocolIcebergTables catalog) {
     this.shares = shares;
     this.schemas = schemas;
+    this.catalog = catalog;
   }
 
   /**
@@ -116,6 +121,42 @@ public final class IcebergRestCatalogService {
                     ObjectNames.normalize(share),
                     ObjectNames.normalize(namespace)));
     return new NamespaceResponse(List.of(schema.name()), Map.of());
+  }
+
+  /**
+   * {@code GET /v1/shares/{share}/namespaces/{namespace}/tables}: its Iceberg tables, all of them
+   * without a pageToken and else one page.
+   */
+  @Get("/v1/shares/{share}/namespaces/{namespace}/tables")
+  public TablesResponse listTables(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String namespace,
+      @Param @Nullable Integer pageSize,
+      @Param @Nullable String pageToken) {
+    requirePageSize(pageSize);
+    String schemaAlias = ObjectNames.normalize(namespace);
+    ListResponse<String> page =
+        asNoSuchNamespace(
+            () ->
+                pageToken == null
+                    ? new ListResponse<>(
+                        catalog.listAllTables(
+                            RecipientTokenDecorator.recipient(ctx),
+                            ObjectNames.normalize(share),
+                            schemaAlias),
+                        null)
+                    : catalog.listTables(
+                        RecipientTokenDecorator.recipient(ctx),
+                        ObjectNames.normalize(share),
+                        schemaAlias,
+                        pageSize,
+                        pageToken));
+    return new TablesResponse(
+        page.items().stream()
+            .map(table -> new TablesResponse.Identifier(List.of(schemaAlias), table))
+            .toList(),
+        page.nextPageToken());
   }
 
   /**
