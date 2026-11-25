@@ -22,6 +22,51 @@ class IcebergStorageCredentialTest {
   private static final String EXPIRES_AT = Long.toString(EXPIRATION.toEpochMilli());
 
   @Test
+  void advertisesRefreshOnlyForExpiringCredentials() {
+    // S3 requires both the session token and expiry.
+    IcebergStorageCredential session =
+        new IcebergStorageCredential(
+            "s3://bucket/t",
+            Map.of("s3.session-token", "token", "s3.session-token-expires-at-ms", "1"));
+    // Session credentials advertise the S3 refresher.
+    assertEquals(
+        "path",
+        session.configWithRefreshEndpoint("path").get("client.refresh-credentials-endpoint"));
+    // Static S3 credentials and an incomplete session cannot use the refresher.
+    for (Map<String, String> config :
+        List.of(Map.of("s3.access-key-id", "key"), Map.of("s3.session-token", "token"))) {
+      assertFalse(
+          new IcebergStorageCredential("s3://bucket/t", config)
+              .configWithRefreshEndpoint("path")
+              .containsKey("client.refresh-credentials-endpoint"));
+    }
+    // GCS and ADLS use their own endpoint keys when expiration is present.
+    IcebergStorageCredential gcs =
+        new IcebergStorageCredential(
+            "gs://bucket/t",
+            Map.of("gcs.oauth2.token", "token", "gcs.oauth2.token-expires-at", "1"));
+    IcebergStorageCredential adls =
+        new IcebergStorageCredential(
+            "abfss://container@acct/t", Map.of("adls.sas-token-expires-at-ms.acct", "1"));
+    // Each refresher sees its provider's endpoint.
+    assertEquals(
+        "path",
+        gcs.configWithRefreshEndpoint("path").get("gcs.oauth2.refresh-credentials-endpoint"));
+    assertEquals(
+        "path", adls.configWithRefreshEndpoint("path").get("adls.refresh-credentials-endpoint"));
+    // Without expiry neither provider advertises refresh.
+    assertFalse(
+        new IcebergStorageCredential("gs://bucket/t", Map.of("gcs.oauth2.token", "token"))
+            .configWithRefreshEndpoint("path")
+            .containsKey("gcs.oauth2.refresh-credentials-endpoint"));
+    assertFalse(
+        new IcebergStorageCredential(
+                "abfss://container@acct/t", Map.of("adls.sas-token.acct", "token"))
+            .configWithRefreshEndpoint("path")
+            .containsKey("adls.refresh-credentials-endpoint"));
+  }
+
+  @Test
   void rejectsCredentialsWithoutACloudProvider() {
     // A missing provider is a catalog error, rather than an unchecked null failure.
     CatalogException error =

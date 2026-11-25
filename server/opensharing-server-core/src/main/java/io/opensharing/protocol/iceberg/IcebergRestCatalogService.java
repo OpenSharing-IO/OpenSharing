@@ -11,6 +11,8 @@ import io.opensharing.ObjectNames;
 import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.schema.SchemaResponse;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.StorageLocations;
+import io.opensharing.asset.table.iceberg.IcebergStorageCredential;
 import io.opensharing.asset.table.iceberg.IcebergTable;
 import io.opensharing.asset.table.iceberg.ProtocolIcebergTables;
 import io.opensharing.http.ApiException;
@@ -196,7 +198,15 @@ public final class IcebergRestCatalogService {
     return new LoadTableResponse(
         loaded.metadataLocation(),
         loaded.metadata(),
-        loaded.credentials().get(0).config(),
+        IcebergStorageCredential.legacyConfig(
+            loaded.credentials(),
+            "v1/shares"
+                + StorageLocations.encodePath(ObjectNames.normalize(share))
+                + "/namespaces"
+                + StorageLocations.encodePath(ObjectNames.normalize(namespace))
+                + "/tables"
+                + StorageLocations.encodePath(ObjectNames.normalize(table))
+                + "/credentials"),
         loaded.credentials());
   }
 

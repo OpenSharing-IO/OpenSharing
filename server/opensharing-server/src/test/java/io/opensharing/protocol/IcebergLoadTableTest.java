@@ -49,8 +49,17 @@ class IcebergLoadTableTest extends LocalIcebergTableSupport {
     assertTrue(config.path("s3.access-key-id").asText().startsWith("ASIA"));
     assertTrue(config.has("s3.secret-access-key"));
     assertTrue(config.path("s3.session-token-expires-at-ms").asLong() > 0);
-    // Clients that predate storage-credentials read the same properties from config.
-    assertEquals(config, body.path("config"));
+    // Iceberg refreshers read the endpoint from the legacy table config.
+    JsonNode legacyConfig = body.path("config");
+    assertEquals(
+        "v1/shares/iceberg-load/namespaces/lake/tables/trips/credentials",
+        legacyConfig.path("client.refresh-credentials-endpoint").asText());
+    // Credential values remain the same in both representations.
+    config.fields()
+        .forEachRemaining(
+            entry -> assertEquals(entry.getValue(), legacyConfig.path(entry.getKey())));
+    // The endpoint is not copied into the storage credential itself.
+    assertTrue(config.path("client.refresh-credentials-endpoint").isMissingNode());
   }
 
   /** As the Iceberg REST spec defines, credentials are only vended to a client that asks. */
