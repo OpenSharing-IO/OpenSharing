@@ -1,11 +1,14 @@
 package io.opensharing.protocol.iceberg;
 
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.annotation.Nullable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Get;
 import com.linecorp.armeria.server.annotation.Header;
 import com.linecorp.armeria.server.annotation.Param;
+import com.linecorp.armeria.server.annotation.Post;
 import com.linecorp.armeria.server.annotation.ProducesJson;
 import io.opensharing.ObjectNames;
 import io.opensharing.asset.schema.ProtocolSchemas;
@@ -18,12 +21,15 @@ import io.opensharing.asset.table.iceberg.ProtocolIcebergTables;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
 import io.opensharing.protocol.RecipientTokenDecorator;
+import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.share.ShareEntity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The read-only Iceberg REST catalog of {@code spec/protocols/TABLES.md}, where a profile file's
@@ -34,6 +40,8 @@ import java.util.function.Supplier;
 @ProducesJson
 public final class IcebergRestCatalogService {
 
+  private static final Logger log = LoggerFactory.getLogger(IcebergRestCatalogService.class);
+
   /** The operations this catalog serves, which {@code getConfig} lists for clients. */
   static final List<String> ENDPOINTS =
       List.of(
@@ -41,7 +49,8 @@ public final class IcebergRestCatalogService {
           "GET /v1/{prefix}/namespaces/{namespace}",
           "GET /v1/{prefix}/namespaces/{namespace}/tables",
           "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}",
-          "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials");
+          "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}/credentials",
+          "POST /v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics");
 
   /** The header an Iceberg client names the ways it accepts access to a table's files in. */
   private static final String ACCESS_DELEGATION = "X-Iceberg-Access-Delegation";
@@ -241,6 +250,41 @@ public final class IcebergRestCatalogService {
                     ObjectNames.normalize(share),
                     ObjectNames.normalize(namespace),
                     ObjectNames.normalize(table))));
+  }
+
+  /**
+   * {@code POST /v1/shares/{share}/namespaces/{namespace}/tables/{table}/metrics}: logs the report
+   * an Iceberg client sends after reading a table, as received, and does nothing else with it. The
+   * scan ran on the recipient's engine, so there is nothing for the provider to act on.
+   */
+  @Post("/v1/shares/{share}/namespaces/{namespace}/tables/{table}/metrics")
+  public HttpResponse reportMetrics(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String namespace,
+      @Param String table,
+      String report) {
+    RecipientPrincipal recipient = RecipientTokenDecorator.recipient(ctx);
+    String shareName = ObjectNames.normalize(share);
+    String schemaAlias = ObjectNames.normalize(namespace);
+    String tableAlias = ObjectNames.normalize(table);
+    asNoSuchTable(() -> catalog.requireTable(recipient, shareName, schemaAlias, tableAlias));
+    log.info(
+        "Recipient {} reported metrics for '{}.{}' in share '{}': {}",
+        recipient.recipientId(),
+        schemaAlias,
+        tableAlias,
+        shareName,
+        report);
+    return HttpResponse.of(HttpStatus.NO_CONTENT);
+  }
+
+  private static void asNoSuchTable(Runnable lookup) {
+    asNoSuchTable(
+        () -> {
+          lookup.run();
+          return null;
+        });
   }
 
   /** Runs {@code lookup}, reporting what it can't find as a missing table. */
