@@ -14,16 +14,19 @@ public final class SharedAssetResolver {
   private SharedAssetResolver() {}
 
   /**
-   * The catalog asset behind {@code sharedObject}, resolved as {@code auth}, or empty once the
-   * catalog has dropped it or replaced it with another asset of the same name. An object shared
-   * without a catalog id is matched by name alone.
+   * The catalog asset behind {@code sharedObject}, resolved as {@code auth} with {@code options},
+   * or empty once the catalog has dropped it or replaced it with another asset of the same name.
+   * An object shared without a catalog id is matched by name alone.
    */
   public static Optional<ResolvedAsset> resolve(
-      CatalogConnector catalog, SharedDataObjectEntity sharedObject, AuthContext auth) {
+      CatalogConnector catalog,
+      SharedDataObjectEntity sharedObject,
+      ResolveOptions options,
+      AuthContext auth) {
     Asset catalogAsset = new Asset(sharedObject.getType(), sharedObject.getFullName());
     ResolvedAsset resolvedAsset;
     try {
-      resolvedAsset = catalog.resolveAsset(catalogAsset, ResolveOptions.DEFAULT, auth);
+      resolvedAsset = catalog.resolveAsset(catalogAsset, options, auth);
     } catch (AssetNotFoundException dropped) {
       return Optional.empty();
     }

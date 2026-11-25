@@ -14,6 +14,7 @@ import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.CredentialRequest;
 import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
@@ -186,9 +187,13 @@ public class ProtocolTables {
     return new TemporaryTableCredentialsResponse(TemporaryCredentials.from(minted));
   }
 
-  /** The catalog table one table of the share resolves to, by its schema and table aliases. */
-  public ResolvedAsset resolveTable(ShareEntity share, String schemaAlias, String tableAlias) {
-    return findTable(share, schemaAlias, tableAlias).catalogTable();
+  /**
+   * The catalog table one table of the share resolves to, by its schema and table aliases, with
+   * what {@code options} asks the catalog for.
+   */
+  public ResolvedAsset resolveTable(
+      ShareEntity share, String schemaAlias, String tableAlias, ResolveOptions options) {
+    return findTable(share, schemaAlias, tableAlias, options).catalogTable();
   }
 
   /**
@@ -375,10 +380,15 @@ public class ProtocolTables {
 
   /** The shared table under {@code schemaAlias} and {@code tableAlias}. */
   private SharedTable findTable(ShareEntity share, String schemaAlias, String tableAlias) {
+    return findTable(share, schemaAlias, tableAlias, ResolveOptions.DEFAULT);
+  }
+
+  private SharedTable findTable(
+      ShareEntity share, String schemaAlias, String tableAlias, ResolveOptions options) {
     Optional<SharedDataObjectEntity> sharedTable =
         sharedObjects.findByAlias(share, schemaAlias, tableAlias);
     if (sharedTable.isPresent()) {
-      ResolvedAsset catalogTable = resolveSharedAsset(share, sharedTable.get());
+      ResolvedAsset catalogTable = resolveSharedAsset(share, sharedTable.get(), options);
       if (catalogTable != null) {
         return new SharedTable(
             schemaAlias, tableAlias, sharedTable.get().getSourceAssetId(), catalogTable);
@@ -469,11 +479,12 @@ public class ProtocolTables {
    * Resolves {@code sharedObject} in the catalog, or logs an error and returns null once the
    * catalog dropped or replaced it, or no longer lets the share's owner share it.
    */
-  private ResolvedAsset resolveSharedAsset(ShareEntity share, SharedDataObjectEntity sharedObject) {
+  private ResolvedAsset resolveSharedAsset(
+      ShareEntity share, SharedDataObjectEntity sharedObject, ResolveOptions options) {
     String type = sharedObject.getType().name().toLowerCase(Locale.ROOT);
     Optional<ResolvedAsset> catalogAsset;
     try {
-      catalogAsset = SharedAssetResolver.resolve(catalog, sharedObject, owner(share));
+      catalogAsset = SharedAssetResolver.resolve(catalog, sharedObject, options, owner(share));
     } catch (AssetAccessDeniedException denied) {
       log.error(
           "Hiding {} '{}' in share '{}': the catalog no longer lets its owner share {} '{}'",

@@ -9,7 +9,9 @@ import io.opensharing.asset.table.ProtocolTables;
 import io.opensharing.asset.table.StorageLocations;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.ResolvedAsset;
+import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.TableProperties;
 import io.opensharing.exception.CatalogException;
 import io.opensharing.http.ApiException;
@@ -19,6 +21,7 @@ import io.opensharing.http.Pagination;
 import io.opensharing.recipient.RecipientPrincipal;
 import io.opensharing.share.ShareEntity;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -82,14 +85,24 @@ public class ProtocolIcebergTables {
   }
 
   /**
-   * The current metadata of an Iceberg table of the share, as the catalog reports it to the share's
-   * owner in one {@code resolveAsset} call. A table of another format is reported as missing, since
-   * the Iceberg catalog has no such table.
+   * The current metadata of an Iceberg table of the share, and read credentials for its location
+   * when {@code withCredentials}, as the catalog reports them to the share's owner in one {@code
+   * resolveAsset} call. A table of another format is reported as missing, since the Iceberg catalog
+   * has no such table.
    */
   public IcebergTable loadTable(
-      RecipientPrincipal recipient, String shareName, String schemaAlias, String tableAlias) {
+      RecipientPrincipal recipient,
+      String shareName,
+      String schemaAlias,
+      String tableAlias,
+      boolean withCredentials) {
     ShareEntity share = protocolShares.requireGranted(recipient, shareName);
-    ResolvedAsset table = protocolTables.resolveTable(share, schemaAlias, tableAlias);
+    ResolvedAsset table =
+        protocolTables.resolveTable(
+            share,
+            schemaAlias,
+            tableAlias,
+            withCredentials ? ResolveOptions.WITH_READ_CREDENTIALS : ResolveOptions.DEFAULT);
     if (!(table.additionalProperties() instanceof TableProperties properties)
         || properties.dataSourceFormat() != DataSourceFormat.ICEBERG) {
       throw ApiException.notFound(
@@ -117,7 +130,12 @@ public class ProtocolIcebergTables {
               + root
               + "'");
     }
-    return new IcebergTable(metadataLocation, parseMetadataJson(table, properties.metadata()));
+    return new IcebergTable(
+        metadataLocation,
+        parseMetadataJson(table, properties.metadata()),
+        withCredentials
+            ? requireCredentialsCoveringRoot(table, properties.readCredentials(), root)
+            : List.of());
   }
 
   /** Whether the share recorded {@code sharedObject} as an Iceberg table. */
@@ -147,5 +165,35 @@ public class ProtocolIcebergTables {
               + "' that is not a JSON object");
     }
     return object;
+  }
+
+  /**
+   * The catalog's read credentials for {@code table}, one of which must cover its {@code root}. The
+   * most specific of those comes first; the others follow in the catalog's order.
+   */
+  static List<IcebergStorageCredential> requireCredentialsCoveringRoot(
+      ResolvedAsset table, List<StorageCredentials> readCredentials, String root) {
+    String normalizedRoot = StorageLocations.icebergPath(root);
+    List<IcebergStorageCredential> credentials = new ArrayList<>();
+    int covering = -1;
+    int longest = -1;
+    for (StorageCredentials candidate : readCredentials) {
+      String prefix = StorageLocations.icebergCredentialPath(candidate.prefix());
+      credentials.add(IcebergStorageCredential.from(candidate));
+      if (StorageLocations.covers(prefix, normalizedRoot) && prefix.length() > longest) {
+        covering = credentials.size() - 1;
+        longest = prefix.length();
+      }
+    }
+    if (covering < 0) {
+      throw new CatalogException(
+          "catalog returned no read credentials covering '"
+              + root
+              + "' for table '"
+              + table.fullName()
+              + "'");
+    }
+    credentials.add(0, credentials.remove(covering));
+    return List.copyOf(credentials);
   }
 }

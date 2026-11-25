@@ -5,9 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.opensharing.catalog.CloudProvider;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.exception.CatalogException;
+import io.opensharing.protocol.iceberg.LoadTableResponse;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -159,6 +162,34 @@ class IcebergStorageCredentialTest {
                     CloudProvider.AWS,
                     Map.of(StorageCredentials.ACCESS_KEY_ID, "ASIATEST"),
                     EXPIRATION)));
+  }
+
+  @Test
+  void tableAndResponseDoNotPrintMetadataOrCredentialValues() {
+    // Metadata can contain sensitive data.
+    ObjectNode metadata = JsonNodeFactory.instance.objectNode().put("field", "private-metadata");
+    // Credential values must be kept out of logs.
+    IcebergStorageCredential credential =
+        new IcebergStorageCredential("s3://bucket/table/", Map.of("secret-key", "private-value"));
+    // The internal table holds both metadata and credentials.
+    IcebergTable table =
+        new IcebergTable("s3://bucket/table/metadata.json", metadata, List.of(credential));
+    // The response also carries config values.
+    LoadTableResponse response =
+        new LoadTableResponse(
+            table.metadataLocation(), metadata, credential.config(), List.of(credential));
+
+    // Check both string representations.
+    for (String printed : List.of(table.toString(), response.toString())) {
+      // The location remains useful for diagnosis.
+      assertTrue(printed.contains("s3://bucket/table/"));
+      // The metadata is not exposed.
+      assertFalse(printed.contains("private-metadata"));
+      // The credential value is not exposed.
+      assertFalse(printed.contains("private-value"));
+    }
+    // The response includes config keys and credential prefixes.
+    assertTrue(response.toString().contains("secret-key"));
   }
 
   @Test

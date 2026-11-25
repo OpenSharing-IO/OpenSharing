@@ -267,7 +267,8 @@ public class ShareService {
   private void requireStillShared(ShareEntity share, SharedDataObjectEntity sharedObject) {
     AuthContext owner =
         new AuthContext(serverId, UserContext.fromUserIdAndName(share.getOwnerId(), null));
-    if (SharedAssetResolver.resolve(catalog, sharedObject, owner).isEmpty()) {
+    if (SharedAssetResolver.resolve(catalog, sharedObject, ResolveOptions.DEFAULT, owner)
+        .isEmpty()) {
       throw ApiException.conflict(
           sharedObject.getType().name().toLowerCase(Locale.ROOT)
               + " '"

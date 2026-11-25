@@ -4,6 +4,7 @@ import com.linecorp.armeria.common.annotation.Nullable;
 import com.linecorp.armeria.server.ServiceRequestContext;
 import com.linecorp.armeria.server.annotation.Blocking;
 import com.linecorp.armeria.server.annotation.Get;
+import com.linecorp.armeria.server.annotation.Header;
 import com.linecorp.armeria.server.annotation.Param;
 import com.linecorp.armeria.server.annotation.ProducesJson;
 import io.opensharing.ObjectNames;
@@ -38,6 +39,11 @@ public final class IcebergRestCatalogService {
           "GET /v1/{prefix}/namespaces/{namespace}",
           "GET /v1/{prefix}/namespaces/{namespace}/tables",
           "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}");
+
+  /** The header an Iceberg client names the ways it accepts access to a table's files in. */
+  private static final String ACCESS_DELEGATION = "X-Iceberg-Access-Delegation";
+
+  private static final String VENDED_CREDENTIALS = "vended-credentials";
 
   private final ProtocolShares shares;
   private final ProtocolSchemas schemas;
@@ -163,14 +169,17 @@ public final class IcebergRestCatalogService {
 
   /**
    * {@code GET /v1/shares/{share}/namespaces/{namespace}/tables/{table}}: an Iceberg table's
-   * current metadata.
+   * current metadata, and read credentials for its location when the client asks for them with
+   * {@code X-Iceberg-Access-Delegation: vended-credentials}, as the Iceberg REST spec defines.
    */
   @Get("/v1/shares/{share}/namespaces/{namespace}/tables/{table}")
   public LoadTableResponse loadTable(
       ServiceRequestContext ctx,
       @Param String share,
       @Param String namespace,
-      @Param String table) {
+      @Param String table,
+      @Header(ACCESS_DELEGATION) @Nullable String accessDelegation) {
+    boolean withCredentials = requestsVendedCredentials(accessDelegation);
     IcebergTable loaded =
         asNoSuchTable(
             () ->
@@ -178,8 +187,29 @@ public final class IcebergRestCatalogService {
                     RecipientTokenDecorator.recipient(ctx),
                     ObjectNames.normalize(share),
                     ObjectNames.normalize(namespace),
-                    ObjectNames.normalize(table)));
-    return new LoadTableResponse(loaded.metadataLocation(), loaded.metadata());
+                    ObjectNames.normalize(table),
+                    withCredentials));
+    if (!withCredentials) {
+      return new LoadTableResponse(loaded.metadataLocation(), loaded.metadata(), null, null);
+    }
+    return new LoadTableResponse(
+        loaded.metadataLocation(),
+        loaded.metadata(),
+        loaded.credentials().get(0).config(),
+        loaded.credentials());
+  }
+
+  /** Whether the client's comma-separated access delegation mechanisms include vended ones. */
+  private static boolean requestsVendedCredentials(String accessDelegation) {
+    if (accessDelegation == null) {
+      return false;
+    }
+    for (String mechanism : accessDelegation.split(",")) {
+      if (mechanism.trim().equalsIgnoreCase(VENDED_CREDENTIALS)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Runs {@code lookup}, reporting what it can't find as a missing table. */
