@@ -77,7 +77,8 @@ public final class OpenSharing {
             new DeltaTableQueryReader(kernel, new UrlSigners()),
             protocolShares,
             objectStore);
-    this.protocolIcebergTables = new ProtocolIcebergTables(protocolShares, objectStore);
+    this.protocolIcebergTables =
+        new ProtocolIcebergTables(protocolShares, objectStore, protocolTables);
   }
 
   public static Builder builder() {

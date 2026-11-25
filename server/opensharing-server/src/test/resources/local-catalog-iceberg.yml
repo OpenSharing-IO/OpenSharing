@@ -23,6 +23,14 @@ assets:
   - identifier: main.lake.trips
     storageLocation: ${tables}trips/
     format: iceberg
+    metadataLocation: ${tables}trips/metadata/00001-9c12d441-03fe-4693-9a96-a0705ddf69c1.metadata.json
   - identifier: main.lake.stations
     storageLocation: ${tables}stations/
+    format: iceberg
+  - identifier: main.lake.astray
+    storageLocation: ${tables}astray/
+    format: iceberg
+    metadataLocation: ${tables}elsewhere/metadata/00001.metadata.json
+  - identifier: main.lake.unpointed
+    storageLocation: ${tables}unpointed/
     format: iceberg

@@ -10,6 +10,7 @@ import io.opensharing.ObjectNames;
 import io.opensharing.asset.schema.ProtocolSchemas;
 import io.opensharing.asset.schema.SchemaResponse;
 import io.opensharing.asset.share.ProtocolShares;
+import io.opensharing.asset.table.iceberg.IcebergTable;
 import io.opensharing.asset.table.iceberg.ProtocolIcebergTables;
 import io.opensharing.http.ApiException;
 import io.opensharing.http.ListResponse;
@@ -35,7 +36,8 @@ public final class IcebergRestCatalogService {
       List.of(
           "GET /v1/{prefix}/namespaces",
           "GET /v1/{prefix}/namespaces/{namespace}",
-          "GET /v1/{prefix}/namespaces/{namespace}/tables");
+          "GET /v1/{prefix}/namespaces/{namespace}/tables",
+          "GET /v1/{prefix}/namespaces/{namespace}/tables/{table}");
 
   private final ProtocolShares shares;
   private final ProtocolSchemas schemas;
@@ -157,6 +159,39 @@ public final class IcebergRestCatalogService {
             .map(table -> new TablesResponse.Identifier(List.of(schemaAlias), table))
             .toList(),
         page.nextPageToken());
+  }
+
+  /**
+   * {@code GET /v1/shares/{share}/namespaces/{namespace}/tables/{table}}: an Iceberg table's
+   * current metadata.
+   */
+  @Get("/v1/shares/{share}/namespaces/{namespace}/tables/{table}")
+  public LoadTableResponse loadTable(
+      ServiceRequestContext ctx,
+      @Param String share,
+      @Param String namespace,
+      @Param String table) {
+    IcebergTable loaded =
+        asNoSuchTable(
+            () ->
+                catalog.loadTable(
+                    RecipientTokenDecorator.recipient(ctx),
+                    ObjectNames.normalize(share),
+                    ObjectNames.normalize(namespace),
+                    ObjectNames.normalize(table)));
+    return new LoadTableResponse(loaded.metadataLocation(), loaded.metadata());
+  }
+
+  /** Runs {@code lookup}, reporting what it can't find as a missing table. */
+  private static <T> T asNoSuchTable(Supplier<T> lookup) {
+    try {
+      return lookup.get();
+    } catch (ApiException missing) {
+      if (missing.getStatus() == 404) {
+        throw IcebergException.noSuchTable(missing.getMessage());
+      }
+      throw missing;
+    }
   }
 
   /**
