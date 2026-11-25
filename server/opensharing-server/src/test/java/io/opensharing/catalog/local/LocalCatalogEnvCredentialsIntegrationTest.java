@@ -7,6 +7,7 @@ import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CredentialRequest;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.catalog.StorageCredentials;
 import io.opensharing.catalog.StorageOperation;
@@ -74,7 +75,8 @@ class LocalCatalogEnvCredentialsIntegrationTest {
   }
 
   private StorageCredentials credentials(String fullName) {
-    ResolvedAsset table = catalog.resolveAsset(new Asset(AssetType.TABLE, fullName), AUTH);
+    ResolvedAsset table =
+        catalog.resolveAsset(new Asset(AssetType.TABLE, fullName), ResolveOptions.DEFAULT, AUTH);
     return catalog
         .getStorageCredentials(
             new CredentialRequest(

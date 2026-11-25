@@ -9,6 +9,7 @@ import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
 import io.opensharing.catalog.DataSourceFormat;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.TableProperties;
 import io.opensharing.config.ServerProperties;
 import java.util.Properties;
@@ -25,7 +26,10 @@ class OpenSharingServerTest {
     TableProperties table =
         (TableProperties)
             catalog
-                .resolveAsset(new Asset(AssetType.TABLE, "main.sales.table1"), AuthContext.of(user))
+                .resolveAsset(
+                    new Asset(AssetType.TABLE, "main.sales.table1"),
+                    ResolveOptions.DEFAULT,
+                    AuthContext.of(user))
                 .additionalProperties();
     assertEquals(DataSourceFormat.DELTA, table.dataSourceFormat());
   }

@@ -3,6 +3,7 @@ package io.opensharing.asset;
 import io.opensharing.auth.AuthContext;
 import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.AssetNotFoundException;
 import java.util.Optional;
@@ -22,7 +23,7 @@ public final class SharedAssetResolver {
     Asset catalogAsset = new Asset(sharedObject.getType(), sharedObject.getFullName());
     ResolvedAsset resolvedAsset;
     try {
-      resolvedAsset = catalog.resolveAsset(catalogAsset, auth);
+      resolvedAsset = catalog.resolveAsset(catalogAsset, ResolveOptions.DEFAULT, auth);
     } catch (AssetNotFoundException dropped) {
       return Optional.empty();
     }

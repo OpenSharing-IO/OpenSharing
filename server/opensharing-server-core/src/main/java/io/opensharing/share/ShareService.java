@@ -12,6 +12,7 @@ import io.opensharing.auth.UserContext;
 import io.opensharing.catalog.Asset;
 import io.opensharing.catalog.AssetType;
 import io.opensharing.catalog.CatalogConnector;
+import io.opensharing.catalog.ResolveOptions;
 import io.opensharing.catalog.ResolvedAsset;
 import io.opensharing.exception.CatalogAuthorizationException;
 import io.opensharing.exception.CatalogException;
@@ -297,7 +298,8 @@ public class ShareService {
     // The catalog is responsible for checking that the caller holds SELECT on the asset. A host
     // that already checks it at its endpoint can skip that check in resolveAsset.
     ResolvedAsset resolved =
-        catalog.resolveAsset(new Asset(type, name), new AuthContext(serverId, user));
+        catalog.resolveAsset(
+            new Asset(type, name), ResolveOptions.DEFAULT, new AuthContext(serverId, user));
     if (resolved.type() != type) {
       throw new CatalogException(
           "catalog resolved '" + name + "' as " + resolved.type() + " instead of " + type);
