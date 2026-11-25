@@ -52,7 +52,9 @@ public final class OpenSharingRecipientApi {
         .exceptionHandlers(icebergErrors)
         .decorator(tokens)
         .decorator(icebergErrors)
-        .build(new IcebergRestCatalogService(openSharing.protocolShares()));
+        .build(
+            new IcebergRestCatalogService(
+                openSharing.protocolShares(), openSharing.protocolSchemas()));
     // Armeria routes what the catalog doesn't serve to the server-wide fallback, whose body
     // Iceberg clients can't parse.
     host.serviceUnder(
