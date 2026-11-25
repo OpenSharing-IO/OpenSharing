@@ -17,8 +17,8 @@ import java.util.TreeSet;
  *  "storage-credentials": [{"prefix": "<table location>", "config": {...}}]}
  * }</pre>
  *
- * @param config the file IO properties of the table's credentials, for clients that predate {@code
- *     storage-credentials}; null, like {@code storageCredentials}, when none were asked for
+ * @param config the first credential's file IO properties and its refresh endpoint, for clients
+ *     that predate {@code storage-credentials}; null when none were asked for
  */
 public record LoadTableResponse(
     @JsonProperty("metadata-location") String metadataLocation,

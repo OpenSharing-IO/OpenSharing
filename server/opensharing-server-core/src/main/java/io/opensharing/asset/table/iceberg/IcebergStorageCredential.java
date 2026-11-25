@@ -89,6 +89,32 @@ public record IcebergStorageCredential(String prefix, Map<String, String> config
     return new IcebergStorageCredential(prefix, config);
   }
 
+  /** Legacy loadTable config, including the refresh endpoint when the credential can expire. */
+  public Map<String, String> configWithRefreshEndpoint(String endpoint) {
+    Map<String, String> result = new LinkedHashMap<>(config);
+    if (config.containsKey(S3_SESSION_TOKEN)
+        && config.containsKey(S3_SESSION_TOKEN_EXPIRES_AT_MS)) {
+      result.put("client.refresh-credentials-endpoint", endpoint);
+    } else if (config.containsKey(GCS_OAUTH2_TOKEN)
+        && config.containsKey(GCS_OAUTH2_TOKEN_EXPIRES_AT)) {
+      result.put("gcs.oauth2.refresh-credentials-endpoint", endpoint);
+    } else if (config.keySet().stream()
+        .anyMatch(key -> key.startsWith(ADLS_SAS_TOKEN_EXPIRES_AT_MS))) {
+      result.put("adls.refresh-credentials-endpoint", endpoint);
+    }
+    return Map.copyOf(result);
+  }
+
+  /**
+   * Legacy loadTable config: the first credential's properties with its own refresh endpoint only.
+   * A client that reads only config holds just that credential, so advertising another
+   * credential's refresher would switch its file IO to refreshing credentials it doesn't have.
+   */
+  public static Map<String, String> legacyConfig(
+      List<IcebergStorageCredential> credentials, String endpoint) {
+    return credentials.get(0).configWithRefreshEndpoint(endpoint);
+  }
+
   private static void s3(Map<String, String> config, StorageCredentials minted, String expiresAt) {
     config.put(S3_ACCESS_KEY_ID, minted.require(StorageCredentials.ACCESS_KEY_ID));
     config.put(S3_SECRET_ACCESS_KEY, minted.require(StorageCredentials.SECRET_ACCESS_KEY));
