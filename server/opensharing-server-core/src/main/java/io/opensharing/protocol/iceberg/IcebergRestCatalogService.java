@@ -31,7 +31,9 @@ public final class IcebergRestCatalogService {
 
   /** The operations this catalog serves, which {@code getConfig} lists for clients. */
   static final List<String> ENDPOINTS =
-      List.of("GET /v1/{prefix}/namespaces");
+      List.of(
+          "GET /v1/{prefix}/namespaces",
+          "GET /v1/{prefix}/namespaces/{namespace}");
 
   private final ProtocolShares shares;
   private final ProtocolSchemas schemas;
@@ -100,6 +102,20 @@ public final class IcebergRestCatalogService {
     return new NamespacesResponse(
         page.items().stream().map(schema -> List.of(schema.name())).toList(),
         page.nextPageToken());
+  }
+
+  /** {@code GET /v1/shares/{share}/namespaces/{namespace}}: a schema of the share. */
+  @Get("/v1/shares/{share}/namespaces/{namespace}")
+  public NamespaceResponse loadNamespaceMetadata(
+      ServiceRequestContext ctx, @Param String share, @Param String namespace) {
+    SchemaResponse schema =
+        asNoSuchNamespace(
+            () ->
+                schemas.get(
+                    RecipientTokenDecorator.recipient(ctx),
+                    ObjectNames.normalize(share),
+                    ObjectNames.normalize(namespace)));
+    return new NamespaceResponse(List.of(schema.name()), Map.of());
   }
 
   /**
