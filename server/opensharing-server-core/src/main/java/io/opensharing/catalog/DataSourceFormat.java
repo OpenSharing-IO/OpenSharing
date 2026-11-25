@@ -4,7 +4,8 @@ import java.util.Locale;
 
 /** Physical format of a shared table. */
 public enum DataSourceFormat {
-  DELTA;
+  DELTA,
+  ICEBERG;
 
   public String wireName() {
     return name().toLowerCase(Locale.ROOT);
@@ -17,6 +18,7 @@ public enum DataSourceFormat {
     }
     return switch (value.trim().toLowerCase(Locale.ROOT)) {
       case "delta", "deltasharing" -> DELTA;
+      case "iceberg" -> ICEBERG;
       default -> throw new IllegalArgumentException("unsupported table format '" + value + "'");
     };
   }

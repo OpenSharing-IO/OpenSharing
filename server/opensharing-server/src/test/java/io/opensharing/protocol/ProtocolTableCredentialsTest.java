@@ -10,6 +10,29 @@ import org.junit.jupiter.api.Test;
 
 class ProtocolTableCredentialsTest extends ProtocolApiSupport {
 
+  /** An Iceberg table has no Delta log to serve files from, so its files are read directly. */
+  @Test
+  void vendsTemporaryCredentialsForAnIcebergTable() {
+    // Share the sample Iceberg table with a recipient.
+    createShare("iceberg-creds");
+    addObject("iceberg-creds", "TABLE", "main.lake.trips", "lake.trips");
+    String bearer = createAndActivateRecipient("iceberg-creds-partner");
+    grant("iceberg-creds", "iceberg-creds-partner");
+
+    // Temporary credentials cover the table's location.
+    Response vended = server.post(credentials("iceberg-creds", "lake", "trips"), bearer, null);
+    assertEquals(200, vended.status());
+    assertEquals(
+        "s3://test/main.lake.trips/", vended.body().path("credentials").path("location").asText());
+
+    // It has no url access, so its files are not served through QueryTable.
+    Response query =
+        server.post(
+            PROTOCOL + "/shares/iceberg-creds/schemas/lake/tables/trips/query", bearer, "{}");
+    assertEquals(400, query.status());
+    assertEquals(ErrorCodes.INVALID_PARAMETER_VALUE, query.errorCode());
+  }
+
   @Test
   void vendsTemporaryCredentialsForAGrantedTable() {
     createShare("table-creds");

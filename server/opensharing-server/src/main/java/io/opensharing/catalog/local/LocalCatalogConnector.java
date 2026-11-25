@@ -157,7 +157,9 @@ public final class LocalCatalogConnector implements CatalogConnector {
         .additionalProperties(
             asset.type() == AssetType.TABLE
                 ? new TableProperties(
-                    DataSourceFormat.fromWireName(asset.format()), asset.attributes())
+                    DataSourceFormat.fromWireName(asset.format()),
+                    asset.metadataLocation(),
+                    asset.attributes())
                 : null)
         .build();
   }
